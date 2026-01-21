@@ -20,8 +20,6 @@ class TestStep:
 
     def __post_init__(self) -> None:
         """Validate step values."""
-        if self.step_number < 1:
-            raise ValueError(f"step_number must be >= 1, got {self.step_number}")
         if self.time_seconds < 0:
             raise ValueError(f"time_seconds must be >= 0, got {self.time_seconds}")
         if self.voltage < 0:
@@ -42,8 +40,6 @@ class SignalGeneratorTestStep:
 
     def __post_init__(self) -> None:
         """Validate step values."""
-        if self.step_number < 1:
-            raise ValueError(f"step_number must be >= 1, got {self.step_number}")
         if self.time_seconds < 0:
             raise ValueError(f"time_seconds must be >= 0, got {self.time_seconds}")
         if self.frequency < 0:
@@ -106,15 +102,6 @@ class TestPlan:
         if not self.steps:
             errors.append("Test plan must have at least one step")
             return errors
-
-        # Check step numbers are sequential
-        expected_numbers = set(range(1, len(self.steps) + 1))
-        actual_numbers = {step.step_number for step in self.steps}
-        if actual_numbers != expected_numbers:
-            errors.append(
-                f"Step numbers must be sequential from 1 to {len(self.steps)}, "
-                f"got {sorted(actual_numbers)}"
-            )
 
         # Check times are non-decreasing
         times = [step.time_seconds for step in sorted(self.steps, key=lambda s: s.step_number)]
@@ -188,15 +175,6 @@ class SignalGeneratorTestPlan:
         if not self.steps:
             errors.append("Test plan must have at least one step")
             return errors
-
-        # Check step numbers are sequential
-        expected_numbers = set(range(1, len(self.steps) + 1))
-        actual_numbers = {step.step_number for step in self.steps}
-        if actual_numbers != expected_numbers:
-            errors.append(
-                f"Step numbers must be sequential from 1 to {len(self.steps)}, "
-                f"got {sorted(actual_numbers)}"
-            )
 
         # Check times are non-decreasing
         times = [step.time_seconds for step in sorted(self.steps, key=lambda s: s.step_number)]

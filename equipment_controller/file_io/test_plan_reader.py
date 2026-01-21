@@ -17,8 +17,8 @@ from ..model.test_plan import (
 logger = logging.getLogger(__name__)
 
 # Column requirements by plan type
-POWER_SUPPLY_COLUMNS = {"step", "time", "voltage", "current"}
-SIGNAL_GENERATOR_COLUMNS = {"step", "time", "frequency", "power"}
+POWER_SUPPLY_COLUMNS = {"time", "voltage", "current"}
+SIGNAL_GENERATOR_COLUMNS = {"time", "frequency", "power"}
 OPTIONAL_COLUMNS = {"description", "type"}
 
 # Type alias for return type
@@ -31,15 +31,16 @@ def read_test_plan(file_path: str | Path) -> tuple[AnyTestPlan | None, list[str]
 
     The plan type is determined by the 'type' column in the CSV.
     If no type column, defaults to power_supply for backwards compatibility.
+    Step numbers are automatically calculated from row order (1-based).
 
     Power Supply CSV format:
-        type,step,time,voltage,current,description
-        power_supply,1,0.0,5.0,1.0,Initial
+        time,voltage,current,description
+        0.0,5.0,1.0,Initial
         ...
 
     Signal Generator CSV format:
-        type,step,time,frequency,power,description
-        signal_generator,1,0.0,1000000,0,Start
+        type,time,frequency,power,description
+        signal_generator,0.0,1000000,0,Start
         ...
 
     Args:
@@ -159,7 +160,8 @@ def _parse_power_supply_plan(
     steps: list[TestStep] = []
 
     for row_num, row in enumerate(rows, start=2):
-        step, row_errors = _parse_power_supply_row(row, column_map, row_num)
+        step_number = row_num - 1  # 1-based step number (row 2 = step 1)
+        step, row_errors = _parse_power_supply_row(row, column_map, row_num, step_number)
         if row_errors:
             errors.extend(row_errors)
         elif step is not None:
@@ -194,7 +196,8 @@ def _parse_signal_generator_plan(
     steps: list[SignalGeneratorTestStep] = []
 
     for row_num, row in enumerate(rows, start=2):
-        step, row_errors = _parse_signal_generator_row(row, column_map, row_num)
+        step_number = row_num - 1  # 1-based step number (row 2 = step 1)
+        step, row_errors = _parse_signal_generator_row(row, column_map, row_num, step_number)
         if row_errors:
             errors.extend(row_errors)
         elif step is not None:
@@ -231,19 +234,10 @@ def _parse_power_supply_row(
     row: dict[str, str],
     column_map: dict[str, str],
     row_num: int,
+    step_number: int,
 ) -> tuple[TestStep | None, list[str]]:
     """Parse a single CSV row into a power supply TestStep."""
     errors: list[str] = []
-
-    # Parse step number
-    step_str = _get_value(row, column_map, "step")
-    try:
-        step_number = int(step_str)
-        if step_number < 1:
-            errors.append(f"Row {row_num}: step must be >= 1, got {step_number}")
-    except ValueError:
-        errors.append(f"Row {row_num}: invalid step number '{step_str}'")
-        return None, errors
 
     # Parse time
     time_str = _get_value(row, column_map, "time")
@@ -297,19 +291,10 @@ def _parse_signal_generator_row(
     row: dict[str, str],
     column_map: dict[str, str],
     row_num: int,
+    step_number: int,
 ) -> tuple[SignalGeneratorTestStep | None, list[str]]:
     """Parse a single CSV row into a signal generator TestStep."""
     errors: list[str] = []
-
-    # Parse step number
-    step_str = _get_value(row, column_map, "step")
-    try:
-        step_number = int(step_str)
-        if step_number < 1:
-            errors.append(f"Row {row_num}: step must be >= 1, got {step_number}")
-    except ValueError:
-        errors.append(f"Row {row_num}: invalid step number '{step_str}'")
-        return None, errors
 
     # Parse time
     time_str = _get_value(row, column_map, "time")
