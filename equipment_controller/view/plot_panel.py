@@ -33,6 +33,9 @@ class PlotPanel(ttk.Frame):
         self._voltages: list[float] = []
         self._currents: list[float] = []
 
+        # Position indicator
+        self._position_line = None
+
         self._create_widgets()
 
     def _create_widgets(self) -> None:
@@ -108,6 +111,55 @@ class PlotPanel(ttk.Frame):
 
         self._update_plot()
 
+    def set_current_position(self, time: float) -> None:
+        """
+        Set the current test position indicator.
+
+        Args:
+            time: Current time position in seconds
+        """
+        # Remove existing position line
+        if self._position_line is not None:
+            self._position_line.remove()
+            self._position_line = None
+
+        # Add new position line
+        if self._times:
+            self._position_line = self._ax_voltage.axvline(
+                x=time,
+                color="red",
+                linestyle="--",
+                linewidth=2,
+                alpha=0.7,
+                label="_nolegend_",
+            )
+
+        self._canvas.draw_idle()
+
+    def clear_position(self) -> None:
+        """Clear the current position indicator."""
+        if self._position_line is not None:
+            self._position_line.remove()
+            self._position_line = None
+            self._canvas.draw_idle()
+
+    def load_test_plan_preview(
+        self,
+        times: Sequence[float],
+        voltages: Sequence[float],
+        currents: Sequence[float],
+    ) -> None:
+        """
+        Load test plan data as a preview (shows full plan trajectory).
+
+        Args:
+            times: Time values
+            voltages: Voltage values
+            currents: Current values
+        """
+        self.set_data(times, voltages, currents)
+        self.clear_position()
+
     def _update_plot(self) -> None:
         """Update plot with current data."""
         # Update line data
@@ -130,13 +182,18 @@ class PlotPanel(ttk.Frame):
         self._canvas.draw_idle()
 
     def clear(self) -> None:
-        """Clear all plot data."""
+        """Clear all plot data and position indicator."""
         self._times.clear()
         self._voltages.clear()
         self._currents.clear()
 
         self._voltage_line.set_data([], [])
         self._current_line.set_data([], [])
+
+        # Clear position line
+        if self._position_line is not None:
+            self._position_line.remove()
+            self._position_line = None
 
         self._ax_voltage.set_xlim(0, 1)
         self._ax_voltage.set_ylim(0, 1)

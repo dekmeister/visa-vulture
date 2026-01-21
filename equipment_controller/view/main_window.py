@@ -108,13 +108,23 @@ class MainWindow:
         self._progress = ttk.Progressbar(run_frame, length=150, mode="determinate")
         self._progress.pack(side=tk.LEFT, padx=5)
 
-        # State display
-        state_frame = ttk.Frame(panel)
-        state_frame.pack(side=tk.RIGHT, padx=10)
+        # State and runtime display (vertical layout)
+        status_frame = ttk.Frame(panel)
+        status_frame.pack(side=tk.RIGHT, padx=10)
 
+        # State display (top row)
+        state_frame = ttk.Frame(status_frame)
+        state_frame.pack(side=tk.TOP, anchor=tk.E)
         ttk.Label(state_frame, text="State:").pack(side=tk.LEFT)
         self._state_label = ttk.Label(state_frame, text="UNKNOWN", font=("TkDefaultFont", 10, "bold"))
         self._state_label.pack(side=tk.LEFT, padx=5)
+
+        # Runtime display (bottom row)
+        runtime_frame = ttk.Frame(status_frame)
+        runtime_frame.pack(side=tk.TOP, anchor=tk.E, pady=(2, 0))
+        ttk.Label(runtime_frame, text="Runtime:").pack(side=tk.LEFT)
+        self._runtime_label = ttk.Label(runtime_frame, text="--:--", font=("TkDefaultFont", 10, "bold"))
+        self._runtime_label.pack(side=tk.LEFT, padx=5)
 
     def _create_content_area(self) -> None:
         """Create main content area with plot and log panels."""
@@ -221,6 +231,20 @@ class MainWindow:
             "ERROR": "red",
         }
         self._state_label.config(foreground=colors.get(state, "black"))
+
+    def set_runtime_display(self, elapsed_seconds: int | None) -> None:
+        """
+        Update runtime display.
+
+        Args:
+            elapsed_seconds: Elapsed time in seconds, or None to show --:--
+        """
+        if elapsed_seconds is None:
+            self._runtime_label.config(text="--:--")
+        else:
+            minutes = elapsed_seconds // 60
+            seconds = elapsed_seconds % 60
+            self._runtime_label.config(text=f"{minutes:02d}:{seconds:02d}")
 
     def set_connection_status(self, connected: bool) -> None:
         """

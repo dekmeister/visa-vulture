@@ -1,6 +1,7 @@
 """Equipment presenter - coordinates model and view."""
 
 import logging
+import time
 from typing import Union
 
 from ..file_io import read_test_plan
@@ -46,6 +47,10 @@ class EquipmentPresenter:
 
         # Background task runner
         self._task_runner = BackgroundTaskRunner(view.schedule)
+
+        # Runtime timer state
+        self._runtime_timer_id: str | None = None
+        self._run_start_time: float | None = None
 
         # Wire everything up
         self._wire_callbacks()
@@ -145,6 +150,12 @@ class EquipmentPresenter:
                 self._view.plot_panel.set_title(test_plan.name)
                 self._view.show_power_supply_plot()
 
+                # Load test plan preview (show full trajectory)
+                times = [s.time_seconds for s in test_plan.steps]
+                voltages = [s.voltage for s in test_plan.steps]
+                currents = [s.current for s in test_plan.steps]
+                self._view.plot_panel.load_test_plan_preview(times, voltages, currents)
+
             # Enable run button if connected
             if self._model.state == EquipmentState.IDLE:
                 self._view.set_buttons_for_state("IDLE")
@@ -166,11 +177,15 @@ class EquipmentPresenter:
         self._view.set_status("Running test...")
         self._view.set_progress(0, self._model.test_plan.step_count)
 
-        # Clear position indicator but keep the plan preview for signal generator
+        # Start runtime timer
+        self._run_start_time = time.time()
+        self._start_runtime_timer()
+
+        # Clear position indicator but keep the plan preview for both plot types
         if self._model.test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
             self._view.signal_gen_plot_panel.clear_position()
         else:
-            self._view.plot_panel.clear()
+            self._view.plot_panel.clear_position()
 
         def task():
             self._model.run_test()
@@ -193,6 +208,10 @@ class EquipmentPresenter:
         """Handle model state change."""
         logger.debug("State changed: %s -> %s", old_state.name, new_state.name)
 
+        # Stop runtime timer when leaving RUNNING state
+        if old_state == EquipmentState.RUNNING and new_state != EquipmentState.RUNNING:
+            self._view.schedule(0, self._stop_runtime_timer)
+
         # Schedule view update on main thread
         self._view.schedule(0, lambda: self._update_view_for_state(new_state))
 
@@ -214,8 +233,8 @@ class EquipmentPresenter:
                 self._view.set_status(
                     f"Step {current}/{total}: V={step.voltage:.2f}V, I={step.current:.2f}A"
                 )
-                # Add point to plot
-                self._view.plot_panel.add_point(step.time_seconds, step.voltage, step.current)
+                # Update position indicator on the plot
+                self._view.plot_panel.set_current_position(step.time_seconds)
 
         self._view.schedule(0, update)
 
@@ -253,9 +272,31 @@ class EquipmentPresenter:
             # Can't run without a test plan, but leave button state for visual feedback
             pass
 
+    # Runtime timer methods
+
+    def _start_runtime_timer(self) -> None:
+        """Start the runtime timer that updates every second."""
+        self._update_runtime()
+
+    def _update_runtime(self) -> None:
+        """Update runtime display and schedule next update."""
+        if self._run_start_time is not None:
+            elapsed = int(time.time() - self._run_start_time)
+            self._view.set_runtime_display(elapsed)
+            self._runtime_timer_id = self._view.schedule(1000, self._update_runtime)
+
+    def _stop_runtime_timer(self) -> None:
+        """Stop the runtime timer and reset display."""
+        if self._runtime_timer_id is not None:
+            self._view.cancel_schedule(self._runtime_timer_id)
+            self._runtime_timer_id = None
+        self._run_start_time = None
+        self._view.set_runtime_display(None)
+
     def shutdown(self) -> None:
         """Clean shutdown of presenter."""
         logger.info("EquipmentPresenter shutting down")
+        self._stop_runtime_timer()
         self._task_runner.stop()
 
         # Disconnect if connected
