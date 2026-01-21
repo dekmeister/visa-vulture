@@ -1,0 +1,18 @@
+{
+    "simulation_mode": true,
+    "simulation_file": "simulation/instruments.yaml",
+    "log_file": "equipment_controller.log",
+    "log_level": "INFO",
+    "window_title": "Equipment Controller",
+    "window_width": 1200,
+    "window_height": 800,
+    "poll_interval_ms": 100,
+    "instruments": [
+        {
+            "name": "Power Supply",
+            "resource_address": "TCPIP::192.168.1.100::INSTR",
+            "type": "power_supply",
+            "timeout_ms": 5000
+        }
+    ]
+}

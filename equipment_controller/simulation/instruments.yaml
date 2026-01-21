@@ -1,0 +1,71 @@
+spec: "1.0"
+
+resources:
+  TCPIP::192.168.1.100::INSTR:
+    device: power_supply
+
+devices:
+  power_supply:
+    dialogues:
+      # Identification
+      - q: "*IDN?"
+        r: "SimPower,PS-1000,SN12345,1.0.0"
+
+      # Reset and clear
+      - q: "*RST"
+        r: ""
+      - q: "*CLS"
+        r: ""
+
+      # Operation complete
+      - q: "*OPC?"
+        r: "1"
+      - q: "*WAI"
+        r: ""
+
+    properties:
+      # Voltage setpoint
+      voltage:
+        default: 0.0
+        getter:
+          q: "VOLT?"
+          r: "{:.6f}"
+        setter:
+          q: "VOLT {:.6f}"
+
+      # Current limit
+      current:
+        default: 0.0
+        getter:
+          q: "CURR?"
+          r: "{:.6f}"
+        setter:
+          q: "CURR {:.6f}"
+
+      # Output state
+      output:
+        default: 0
+        getter:
+          q: "OUTP?"
+          r: "{:d}"
+        setter:
+          q: "OUTP ON"
+          r: ""
+          value: 1
+
+      output_off:
+        default: 0
+        setter:
+          q: "OUTP OFF"
+          r: ""
+          value: 0
+
+    eom:
+      TCPIP INSTR:
+        q: "\n"
+        r: "\n"
+
+    error:
+      response:
+        q: "SYST:ERR?"
+        r: '0,"No error"'
