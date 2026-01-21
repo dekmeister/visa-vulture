@@ -13,6 +13,12 @@
             "resource_address": "TCPIP::192.168.1.100::INSTR",
             "type": "power_supply",
             "timeout_ms": 5000
+        },
+        {
+            "name": "Signal Generator",
+            "resource_address": "TCPIP::192.168.1.101::INSTR",
+            "type": "signal_generator",
+            "timeout_ms": 5000
         }
     ]
 }

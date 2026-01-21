@@ -6,6 +6,7 @@ from typing import Callable
 
 from .log_panel import LogPanel
 from .plot_panel import PlotPanel
+from .signal_generator_plot_panel import SignalGeneratorPlotPanel
 
 
 class MainWindow:
@@ -117,13 +118,21 @@ class MainWindow:
 
     def _create_content_area(self) -> None:
         """Create main content area with plot and log panels."""
-        # Horizontal paned window
+        # Vertical paned window
         paned = ttk.PanedWindow(self._root, orient=tk.VERTICAL)
         paned.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
 
-        # Plot panel (top)
-        self._plot_panel = PlotPanel(paned)
-        paned.add(self._plot_panel, weight=2)
+        # Plot container with notebook for switching between plot types
+        self._plot_notebook = ttk.Notebook(paned)
+        paned.add(self._plot_notebook, weight=2)
+
+        # Power supply plot panel
+        self._plot_panel = PlotPanel(self._plot_notebook)
+        self._plot_notebook.add(self._plot_panel, text="Power Supply")
+
+        # Signal generator plot panel
+        self._signal_gen_plot_panel = SignalGeneratorPlotPanel(self._plot_notebook)
+        self._plot_notebook.add(self._signal_gen_plot_panel, text="Signal Generator")
 
         # Log panel (bottom)
         self._log_panel = LogPanel(paned)
@@ -319,8 +328,21 @@ class MainWindow:
 
     @property
     def plot_panel(self) -> PlotPanel:
-        """Get plot panel widget."""
+        """Get power supply plot panel widget."""
         return self._plot_panel
+
+    @property
+    def signal_gen_plot_panel(self) -> SignalGeneratorPlotPanel:
+        """Get signal generator plot panel widget."""
+        return self._signal_gen_plot_panel
+
+    def show_power_supply_plot(self) -> None:
+        """Switch to power supply plot tab."""
+        self._plot_notebook.select(0)
+
+    def show_signal_generator_plot(self) -> None:
+        """Switch to signal generator plot tab."""
+        self._plot_notebook.select(1)
 
     def schedule(self, delay_ms: int, callback: Callable[[], None]) -> str:
         """

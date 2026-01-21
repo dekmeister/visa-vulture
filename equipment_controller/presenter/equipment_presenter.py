@@ -1,13 +1,25 @@
 """Equipment presenter - coordinates model and view."""
 
 import logging
+from typing import Union
 
 from ..file_io import read_test_plan
-from ..model import EquipmentModel, EquipmentState, TestStep
+from ..model import (
+    EquipmentModel,
+    EquipmentState,
+    TestStep,
+    SignalGeneratorTestStep,
+    SignalGeneratorTestPlan,
+    PLAN_TYPE_POWER_SUPPLY,
+    PLAN_TYPE_SIGNAL_GENERATOR,
+)
 from ..utils import BackgroundTaskRunner
 from ..view import MainWindow
 
 logger = logging.getLogger(__name__)
+
+# Type alias for any test step
+AnyTestStep = Union[TestStep, SignalGeneratorTestStep]
 
 
 class EquipmentPresenter:
@@ -114,9 +126,24 @@ class EquipmentPresenter:
             self._view.set_test_plan_name(test_plan.name)
             self._view.set_status(f"Loaded: {test_plan}")
 
-            # Clear and prepare plot
-            self._view.plot_panel.clear()
-            self._view.plot_panel.set_title(test_plan.name)
+            # Handle plot based on plan type
+            if test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
+                # Signal generator plan
+                self._view.signal_gen_plot_panel.clear()
+                self._view.signal_gen_plot_panel.set_title(test_plan.name)
+                self._view.show_signal_generator_plot()
+
+                # Load test plan preview (show full trajectory)
+                if isinstance(test_plan, SignalGeneratorTestPlan):
+                    times = [s.time_seconds for s in test_plan.steps]
+                    freqs = [s.frequency for s in test_plan.steps]
+                    powers = [s.power for s in test_plan.steps]
+                    self._view.signal_gen_plot_panel.load_test_plan_preview(times, freqs, powers)
+            else:
+                # Power supply plan
+                self._view.plot_panel.clear()
+                self._view.plot_panel.set_title(test_plan.name)
+                self._view.show_power_supply_plot()
 
             # Enable run button if connected
             if self._model.state == EquipmentState.IDLE:
@@ -137,8 +164,13 @@ class EquipmentPresenter:
             return
 
         self._view.set_status("Running test...")
-        self._view.plot_panel.clear()
         self._view.set_progress(0, self._model.test_plan.step_count)
+
+        # Clear position indicator but keep the plan preview for signal generator
+        if self._model.test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
+            self._view.signal_gen_plot_panel.clear_position()
+        else:
+            self._view.plot_panel.clear()
 
         def task():
             self._model.run_test()
@@ -164,15 +196,26 @@ class EquipmentPresenter:
         # Schedule view update on main thread
         self._view.schedule(0, lambda: self._update_view_for_state(new_state))
 
-    def _on_test_progress(self, current: int, total: int, step: TestStep) -> None:
+    def _on_test_progress(self, current: int, total: int, step: AnyTestStep) -> None:
         """Handle test progress update."""
         # Schedule view update on main thread
         def update():
             self._view.set_progress(current, total)
-            self._view.set_status(f"Step {current}/{total}: V={step.voltage:.2f}V, I={step.current:.2f}A")
 
-            # Add point to plot
-            self._view.plot_panel.add_point(step.time_seconds, step.voltage, step.current)
+            if isinstance(step, SignalGeneratorTestStep):
+                # Signal generator step
+                self._view.set_status(
+                    f"Step {current}/{total}: F={step.frequency/1e6:.3f} MHz, P={step.power:.1f} dBm"
+                )
+                # Update position indicator on the plot
+                self._view.signal_gen_plot_panel.set_current_position(step.time_seconds)
+            else:
+                # Power supply step
+                self._view.set_status(
+                    f"Step {current}/{total}: V={step.voltage:.2f}V, I={step.current:.2f}A"
+                )
+                # Add point to plot
+                self._view.plot_panel.add_point(step.time_seconds, step.voltage, step.current)
 
         self._view.schedule(0, update)
 
@@ -187,6 +230,10 @@ class EquipmentPresenter:
                 self._view.show_error("Test Error", message)
 
             self._view.set_progress(0, 0)
+
+            # Clear position indicator for signal generator
+            if self._model.test_plan and self._model.test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
+                self._view.signal_gen_plot_panel.clear_position()
 
         self._view.schedule(0, update)
 
@@ -204,7 +251,6 @@ class EquipmentPresenter:
         # Check if run should be enabled (need both connection and test plan)
         if state == EquipmentState.IDLE and self._model.test_plan is None:
             # Can't run without a test plan, but leave button state for visual feedback
-
             pass
 
     def shutdown(self) -> None:

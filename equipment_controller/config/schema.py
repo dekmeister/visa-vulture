@@ -114,7 +114,7 @@ def validate_config(config_dict: dict[str, Any]) -> tuple[AppConfig | None, list
                 continue
 
             instr_type = instr.get("type")
-            valid_types = ["power_supply"]
+            valid_types = ["power_supply", "signal_generator"]
             if not instr_type or not isinstance(instr_type, str):
                 errors.append(f"instruments[{i}].type is required and must be a string")
                 continue

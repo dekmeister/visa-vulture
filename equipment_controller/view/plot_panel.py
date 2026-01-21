@@ -53,9 +53,9 @@ class PlotPanel(ttk.Frame):
         self._ax_current.set_ylabel("Current (A)", color="red")
         self._ax_current.tick_params(axis="y", labelcolor="red")
 
-        # Create plot lines
-        self._voltage_line, = self._ax_voltage.plot([], [], "b-", label="Voltage", linewidth=2)
-        self._current_line, = self._ax_current.plot([], [], "r-", label="Current", linewidth=2)
+        # Create plot lines (steps-post holds value constant until next point)
+        self._voltage_line, = self._ax_voltage.plot([], [], "b-", label="Voltage", linewidth=2, drawstyle="steps-post")
+        self._current_line, = self._ax_current.plot([], [], "r-", label="Current", linewidth=2, drawstyle="steps-post")
 
         # Legend
         lines = [self._voltage_line, self._current_line]

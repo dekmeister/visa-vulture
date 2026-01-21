@@ -2,16 +2,25 @@
 
 import logging
 import time
-from typing import Callable
+from typing import Callable, Union
 
-from ..instruments import BaseInstrument, PowerSupply, VISAConnection
+from ..instruments import BaseInstrument, PowerSupply, SignalGenerator, VISAConnection
 from .state_machine import EquipmentState, StateMachine
-from .test_plan import TestPlan, TestStep
+from .test_plan import (
+    TestPlan,
+    TestStep,
+    SignalGeneratorTestPlan,
+    SignalGeneratorTestStep,
+    PLAN_TYPE_POWER_SUPPLY,
+    PLAN_TYPE_SIGNAL_GENERATOR,
+)
 
 logger = logging.getLogger(__name__)
 
-
-TestProgressCallback = Callable[[int, int, TestStep], None]
+# Type aliases
+AnyTestStep = Union[TestStep, SignalGeneratorTestStep]
+AnyTestPlan = Union[TestPlan, SignalGeneratorTestPlan]
+TestProgressCallback = Callable[[int, int, AnyTestStep], None]
 TestCompleteCallback = Callable[[bool, str], None]
 
 
@@ -33,7 +42,7 @@ class EquipmentModel:
         self._visa = visa_connection
         self._state_machine = StateMachine()
         self._instruments: dict[str, BaseInstrument] = {}
-        self._test_plan: TestPlan | None = None
+        self._test_plan: AnyTestPlan | None = None
         self._stop_requested = False
 
         # Callbacks for test execution
@@ -46,7 +55,7 @@ class EquipmentModel:
         return self._state_machine.state
 
     @property
-    def test_plan(self) -> TestPlan | None:
+    def test_plan(self) -> AnyTestPlan | None:
         """Get loaded test plan."""
         return self._test_plan
 
@@ -87,11 +96,13 @@ class EquipmentModel:
         Args:
             name: Human-readable name
             resource_address: VISA address
-            instrument_type: Type string (e.g., "power_supply")
+            instrument_type: Type string (e.g., "power_supply", "signal_generator")
             timeout_ms: Communication timeout
         """
         if instrument_type == "power_supply":
             instrument = PowerSupply(name, resource_address, timeout_ms)
+        elif instrument_type == "signal_generator":
+            instrument = SignalGenerator(name, resource_address, timeout_ms)
         else:
             raise ValueError(f"Unknown instrument type: {instrument_type}")
 
@@ -136,12 +147,12 @@ class EquipmentModel:
         self._state_machine.reset()
         logger.info("All instruments disconnected")
 
-    def load_test_plan(self, test_plan: TestPlan) -> None:
+    def load_test_plan(self, test_plan: AnyTestPlan) -> None:
         """
         Load a test plan.
 
         Args:
-            test_plan: TestPlan to load
+            test_plan: TestPlan or SignalGeneratorTestPlan to load
 
         Raises:
             ValueError: If test plan is invalid
@@ -170,7 +181,14 @@ class EquipmentModel:
         self._state_machine.to_running()
 
         try:
-            self._execute_test_plan()
+            # Dispatch based on plan type
+            if self._test_plan.plan_type == PLAN_TYPE_POWER_SUPPLY:
+                self._execute_power_supply_plan()
+            elif self._test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
+                self._execute_signal_generator_plan()
+            else:
+                raise RuntimeError(f"Unknown plan type: {self._test_plan.plan_type}")
+
             success = not self._stop_requested
             message = "Test completed" if success else "Test stopped by user"
         except Exception as e:
@@ -190,12 +208,12 @@ class EquipmentModel:
             logger.info("Stop requested")
             self._stop_requested = True
 
-    def _execute_test_plan(self) -> None:
-        """Execute test plan steps."""
-        if self._test_plan is None:
+    def _execute_power_supply_plan(self) -> None:
+        """Execute power supply test plan steps."""
+        if not isinstance(self._test_plan, TestPlan):
             return
 
-        # Get the power supply (assuming single instrument for now)
+        # Get the power supply
         power_supply: PowerSupply | None = None
         for instrument in self._instruments.values():
             if isinstance(instrument, PowerSupply):
@@ -243,13 +261,66 @@ class EquipmentModel:
         if power_supply.is_connected:
             power_supply.disable_output()
 
+    def _execute_signal_generator_plan(self) -> None:
+        """Execute signal generator test plan steps."""
+        if not isinstance(self._test_plan, SignalGeneratorTestPlan):
+            return
+
+        # Get the signal generator
+        signal_gen: SignalGenerator | None = None
+        for instrument in self._instruments.values():
+            if isinstance(instrument, SignalGenerator):
+                signal_gen = instrument
+                break
+
+        if signal_gen is None:
+            raise RuntimeError("No signal generator connected")
+
+        total_steps = self._test_plan.step_count
+        sorted_steps = sorted(self._test_plan.steps, key=lambda s: s.step_number)
+
+        for step in sorted_steps:
+            if self._stop_requested:
+                logger.info("Test stopped at step %d", step.step_number)
+                break
+
+            logger.info(
+                "Executing step %d/%d: F=%.1f Hz, P=%.2f dBm",
+                step.step_number,
+                total_steps,
+                step.frequency,
+                step.power,
+            )
+
+            # Apply settings
+            signal_gen.set_frequency(step.frequency)
+            signal_gen.set_power(step.power)
+
+            # Enable output on first step
+            if step.step_number == 1:
+                signal_gen.enable_output()
+
+            # Notify progress
+            self._notify_progress(step.step_number, total_steps, step)
+
+            # Wait for step duration
+            if step.step_number < total_steps:
+                next_step = sorted_steps[step.step_number]  # step_number is 1-based
+                wait_time = next_step.time_seconds - step.time_seconds
+                if wait_time > 0:
+                    self._interruptible_sleep(wait_time)
+
+        # Disable output at end
+        if signal_gen.is_connected:
+            signal_gen.disable_output()
+
     def _interruptible_sleep(self, duration: float) -> None:
         """Sleep that can be interrupted by stop request."""
         end_time = time.time() + duration
         while time.time() < end_time and not self._stop_requested:
             time.sleep(min(0.1, end_time - time.time()))
 
-    def _notify_progress(self, current: int, total: int, step: TestStep) -> None:
+    def _notify_progress(self, current: int, total: int, step: AnyTestStep) -> None:
         """Notify progress callbacks."""
         for callback in self._progress_callbacks:
             try:

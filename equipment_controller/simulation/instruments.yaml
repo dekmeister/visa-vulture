@@ -3,6 +3,8 @@ spec: "1.0"
 resources:
   TCPIP::192.168.1.100::INSTR:
     device: power_supply
+  TCPIP::192.168.1.101::INSTR:
+    device: signal_generator
 
 devices:
   power_supply:
@@ -41,6 +43,71 @@ devices:
           r: "{:.6f}"
         setter:
           q: "CURR {:.6f}"
+
+      # Output state
+      output:
+        default: 0
+        getter:
+          q: "OUTP?"
+          r: "{:d}"
+        setter:
+          q: "OUTP ON"
+          r: ""
+          value: 1
+
+      output_off:
+        default: 0
+        setter:
+          q: "OUTP OFF"
+          r: ""
+          value: 0
+
+    eom:
+      TCPIP INSTR:
+        q: "\n"
+        r: "\n"
+
+    error:
+      response:
+        q: "SYST:ERR?"
+        r: '0,"No error"'
+
+  signal_generator:
+    dialogues:
+      # Identification
+      - q: "*IDN?"
+        r: "SimGen,SG-2000,SN67890,1.0.0"
+
+      # Reset and clear
+      - q: "*RST"
+        r: ""
+      - q: "*CLS"
+        r: ""
+
+      # Operation complete
+      - q: "*OPC?"
+        r: "1"
+      - q: "*WAI"
+        r: ""
+
+    properties:
+      # Frequency setpoint (Hz)
+      frequency:
+        default: 1000000.0
+        getter:
+          q: "FREQ?"
+          r: "{:.1f}"
+        setter:
+          q: "FREQ {:.1f}"
+
+      # Power level (dBm)
+      power:
+        default: -10.0
+        getter:
+          q: "POW?"
+          r: "{:.2f}"
+        setter:
+          q: "POW {:.2f}"
 
       # Output state
       output:
