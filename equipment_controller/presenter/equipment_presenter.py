@@ -131,7 +131,7 @@ class EquipmentPresenter:
             self._view.set_test_plan_name(test_plan.name)
             self._view.set_status(f"Loaded: {test_plan}")
 
-            # Handle plot based on plan type
+            # Handle plot and table based on plan type
             if test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
                 # Signal generator plan
                 self._view.signal_gen_plot_panel.clear()
@@ -144,6 +144,9 @@ class EquipmentPresenter:
                     freqs = [s.frequency for s in test_plan.steps]
                     powers = [s.power for s in test_plan.steps]
                     self._view.signal_gen_plot_panel.load_test_plan_preview(times, freqs, powers)
+
+                # Load test steps into table
+                self._view.sg_table.load_steps(test_plan.steps)
             else:
                 # Power supply plan
                 self._view.plot_panel.clear()
@@ -155,6 +158,9 @@ class EquipmentPresenter:
                 voltages = [s.voltage for s in test_plan.steps]
                 currents = [s.current for s in test_plan.steps]
                 self._view.plot_panel.load_test_plan_preview(times, voltages, currents)
+
+                # Load test steps into table
+                self._view.ps_table.load_steps(test_plan.steps)
 
             # Enable run button if connected
             if self._model.state == EquipmentState.IDLE:
@@ -228,6 +234,8 @@ class EquipmentPresenter:
                 )
                 # Update position indicator on the plot
                 self._view.signal_gen_plot_panel.set_current_position(step.time_seconds)
+                # Highlight current row in table
+                self._view.sg_table.highlight_step(step.step_number)
             else:
                 # Power supply step
                 self._view.set_status(
@@ -235,6 +243,8 @@ class EquipmentPresenter:
                 )
                 # Update position indicator on the plot
                 self._view.plot_panel.set_current_position(step.time_seconds)
+                # Highlight current row in table
+                self._view.ps_table.highlight_step(step.step_number)
 
         self._view.schedule(0, update)
 
@@ -250,9 +260,13 @@ class EquipmentPresenter:
 
             self._view.set_progress(0, 0)
 
-            # Clear position indicator for signal generator
+            # Clear position indicators and table highlighting
             if self._model.test_plan and self._model.test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
                 self._view.signal_gen_plot_panel.clear_position()
+                self._view.sg_table.clear_highlight()
+            else:
+                self._view.plot_panel.clear_position()
+                self._view.ps_table.clear_highlight()
 
         self._view.schedule(0, update)
 

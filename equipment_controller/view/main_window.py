@@ -7,6 +7,7 @@ from typing import Callable
 from .log_panel import LogPanel
 from .plot_panel import PlotPanel
 from .signal_generator_plot_panel import SignalGeneratorPlotPanel
+from .test_points_table import TestPointsTable, InstrumentType
 
 
 class MainWindow:
@@ -127,7 +128,7 @@ class MainWindow:
         self._runtime_label.pack(side=tk.LEFT, padx=5)
 
     def _create_content_area(self) -> None:
-        """Create main content area with plot and log panels."""
+        """Create main content area with plot, table, and log panels."""
         # Vertical paned window
         paned = ttk.PanedWindow(self._root, orient=tk.VERTICAL)
         paned.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
@@ -136,13 +137,25 @@ class MainWindow:
         self._plot_notebook = ttk.Notebook(paned)
         paned.add(self._plot_notebook, weight=2)
 
-        # Power supply plot panel
-        self._plot_panel = PlotPanel(self._plot_notebook)
-        self._plot_notebook.add(self._plot_panel, text="Power Supply")
+        # Power supply tab: horizontal paned window with plot and table
+        ps_container = ttk.PanedWindow(self._plot_notebook, orient=tk.HORIZONTAL)
+        self._plot_notebook.add(ps_container, text="Power Supply")
 
-        # Signal generator plot panel
-        self._signal_gen_plot_panel = SignalGeneratorPlotPanel(self._plot_notebook)
-        self._plot_notebook.add(self._signal_gen_plot_panel, text="Signal Generator")
+        self._plot_panel = PlotPanel(ps_container)
+        ps_container.add(self._plot_panel, weight=3)
+
+        self._ps_table = TestPointsTable(ps_container, InstrumentType.POWER_SUPPLY)
+        ps_container.add(self._ps_table, weight=1)
+
+        # Signal generator tab: horizontal paned window with plot and table
+        sg_container = ttk.PanedWindow(self._plot_notebook, orient=tk.HORIZONTAL)
+        self._plot_notebook.add(sg_container, text="Signal Generator")
+
+        self._signal_gen_plot_panel = SignalGeneratorPlotPanel(sg_container)
+        sg_container.add(self._signal_gen_plot_panel, weight=3)
+
+        self._sg_table = TestPointsTable(sg_container, InstrumentType.SIGNAL_GENERATOR)
+        sg_container.add(self._sg_table, weight=1)
 
         # Log panel (bottom)
         self._log_panel = LogPanel(paned)
@@ -359,6 +372,16 @@ class MainWindow:
     def signal_gen_plot_panel(self) -> SignalGeneratorPlotPanel:
         """Get signal generator plot panel widget."""
         return self._signal_gen_plot_panel
+
+    @property
+    def ps_table(self) -> TestPointsTable:
+        """Get power supply test points table."""
+        return self._ps_table
+
+    @property
+    def sg_table(self) -> TestPointsTable:
+        """Get signal generator test points table."""
+        return self._sg_table
 
     def show_power_supply_plot(self) -> None:
         """Switch to power supply plot tab."""
