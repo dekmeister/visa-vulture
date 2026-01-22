@@ -140,12 +140,20 @@ class EquipmentModel:
 
     def disconnect(self) -> None:
         """Disconnect from all instruments."""
-        for name, instrument in self._instruments.items():
-            if instrument.is_connected:
-                instrument.disconnect()
+        if self._instruments.items() is None:
+            logger.info("Attempted disconnect with no connected instruments")
+        else:
+            for name, instrument in self._instruments.items():
+                if instrument.is_connected:
+                    instrument.disconnect()
+                else:
+                    logger.info("%s is not connected. Unable to disconnect.", name)
 
-        self._state_machine.reset()
-        logger.info("All instruments disconnected")
+            self._state_machine.reset()
+            logger.info("All instruments disconnected")
+
+        # TODO - review if this is necessary
+        self._visa.close()
 
     def load_test_plan(self, test_plan: AnyTestPlan) -> None:
         """

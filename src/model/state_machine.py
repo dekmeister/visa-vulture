@@ -20,7 +20,7 @@ class EquipmentState(Enum):
 _VALID_TRANSITIONS: dict[EquipmentState, set[EquipmentState]] = {
     EquipmentState.UNKNOWN: {EquipmentState.IDLE, EquipmentState.ERROR},
     EquipmentState.IDLE: {EquipmentState.RUNNING, EquipmentState.ERROR, EquipmentState.UNKNOWN},
-    EquipmentState.RUNNING: {EquipmentState.IDLE, EquipmentState.ERROR},
+    EquipmentState.RUNNING: {EquipmentState.IDLE, EquipmentState.ERROR, EquipmentState.UNKNOWN},
     EquipmentState.ERROR: {EquipmentState.IDLE, EquipmentState.UNKNOWN},
 }
 
@@ -140,5 +140,4 @@ class StateMachine:
 
     def reset(self) -> None:
         """Reset to UNKNOWN state (for reconnection)."""
-        self._state = EquipmentState.UNKNOWN
-        logger.info("State machine reset to UNKNOWN")
+        self.transition_to(EquipmentState.UNKNOWN)
