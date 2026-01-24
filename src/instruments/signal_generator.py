@@ -14,7 +14,14 @@ class SignalGenerator(BaseInstrument):
     Implements common signal generator SCPI commands.
     """
 
-    def __init__(self, name: str, resource_address: str, timeout_ms: int = 5000):
+    def __init__(
+        self, 
+        name: str, 
+        resource_address: str, 
+        timeout_ms: int = 5000,
+        read_termination: str | None = '\n',
+        write_termination: str | None = '\n',
+        ):
         """
         Initialize signal generator.
 
@@ -22,6 +29,8 @@ class SignalGenerator(BaseInstrument):
             name: Human-readable instrument name
             resource_address: VISA resource address
             timeout_ms: Communication timeout in milliseconds
+            read_termination: Character(s) appended to reads, or None for no termination
+            write_termination: Character(s) appended to writes, or None for no termination
         """
         super().__init__(name, resource_address, timeout_ms)
 

@@ -39,6 +39,10 @@ class MainWindow:
         self._on_run: Callable[[], None] | None = None
         self._on_stop: Callable[[], None] | None = None
 
+        # Tooltip state
+        self._tooltip: tk.Toplevel | None = None
+        self._tooltip_text: str | None = None
+
         self._create_widgets()
 
     def _create_widgets(self) -> None:
@@ -113,7 +117,17 @@ class MainWindow:
         status_frame = ttk.Frame(panel)
         status_frame.pack(side=tk.RIGHT, padx=10)
 
-        # State display (top row)
+        # Instrument identification display (top row)
+        instrument_frame = ttk.Frame(status_frame)
+        instrument_frame.pack(side=tk.TOP, anchor=tk.E)
+        self._instrument_label = ttk.Label(
+            instrument_frame, text="", font=("TkDefaultFont", 9), foreground="gray"
+        )
+        self._instrument_label.pack(side=tk.LEFT)
+        self._instrument_label.bind("<Enter>", self._on_instrument_enter)
+        self._instrument_label.bind("<Leave>", self._on_instrument_leave)
+
+        # State display (second row)
         state_frame = ttk.Frame(status_frame)
         state_frame.pack(side=tk.TOP, anchor=tk.E)
         ttk.Label(state_frame, text="State:").pack(side=tk.LEFT)
@@ -336,6 +350,65 @@ class MainWindow:
         """
         self._status_bar.config(text=message)
 
+    def set_instrument_display(self, model: str | None, tooltip: str | None) -> None:
+        """
+        Update instrument identification display.
+
+        Args:
+            model: Model name to display, or None to clear
+            tooltip: Full identification text for tooltip, or None
+        """
+        if model:
+            self._instrument_label.config(text=model, foreground="black")
+            self._tooltip_text = tooltip
+        else:
+            self._instrument_label.config(text="", foreground="gray")
+            self._tooltip_text = None
+
+    def _on_instrument_enter(self, event) -> None:
+        """Handle mouse entering instrument label."""
+        if self._tooltip_text:
+            self._show_tooltip(event, self._tooltip_text)
+
+    def _on_instrument_leave(self, event) -> None:
+        """Handle mouse leaving instrument label."""
+        self._hide_tooltip()
+
+    def _show_tooltip(self, event, text: str) -> None:
+        """
+        Show tooltip near widget.
+
+        Args:
+            event: Mouse event with position info
+            text: Tooltip text to display
+        """
+        if self._tooltip:
+            self._hide_tooltip()
+
+        x = event.widget.winfo_rootx()
+        y = event.widget.winfo_rooty() + event.widget.winfo_height() + 5
+
+        self._tooltip = tk.Toplevel(self._root)
+        self._tooltip.wm_overrideredirect(True)
+        self._tooltip.wm_geometry(f"+{x}+{y}")
+
+        label = ttk.Label(
+            self._tooltip,
+            text=text,
+            background="#FFFFDD",
+            relief=tk.SOLID,
+            borderwidth=1,
+            padding=(5, 3),
+            font=("TkDefaultFont", 9),
+        )
+        label.pack()
+
+    def _hide_tooltip(self) -> None:
+        """Hide tooltip."""
+        if self._tooltip:
+            self._tooltip.destroy()
+            self._tooltip = None
+
     def show_error(self, title: str, message: str) -> None:
         """
         Show error dialog.
@@ -382,6 +455,15 @@ class MainWindow:
     def sg_table(self) -> TestPointsTable:
         """Get signal generator test points table."""
         return self._sg_table
+
+    @property
+    def plot_notebook(self) -> ttk.Notebook:
+        """Get plot notebook widget for tab change binding."""
+        return self._plot_notebook
+
+    def get_selected_tab_index(self) -> int:
+        """Get the index of the currently selected plot tab."""
+        return self._plot_notebook.index(self._plot_notebook.select())
 
     def show_power_supply_plot(self) -> None:
         """Switch to power supply plot tab."""

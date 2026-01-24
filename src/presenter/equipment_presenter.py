@@ -75,6 +75,9 @@ class EquipmentPresenter:
         self._model.register_progress_callback(self._on_test_progress)
         self._model.register_complete_callback(self._on_test_complete)
 
+        # Tab change callback
+        self._view.plot_notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+
     # View callback handlers
 
     def _handle_connect(self) -> None:
@@ -93,6 +96,7 @@ class EquipmentPresenter:
             else:
                 self._view.set_connection_status(True)
                 self._view.set_status("Connected")
+                self._update_instrument_display()
 
         self._task_runner.run_task(task, on_complete)
 
@@ -107,6 +111,7 @@ class EquipmentPresenter:
         def on_complete(result):
             self._view.set_connection_status(False)
             self._view.set_status("Disconnected")
+            self._view.set_instrument_display(None, None)
 
         self._task_runner.run_task(task, on_complete)
 
@@ -269,6 +274,26 @@ class EquipmentPresenter:
                 self._view.ps_table.clear_highlight()
 
         self._view.schedule(0, update)
+
+    def _on_tab_changed(self, event) -> None:
+        """Handle plot tab selection change."""
+        self._update_instrument_display()
+
+    def _update_instrument_display(self) -> None:
+        """Update instrument identification based on selected tab."""
+        if self._model.state not in (EquipmentState.IDLE, EquipmentState.RUNNING):
+            self._view.set_instrument_display(None, None)
+            return
+
+        tab_index = self._view.get_selected_tab_index()
+        if tab_index == 0:
+            # Power Supply tab
+            model_name, tooltip = self._model.get_instrument_identification("power_supply")
+        else:
+            # Signal Generator tab
+            model_name, tooltip = self._model.get_instrument_identification("signal_generator")
+
+        self._view.set_instrument_display(model_name, tooltip)
 
     def _update_view_for_state(self, state: EquipmentState) -> None:
         """Update view based on current state."""

@@ -91,6 +91,8 @@ class VISAConnection:
         self,
         resource_address: str,
         timeout_ms: int = 5000,
+        read_termination: str | None = '\n',
+        write_termination: str | None = '\n',
     ) -> pyvisa.resources.Resource:
         """
         Open a VISA resource.
@@ -98,6 +100,8 @@ class VISAConnection:
         Args:
             resource_address: VISA resource address string
             timeout_ms: Communication timeout in milliseconds
+            read_termination: Character(s) appended to reads, or None for no termination
+            write_termination: Character(s) appended to writes, or None for no termination
 
         Returns:
             Opened VISA resource
@@ -108,6 +112,8 @@ class VISAConnection:
         logger.info("Opening resource: %s (timeout=%dms)", resource_address, timeout_ms)
         resource = self._resource_manager.open_resource(resource_address)
         resource.timeout = timeout_ms
+        resource.read_termination = read_termination
+        resource.write_termination = write_termination
         return resource
 
     def __enter__(self) -> "VISAConnection":

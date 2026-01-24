@@ -89,7 +89,34 @@ class EquipmentModel:
             self._visa.open()
         return list(self._visa.list_resources())
 
-    def add_instrument(self, name: str, resource_address: str, instrument_type: str, timeout_ms: int = 5000) -> None:
+    def get_instrument_identification(self, instrument_type: str) -> tuple[str | None, str | None]:
+        """
+        Get model name and formatted identification for an instrument type.
+
+        Args:
+            instrument_type: Type of instrument ("power_supply" or "signal_generator")
+
+        Returns:
+            Tuple of (model_name, formatted_identification) or (None, None) if not found
+        """
+        for instrument in self._instruments.values():
+            if instrument_type == "power_supply" and isinstance(instrument, PowerSupply):
+                if instrument.is_connected and instrument.identification:
+                    return instrument.model(), instrument.formatted_identification()
+            elif instrument_type == "signal_generator" and isinstance(instrument, SignalGenerator):
+                if instrument.is_connected and instrument.identification:
+                    return instrument.model(), instrument.formatted_identification()
+        return None, None
+
+    def add_instrument(
+        self,
+        name: str,
+        resource_address: str,
+        instrument_type: str,
+        timeout_ms: int = 5000,
+        read_termination: str | None = '\n',
+        write_termination: str | None = '\n',
+    ) -> None:
         """
         Add an instrument to the model.
 
@@ -98,11 +125,13 @@ class EquipmentModel:
             resource_address: VISA address
             instrument_type: Type string (e.g., "power_supply", "signal_generator")
             timeout_ms: Communication timeout
+            read_termination: Character(s) appended to reads, or None for no termination
+            write_termination: Character(s) appended to writes, or None for no termination
         """
         if instrument_type == "power_supply":
-            instrument = PowerSupply(name, resource_address, timeout_ms)
+            instrument = PowerSupply(name, resource_address, timeout_ms, read_termination, write_termination)
         elif instrument_type == "signal_generator":
-            instrument = SignalGenerator(name, resource_address, timeout_ms)
+            instrument = SignalGenerator(name, resource_address, timeout_ms, read_termination, write_termination)
         else:
             raise ValueError(f"Unknown instrument type: {instrument_type}")
 
@@ -127,6 +156,8 @@ class EquipmentModel:
                     resource = self._visa.open_resource(
                         instrument.resource_address,
                         instrument._timeout_ms,
+                        instrument._read_termination,
+                        instrument._write_termination,
                     )
                     instrument.connect(resource)
 

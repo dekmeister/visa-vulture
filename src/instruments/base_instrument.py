@@ -16,7 +16,14 @@ class BaseInstrument(ABC):
     Subclasses implement instrument-specific functionality.
     """
 
-    def __init__(self, name: str, resource_address: str, timeout_ms: int = 5000):
+    def __init__(
+        self,
+        name: str,
+        resource_address: str,
+        timeout_ms: int = 5000,
+        read_termination: str | None = '\n',
+        write_termination: str | None = '\n',
+    ):
         """
         Initialize instrument.
 
@@ -24,11 +31,16 @@ class BaseInstrument(ABC):
             name: Human-readable instrument name
             resource_address: VISA resource address
             timeout_ms: Communication timeout in milliseconds
+            read_termination: Character(s) appended to reads, or None for no termination
+            write_termination: Character(s) appended to writes, or None for no termination
         """
         self._name = name
         self._resource_address = resource_address
         self._timeout_ms = timeout_ms
+        self._read_termination = read_termination
+        self._write_termination = write_termination
         self._resource: pyvisa.resources.Resource | None = None
+        self._identification: str | None = None
 
     @property
     def name(self) -> str:
@@ -44,6 +56,73 @@ class BaseInstrument(ABC):
     def is_connected(self) -> bool:
         """Check if instrument is connected."""
         return self._resource is not None
+
+    @property
+    def identification(self) -> str | None:
+        """Get the raw identification string from *IDN? query."""
+        return self._identification
+
+    def manufacturer(self) -> str:
+        """
+        Parse manufacturer from *IDN? response.
+
+        Returns:
+            Manufacturer name or "Unknown" if not available
+        """
+        if not self._identification:
+            return "Unknown"
+        parts = self._identification.split(",")
+        return parts[0].strip() if len(parts) >= 1 and parts[0].strip() else "Unknown"
+
+    def model(self) -> str:
+        """
+        Parse model from *IDN? response.
+
+        Returns:
+            Model name or "Unknown" if not available
+        """
+        if not self._identification:
+            return "Unknown"
+        parts = self._identification.split(",")
+        return parts[1].strip() if len(parts) >= 2 and parts[1].strip() else "Unknown"
+
+    def serial(self) -> str:
+        """
+        Parse serial number from *IDN? response.
+
+        Returns:
+            Serial number or "Unknown" if not available
+        """
+        if not self._identification:
+            return "Unknown"
+        parts = self._identification.split(",")
+        return parts[2].strip() if len(parts) >= 3 and parts[2].strip() else "Unknown"
+
+    def firmware(self) -> str:
+        """
+        Parse firmware version from *IDN? response.
+
+        Returns:
+            Firmware version or "Unknown" if not available
+        """
+        if not self._identification:
+            return "Unknown"
+        parts = self._identification.split(",")
+        return parts[3].strip() if len(parts) >= 4 and parts[3].strip() else "Unknown"
+
+    def formatted_identification(self) -> str:
+        """
+        Return human-readable formatted identification for tooltip display.
+
+        Returns:
+            Formatted identification string
+        """
+        return (
+            f"Manufacturer: {self.manufacturer()}\n"
+            f"Model: {self.model()}\n"
+            f"Serial: {self.serial()}\n"
+            f"Firmware: {self.firmware()}"
+        )
 
     def connect(self, visa_resource: pyvisa.resources.Resource) -> None:
         """
@@ -62,6 +141,7 @@ class BaseInstrument(ABC):
         # Query identification
         try:
             idn = self.identify()
+            self._identification = idn
             logger.info("%s: Identification: %s", self._name, idn)
         except Exception as e:
             logger.warning("%s: Could not query identification: %s", self._name, e)
