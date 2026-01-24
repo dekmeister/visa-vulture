@@ -1,5 +1,7 @@
 # Claude specific files
 CLAUDE.md
+.claude/
+testing-approach.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
