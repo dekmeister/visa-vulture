@@ -4,9 +4,10 @@ A Python GUI application for controlling test equipment over VISA. Load test pla
 
 ## Features
 
-- **VISA Instrument Control**: Connect to power supplies and other test equipment
-- **Test Plan Execution**: Load CSV-based test plans with voltage/current sequences
-- **Real-time Plotting**: Monitor voltage and current during test execution
+- **VISA Instrument Control**: Connect to power supplies, signal generators, and other test equipment
+- **Test Plan Execution**: Load CSV-based test plans for different instrument types
+- **Real-time Plotting**: Monitor voltage/current or frequency/power during test execution
+- **Test Points Table**: View all test plan steps in a tabular format
 - **Comprehensive Logging**: Filterable log panel with file output
 - **Simulation Mode**: Develop and test without hardware using PyVISA-sim
 
@@ -54,23 +55,42 @@ python run.py --config path/to/config.json
 
 ### Test Plan Format
 
-Test plans are CSV files with the following columns:
+Test plans are CSV files. The format depends on the instrument type. Step numbers are assigned automatically based on row order.
+
+#### Power Supply Test Plans
 
 | Column | Required | Description |
 |--------|----------|-------------|
-| step | Yes | Step number (1-based, sequential) |
 | time | Yes | Time in seconds when step starts |
 | voltage | Yes | Voltage setpoint in volts |
 | current | Yes | Current limit in amps |
 | description | No | Optional step description |
 
-Example (`test_plan.csv`):
+Example (`sample_test_plan.csv`):
 ```csv
-step,time,voltage,current,description
-1,0.0,5.0,1.0,Initial voltage
-2,5.0,10.0,1.5,Ramp to 10V
-3,10.0,12.0,2.0,Final voltage
-4,15.0,0.0,0.0,Power down
+time,voltage,current,description
+0.0,5.0,1.0,Initial voltage
+5.0,10.0,1.5,Ramp to 10V
+10.0,12.0,2.0,Final voltage
+15.0,0.0,0.0,Power down
+```
+
+#### Signal Generator Test Plans
+
+| Column | Required | Description |
+|--------|----------|-------------|
+| type | Yes | Must be "signal_generator" |
+| time | Yes | Time in seconds when step starts |
+| frequency | Yes | Frequency in Hz |
+| power | Yes | Power level in dBm |
+| description | No | Optional step description |
+
+Example (`sample_signal_generator_test_plan.csv`):
+```csv
+type,time,frequency,power,description
+signal_generator,0.0,1000000,0,Start at 1 MHz
+signal_generator,5.0,5000000,-5,Sweep to 5 MHz
+signal_generator,10.0,10000000,-10,Peak at 10 MHz
 ```
 
 ### Configuration
@@ -87,12 +107,18 @@ Configuration is stored in JSON format. Key settings:
             "resource_address": "TCPIP::192.168.1.100::INSTR",
             "type": "power_supply",
             "timeout_ms": 5000
+        },
+        {
+            "name": "Signal Generator",
+            "resource_address": "TCPIP::192.168.1.101::INSTR",
+            "type": "signal_generator",
+            "timeout_ms": 5000
         }
     ]
 }
 ```
 
-See `equipment_controller/config/default_config.json` for full configuration options.
+See `src/config/default_config.json` for full configuration options.
 
 ## Architecture
 
@@ -126,7 +152,7 @@ The application follows the Model-View-Presenter (MVP) pattern:
 ## Project Structure
 
 ```
-equipment_controller/
+src/
 ├── main.py                 # Entry point
 ├── config/                 # Configuration loading
 ├── model/                  # Business logic, state machine
@@ -157,7 +183,7 @@ equipment_controller/
 
 ### Extending Simulation
 
-Edit `equipment_controller/simulation/instruments.yaml` to add:
+Edit `src/simulation/instruments.yaml` to add:
 - New instrument responses
 - Additional SCPI commands
 - Stateful properties

@@ -1,7 +1,7 @@
 # Equipment Controller - Directory Structure
 
 ```
-equipment_controller/
+src/
 │
 ├── main.py
 │
@@ -21,7 +21,9 @@ equipment_controller/
 │   ├── __init__.py
 │   ├── main_window.py
 │   ├── log_panel.py
-│   └── plot_panel.py
+│   ├── plot_panel.py
+│   ├── signal_generator_plot_panel.py
+│   └── test_points_table.py
 │
 ├── presenter/
 │   ├── __init__.py
@@ -36,7 +38,8 @@ equipment_controller/
 │   ├── __init__.py
 │   ├── visa_connection.py
 │   ├── base_instrument.py
-│   └── power_supply.py
+│   ├── power_supply.py
+│   └── signal_generator.py
 │
 ├── logging_config/
 │   ├── __init__.py
@@ -87,10 +90,10 @@ Business logic, independent of GUI.
 
 | File | Purpose |
 |------|---------|
-| `__init__.py` | Exports: `EquipmentModel`, `EquipmentState`, `TestPlan` |
+| `__init__.py` | Exports: `EquipmentModel`, `EquipmentState`, `TestPlan`, `TestStep`, step subclasses, plan type constants |
 | `state_machine.py` | `EquipmentState` enum, transition validation, callback registration |
 | `equipment.py` | `EquipmentModel` class coordinating state, instruments, test execution |
-| `test_plan.py` | `TestPlan` and `TestStep` dataclasses representing loaded CSV |
+| `test_plan.py` | `TestPlan` container, `TestStep` base class, `PowerSupplyTestStep` and `SignalGeneratorTestStep` subclasses |
 
 ---
 
@@ -103,7 +106,9 @@ GUI components, no business logic.
 | `__init__.py` | Exports: `MainWindow` |
 | `main_window.py` | Main application window, assembles panels, exposes callbacks |
 | `log_panel.py` | `LogPanel` widget with scrolling text, level filtering, auto-scroll |
-| `plot_panel.py` | `PlotPanel` widget embedding matplotlib figure |
+| `plot_panel.py` | `PlotPanel` widget embedding matplotlib figure for power supply data |
+| `signal_generator_plot_panel.py` | Plot panel for signal generator frequency/power data |
+| `test_points_table.py` | Tabular display of all test plan steps |
 
 ---
 
@@ -136,10 +141,11 @@ VISA communication and instrument abstraction.
 
 | File | Purpose |
 |------|---------|
-| `__init__.py` | Exports: `VISAConnection`, `PowerSupply` |
+| `__init__.py` | Exports: `VISAConnection`, `PowerSupply`, `SignalGenerator` |
 | `visa_connection.py` | `VISAConnection` class managing ResourceManager, resource discovery |
 | `base_instrument.py` | `BaseInstrument` abstract class with common interface and SCPI commands |
-| `power_supply.py` | `PowerSupply` class with instrument-specific commands |
+| `power_supply.py` | `PowerSupply` class with voltage/current control commands |
+| `signal_generator.py` | `SignalGenerator` class with frequency/power control commands |
 
 ---
 
@@ -187,7 +193,10 @@ from .loader import load_config
 # model/__init__.py
 from .state_machine import EquipmentState
 from .equipment import EquipmentModel
-from .test_plan import TestPlan, TestStep
+from .test_plan import (
+    TestPlan, TestStep, PowerSupplyTestStep, SignalGeneratorTestStep,
+    PLAN_TYPE_POWER_SUPPLY, PLAN_TYPE_SIGNAL_GENERATOR
+)
 
 # view/__init__.py
 from .main_window import MainWindow
@@ -203,6 +212,7 @@ from .results_writer import write_results
 from .visa_connection import VISAConnection
 from .base_instrument import BaseInstrument
 from .power_supply import PowerSupply
+from .signal_generator import SignalGenerator
 
 # logging_config/__init__.py
 from .setup import setup_logging, GUILogHandler

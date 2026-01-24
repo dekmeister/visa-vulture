@@ -1,4 +1,4 @@
-# Equipment Controller - Program Overview
+# VISAvulture - Program Overview
 
 ## Purpose
 
@@ -93,7 +93,9 @@ UNKNOWN  ──►  IDLE  ──►  RUNNING  ──►  IDLE
 ### 5. Test Plans as CSV
 
 - Simple, editable format for test sequences
-- Contains time, frequency, power columns
+- Format varies by instrument type:
+  - Power supply: time, voltage, current columns
+  - Signal generator: type, time, frequency, power columns
 - Validated on load with clear error reporting
 
 ## Technology Stack
@@ -113,6 +115,7 @@ UNKNOWN  ──►  IDLE  ──►  RUNNING  ──►  IDLE
 | Future Need                  | How Structure Supports It              |
 |------------------------------|----------------------------------------|
 | Additional instruments       | Add new class in instruments/          |
+| New test plan types          | Add TestStep subclass in model/test_plan.py, parser in file_io/ |
 | More states                  | Extend EquipmentState enum             |
 | New file formats             | Add parser in file_io/                 |
 | Parallel instrument control  | Extend threading_helpers               |

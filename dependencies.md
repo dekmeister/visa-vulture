@@ -31,7 +31,7 @@ Arrows indicate "imports from" direction.
                                     model/     file_io/       
                                                    │
                                                    ▼
-                                                model/ (TestPlan only)
+                                                model/ (TestPlan, TestStep subclasses)
 
 
                               presenter/
@@ -55,7 +55,7 @@ Arrows indicate "imports from" direction.
 | **model/** | instruments, file_io | view, presenter, config, logging_config |
 | **view/** | utils (optional) | model, presenter, instruments, file_io, config |
 | **presenter/** | model, view, utils | instruments, file_io, config (go through model) |
-| **file_io/** | model (TestPlan dataclass only) | view, presenter, instruments, config |
+| **file_io/** | model (TestPlan, TestStep subclasses, plan type constants) | view, presenter, instruments, config |
 | **instruments/** | (pyvisa only) | All internal packages |
 | **utils/** | (standard library only) | All internal packages |
 
