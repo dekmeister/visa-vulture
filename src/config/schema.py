@@ -41,13 +41,17 @@ def validate_config(config_dict: dict[str, Any]) -> tuple[AppConfig | None, list
     # Validate simulation_mode
     simulation_mode = config_dict.get("simulation_mode", False)
     if not isinstance(simulation_mode, bool):
-        errors.append(f"simulation_mode must be boolean, got {type(simulation_mode).__name__}")
+        errors.append(
+            f"simulation_mode must be boolean, got {type(simulation_mode).__name__}"
+        )
         simulation_mode = False
 
     # Validate simulation_file
     simulation_file = config_dict.get("simulation_file", "simulation/instruments.yaml")
     if not isinstance(simulation_file, str):
-        errors.append(f"simulation_file must be string, got {type(simulation_file).__name__}")
+        errors.append(
+            f"simulation_file must be string, got {type(simulation_file).__name__}"
+        )
         simulation_file = "simulation/instruments.yaml"
 
     # Validate log_file
@@ -95,11 +99,15 @@ def validate_config(config_dict: dict[str, Any]) -> tuple[AppConfig | None, list
     instruments: list[InstrumentConfig] = []
 
     if not isinstance(instruments_raw, list):
-        errors.append(f"instruments must be a list, got {type(instruments_raw).__name__}")
+        errors.append(
+            f"instruments must be a list, got {type(instruments_raw).__name__}"
+        )
     else:
         for i, instr in enumerate(instruments_raw):
             if not isinstance(instr, dict):
-                errors.append(f"instruments[{i}] must be a dict, got {type(instr).__name__}")
+                errors.append(
+                    f"instruments[{i}] must be a dict, got {type(instr).__name__}"
+                )
                 continue
 
             # Required fields
@@ -110,7 +118,9 @@ def validate_config(config_dict: dict[str, Any]) -> tuple[AppConfig | None, list
 
             resource_address = instr.get("resource_address")
             if not resource_address or not isinstance(resource_address, str):
-                errors.append(f"instruments[{i}].resource_address is required and must be a string")
+                errors.append(
+                    f"instruments[{i}].resource_address is required and must be a string"
+                )
                 continue
 
             instr_type = instr.get("type")
@@ -119,13 +129,17 @@ def validate_config(config_dict: dict[str, Any]) -> tuple[AppConfig | None, list
                 errors.append(f"instruments[{i}].type is required and must be a string")
                 continue
             if instr_type not in valid_types:
-                errors.append(f"instruments[{i}].type must be one of {valid_types}, got '{instr_type}'")
+                errors.append(
+                    f"instruments[{i}].type must be one of {valid_types}, got '{instr_type}'"
+                )
                 continue
 
             # Optional fields
             timeout_ms = instr.get("timeout_ms", 5000)
             if not isinstance(timeout_ms, int) or timeout_ms < 100:
-                errors.append(f"instruments[{i}].timeout_ms must be integer >= 100, got {timeout_ms}")
+                errors.append(
+                    f"instruments[{i}].timeout_ms must be integer >= 100, got {timeout_ms}"
+                )
                 timeout_ms = 5000
 
             instruments.append(

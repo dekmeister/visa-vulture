@@ -5,6 +5,7 @@ from tkinter import ttk
 from typing import Sequence
 
 import matplotlib
+
 matplotlib.use("TkAgg")
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
@@ -58,8 +59,18 @@ class SignalGeneratorPlotPanel(ttk.Frame):
         self._ax_power.tick_params(axis="y", labelcolor="orange")
 
         # Create plot lines (steps-post holds value constant until next point)
-        self._freq_line, = self._ax_freq.plot([], [], "g-", label="Frequency", linewidth=2, drawstyle="steps-post")
-        self._power_line, = self._ax_power.plot([], [], color="orange", linestyle="-", label="Power", linewidth=2, drawstyle="steps-post")
+        (self._freq_line,) = self._ax_freq.plot(
+            [], [], "g-", label="Frequency", linewidth=2, drawstyle="steps-post"
+        )
+        (self._power_line,) = self._ax_power.plot(
+            [],
+            [],
+            color="orange",
+            linestyle="-",
+            label="Power",
+            linewidth=2,
+            drawstyle="steps-post",
+        )
 
         # Legend
         lines = [self._freq_line, self._power_line]

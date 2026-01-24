@@ -20,7 +20,6 @@ SIGNAL_GENERATOR_COLUMNS = {"time", "frequency", "power"}
 OPTIONAL_COLUMNS = {"description", "type"}
 
 
-
 def read_test_plan(file_path: str | Path) -> tuple[TestPlan | None, list[str]]:
     """
     Read a test plan from a CSV file.
@@ -87,14 +86,18 @@ def read_test_plan(file_path: str | Path) -> tuple[TestPlan | None, list[str]]:
             if plan_type == PLAN_TYPE_POWER_SUPPLY:
                 missing = POWER_SUPPLY_COLUMNS - columns
                 if missing:
-                    errors.append(f"Missing required columns for power supply: {', '.join(sorted(missing))}")
+                    errors.append(
+                        f"Missing required columns for power supply: {', '.join(sorted(missing))}"
+                    )
                     return None, errors
                 return _parse_power_supply_plan(file_path, rows, column_map, errors)
 
             elif plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
                 missing = SIGNAL_GENERATOR_COLUMNS - columns
                 if missing:
-                    errors.append(f"Missing required columns for signal generator: {', '.join(sorted(missing))}")
+                    errors.append(
+                        f"Missing required columns for signal generator: {', '.join(sorted(missing))}"
+                    )
                     return None, errors
                 return _parse_signal_generator_plan(file_path, rows, column_map, errors)
 
@@ -157,7 +160,9 @@ def _parse_power_supply_plan(
 
     for row_num, row in enumerate(rows, start=2):
         step_number = row_num - 1  # 1-based step number (row 2 = step 1)
-        step, row_errors = _parse_power_supply_row(row, column_map, row_num, step_number)
+        step, row_errors = _parse_power_supply_row(
+            row, column_map, row_num, step_number
+        )
         if row_errors:
             errors.extend(row_errors)
         elif step is not None:
@@ -178,7 +183,12 @@ def _parse_power_supply_plan(
         errors.extend(validation_errors)
         return None, errors
 
-    logger.info("Loaded power supply test plan '%s' from %s: %d steps", plan_name, file_path, len(steps))
+    logger.info(
+        "Loaded power supply test plan '%s' from %s: %d steps",
+        plan_name,
+        file_path,
+        len(steps),
+    )
     return test_plan, []
 
 
@@ -193,7 +203,9 @@ def _parse_signal_generator_plan(
 
     for row_num, row in enumerate(rows, start=2):
         step_number = row_num - 1  # 1-based step number (row 2 = step 1)
-        step, row_errors = _parse_signal_generator_row(row, column_map, row_num, step_number)
+        step, row_errors = _parse_signal_generator_row(
+            row, column_map, row_num, step_number
+        )
         if row_errors:
             errors.extend(row_errors)
         elif step is not None:
@@ -207,18 +219,27 @@ def _parse_signal_generator_plan(
         return None, errors
 
     plan_name = file_path.stem
-    test_plan = TestPlan(name=plan_name, steps=steps, plan_type=PLAN_TYPE_SIGNAL_GENERATOR)
+    test_plan = TestPlan(
+        name=plan_name, steps=steps, plan_type=PLAN_TYPE_SIGNAL_GENERATOR
+    )
 
     validation_errors = test_plan.validate()
     if validation_errors:
         errors.extend(validation_errors)
         return None, errors
 
-    logger.info("Loaded signal generator test plan '%s' from %s: %d steps", plan_name, file_path, len(steps))
+    logger.info(
+        "Loaded signal generator test plan '%s' from %s: %d steps",
+        plan_name,
+        file_path,
+        len(steps),
+    )
     return test_plan, []
 
 
-def _get_value(row: dict[str, str], column_map: dict[str, str], normalized_name: str) -> str:
+def _get_value(
+    row: dict[str, str], column_map: dict[str, str], normalized_name: str
+) -> str:
     """Get value from row using column mapping."""
     actual_name = column_map.get(normalized_name)
     if actual_name is None:

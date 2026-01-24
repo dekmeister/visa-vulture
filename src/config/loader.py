@@ -9,7 +9,9 @@ from .schema import AppConfig, validate_config
 logger = logging.getLogger(__name__)
 
 
-def load_config(config_path: str | Path | None = None) -> tuple[AppConfig | None, list[str]]:
+def load_config(
+    config_path: str | Path | None = None,
+) -> tuple[AppConfig | None, list[str]]:
     """
     Load configuration from JSON file.
 
@@ -44,7 +46,9 @@ def load_config(config_path: str | Path | None = None) -> tuple[AppConfig | None
         return None, errors
 
     if not isinstance(config_dict, dict):
-        errors.append(f"Configuration must be a JSON object, got {type(config_dict).__name__}")
+        errors.append(
+            f"Configuration must be a JSON object, got {type(config_dict).__name__}"
+        )
         return None, errors
 
     # Validate and return

@@ -19,8 +19,16 @@ class EquipmentState(Enum):
 # Valid state transitions
 _VALID_TRANSITIONS: dict[EquipmentState, set[EquipmentState]] = {
     EquipmentState.UNKNOWN: {EquipmentState.IDLE, EquipmentState.ERROR},
-    EquipmentState.IDLE: {EquipmentState.RUNNING, EquipmentState.ERROR, EquipmentState.UNKNOWN},
-    EquipmentState.RUNNING: {EquipmentState.IDLE, EquipmentState.ERROR, EquipmentState.UNKNOWN},
+    EquipmentState.IDLE: {
+        EquipmentState.RUNNING,
+        EquipmentState.ERROR,
+        EquipmentState.UNKNOWN,
+    },
+    EquipmentState.RUNNING: {
+        EquipmentState.IDLE,
+        EquipmentState.ERROR,
+        EquipmentState.UNKNOWN,
+    },
     EquipmentState.ERROR: {EquipmentState.IDLE, EquipmentState.UNKNOWN},
 }
 

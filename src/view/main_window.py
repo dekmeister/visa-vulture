@@ -18,7 +18,13 @@ class MainWindow:
     Does not contain business logic.
     """
 
-    def __init__(self, root: tk.Tk, title: str = "Equipment Controller", width: int = 1200, height: int = 800):
+    def __init__(
+        self,
+        root: tk.Tk,
+        title: str = "Equipment Controller",
+        width: int = 1200,
+        height: int = 800,
+    ):
         """
         Initialize main window.
 
@@ -75,7 +81,10 @@ class MainWindow:
         self._connect_btn.pack(side=tk.LEFT, padx=2)
 
         self._disconnect_btn = ttk.Button(
-            conn_frame, text="Disconnect", command=self._handle_disconnect, state=tk.DISABLED
+            conn_frame,
+            text="Disconnect",
+            command=self._handle_disconnect,
+            state=tk.DISABLED,
         )
         self._disconnect_btn.pack(side=tk.LEFT, padx=2)
 
@@ -131,14 +140,18 @@ class MainWindow:
         state_frame = ttk.Frame(status_frame)
         state_frame.pack(side=tk.TOP, anchor=tk.E)
         ttk.Label(state_frame, text="State:").pack(side=tk.LEFT)
-        self._state_label = ttk.Label(state_frame, text="UNKNOWN", font=("TkDefaultFont", 10, "bold"))
+        self._state_label = ttk.Label(
+            state_frame, text="UNKNOWN", font=("TkDefaultFont", 10, "bold")
+        )
         self._state_label.pack(side=tk.LEFT, padx=5)
 
         # Runtime display (bottom row)
         runtime_frame = ttk.Frame(status_frame)
         runtime_frame.pack(side=tk.TOP, anchor=tk.E, pady=(2, 0))
         ttk.Label(runtime_frame, text="Runtime:").pack(side=tk.LEFT)
-        self._runtime_label = ttk.Label(runtime_frame, text="--:--", font=("TkDefaultFont", 10, "bold"))
+        self._runtime_label = ttk.Label(
+            runtime_frame, text="--:--", font=("TkDefaultFont", 10, "bold")
+        )
         self._runtime_label.pack(side=tk.LEFT, padx=5)
 
     def _create_content_area(self) -> None:

@@ -116,7 +116,10 @@ class TestPlan:
             return errors
 
         # Check times are non-decreasing
-        times = [step.time_seconds for step in sorted(self.steps, key=lambda s: s.step_number)]
+        times = [
+            step.time_seconds
+            for step in sorted(self.steps, key=lambda s: s.step_number)
+        ]
         for i in range(1, len(times)):
             if times[i] < times[i - 1]:
                 errors.append(
@@ -128,4 +131,6 @@ class TestPlan:
 
     def __str__(self) -> str:
         """String representation."""
-        return f"TestPlan('{self.name}', {self.step_count} steps, {self.total_duration}s)"
+        return (
+            f"TestPlan('{self.name}', {self.step_count} steps, {self.total_duration}s)"
+        )

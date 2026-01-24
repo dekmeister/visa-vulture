@@ -21,8 +21,8 @@ class BaseInstrument(ABC):
         name: str,
         resource_address: str,
         timeout_ms: int = 5000,
-        read_termination: str | None = '\n',
-        write_termination: str | None = '\n',
+        read_termination: str | None = "\n",
+        write_termination: str | None = "\n",
     ):
         """
         Initialize instrument.

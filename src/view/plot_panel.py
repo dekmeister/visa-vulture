@@ -5,6 +5,7 @@ from tkinter import ttk
 from typing import Sequence
 
 import matplotlib
+
 matplotlib.use("TkAgg")
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
@@ -57,8 +58,12 @@ class PlotPanel(ttk.Frame):
         self._ax_current.tick_params(axis="y", labelcolor="red")
 
         # Create plot lines (steps-post holds value constant until next point)
-        self._voltage_line, = self._ax_voltage.plot([], [], "b-", label="Voltage", linewidth=2, drawstyle="steps-post")
-        self._current_line, = self._ax_current.plot([], [], "r-", label="Current", linewidth=2, drawstyle="steps-post")
+        (self._voltage_line,) = self._ax_voltage.plot(
+            [], [], "b-", label="Voltage", linewidth=2, drawstyle="steps-post"
+        )
+        (self._current_line,) = self._ax_current.plot(
+            [], [], "r-", label="Current", linewidth=2, drawstyle="steps-post"
+        )
 
         # Legend
         lines = [self._voltage_line, self._current_line]

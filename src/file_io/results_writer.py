@@ -73,7 +73,9 @@ def write_results(
 
     # Generate filename
     timestamp_str = results.start_time.strftime("%Y%m%d_%H%M%S")
-    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in results.test_name)
+    safe_name = "".join(
+        c if c.isalnum() or c in "-_" else "_" for c in results.test_name
+    )
     filename = f"{safe_name}_{timestamp_str}.csv"
     output_path = output_dir / filename
 
@@ -93,29 +95,33 @@ def write_results(
             writer.writerow([])
 
             # Write data header
-            writer.writerow([
-                "step",
-                "timestamp",
-                "target_voltage",
-                "target_current",
-                "measured_voltage",
-                "measured_current",
-                "status",
-                "message",
-            ])
+            writer.writerow(
+                [
+                    "step",
+                    "timestamp",
+                    "target_voltage",
+                    "target_current",
+                    "measured_voltage",
+                    "measured_current",
+                    "status",
+                    "message",
+                ]
+            )
 
             # Write data rows
             for result in results.results:
-                writer.writerow([
-                    result.step_number,
-                    result.timestamp.isoformat(),
-                    f"{result.target_voltage:.6f}",
-                    f"{result.target_current:.6f}",
-                    f"{result.measured_voltage:.6f}",
-                    f"{result.measured_current:.6f}",
-                    result.status,
-                    result.message,
-                ])
+                writer.writerow(
+                    [
+                        result.step_number,
+                        result.timestamp.isoformat(),
+                        f"{result.target_voltage:.6f}",
+                        f"{result.target_current:.6f}",
+                        f"{result.measured_voltage:.6f}",
+                        f"{result.measured_current:.6f}",
+                        result.status,
+                        result.message,
+                    ]
+                )
 
     except OSError as e:
         errors.append(f"Error writing results file: {e}")

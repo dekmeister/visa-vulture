@@ -87,7 +87,9 @@ class EquipmentModel:
             self._visa.open()
         return list(self._visa.list_resources())
 
-    def get_instrument_identification(self, instrument_type: str) -> tuple[str | None, str | None]:
+    def get_instrument_identification(
+        self, instrument_type: str
+    ) -> tuple[str | None, str | None]:
         """
         Get model name and formatted identification for an instrument type.
 
@@ -98,10 +100,14 @@ class EquipmentModel:
             Tuple of (model_name, formatted_identification) or (None, None) if not found
         """
         for instrument in self._instruments.values():
-            if instrument_type == "power_supply" and isinstance(instrument, PowerSupply):
+            if instrument_type == "power_supply" and isinstance(
+                instrument, PowerSupply
+            ):
                 if instrument.is_connected and instrument.identification:
                     return instrument.model(), instrument.formatted_identification()
-            elif instrument_type == "signal_generator" and isinstance(instrument, SignalGenerator):
+            elif instrument_type == "signal_generator" and isinstance(
+                instrument, SignalGenerator
+            ):
                 if instrument.is_connected and instrument.identification:
                     return instrument.model(), instrument.formatted_identification()
         return None, None
@@ -112,8 +118,8 @@ class EquipmentModel:
         resource_address: str,
         instrument_type: str,
         timeout_ms: int = 5000,
-        read_termination: str | None = '\n',
-        write_termination: str | None = '\n',
+        read_termination: str | None = "\n",
+        write_termination: str | None = "\n",
     ) -> None:
         """
         Add an instrument to the model.
@@ -127,14 +133,20 @@ class EquipmentModel:
             write_termination: Character(s) appended to writes, or None for no termination
         """
         if instrument_type == "power_supply":
-            instrument = PowerSupply(name, resource_address, timeout_ms, read_termination, write_termination)
+            instrument = PowerSupply(
+                name, resource_address, timeout_ms, read_termination, write_termination
+            )
         elif instrument_type == "signal_generator":
-            instrument = SignalGenerator(name, resource_address, timeout_ms, read_termination, write_termination)
+            instrument = SignalGenerator(
+                name, resource_address, timeout_ms, read_termination, write_termination
+            )
         else:
             raise ValueError(f"Unknown instrument type: {instrument_type}")
 
         self._instruments[name] = instrument
-        logger.info("Added instrument: %s (%s) at %s", name, instrument_type, resource_address)
+        logger.info(
+            "Added instrument: %s (%s) at %s", name, instrument_type, resource_address
+        )
 
     def connect(self) -> None:
         """
@@ -142,8 +154,13 @@ class EquipmentModel:
 
         Transitions to IDLE state on success, ERROR on failure.
         """
-        if self._state_machine.state not in (EquipmentState.UNKNOWN, EquipmentState.ERROR):
-            raise RuntimeError(f"Cannot connect in {self._state_machine.state.name} state")
+        if self._state_machine.state not in (
+            EquipmentState.UNKNOWN,
+            EquipmentState.ERROR,
+        ):
+            raise RuntimeError(
+                f"Cannot connect in {self._state_machine.state.name} state"
+            )
 
         try:
             if not self._visa.is_open:
@@ -189,7 +206,7 @@ class EquipmentModel:
         Load a test plan.
 
         Args:
-            test_plan: TestPlan or SignalGeneratorTestPlan to load
+            test_plan: TestPlan to load
 
         Raises:
             ValueError: If test plan is invalid
@@ -212,7 +229,9 @@ class EquipmentModel:
             raise RuntimeError("No test plan loaded")
 
         if self._state_machine.state != EquipmentState.IDLE:
-            raise RuntimeError(f"Cannot run test in {self._state_machine.state.name} state")
+            raise RuntimeError(
+                f"Cannot run test in {self._state_machine.state.name} state"
+            )
 
         self._stop_requested = False
         self._state_machine.to_running()
@@ -247,7 +266,10 @@ class EquipmentModel:
 
     def _execute_power_supply_plan(self) -> None:
         """Execute power supply test plan steps."""
-        if self._test_plan is None or self._test_plan.plan_type != PLAN_TYPE_POWER_SUPPLY:
+        if (
+            self._test_plan is None
+            or self._test_plan.plan_type != PLAN_TYPE_POWER_SUPPLY
+        ):
             return
 
         # Get the power supply
@@ -300,7 +322,10 @@ class EquipmentModel:
 
     def _execute_signal_generator_plan(self) -> None:
         """Execute signal generator test plan steps."""
-        if self._test_plan is None or self._test_plan.plan_type != PLAN_TYPE_SIGNAL_GENERATOR:
+        if (
+            self._test_plan is None
+            or self._test_plan.plan_type != PLAN_TYPE_SIGNAL_GENERATOR
+        ):
             return
 
         # Get the signal generator

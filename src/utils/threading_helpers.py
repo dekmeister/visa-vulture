@@ -104,13 +104,18 @@ class BackgroundTaskRunner:
             on_complete: Callback for result (receives value on success,
                         TaskResult on failure)
         """
+
         def worker():
             try:
                 result = task()
-                self._result_queue.put((on_complete, TaskResult(success=True, value=result)))
+                self._result_queue.put(
+                    (on_complete, TaskResult(success=True, value=result))
+                )
             except Exception as e:
                 logger.error("Background task failed: %s", e)
-                self._result_queue.put((on_complete, TaskResult(success=False, error=e)))
+                self._result_queue.put(
+                    (on_complete, TaskResult(success=False, error=e))
+                )
 
         thread = threading.Thread(target=worker, daemon=True)
         thread.start()
@@ -138,11 +143,15 @@ class BackgroundTaskRunner:
             try:
                 result = task(*args, **kwargs)
                 if on_complete:
-                    self._result_queue.put((on_complete, TaskResult(success=True, value=result)))
+                    self._result_queue.put(
+                        (on_complete, TaskResult(success=True, value=result))
+                    )
             except Exception as e:
                 logger.error("Background task failed: %s", e)
                 if on_complete:
-                    self._result_queue.put((on_complete, TaskResult(success=False, error=e)))
+                    self._result_queue.put(
+                        (on_complete, TaskResult(success=False, error=e))
+                    )
 
         thread = threading.Thread(target=worker, daemon=True)
         thread.start()

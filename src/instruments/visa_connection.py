@@ -15,7 +15,9 @@ class VISAConnection:
     Supports both real VISA backends and PyVISA-sim for simulation.
     """
 
-    def __init__(self, simulation_mode: bool = False, simulation_file: str | Path | None = None):
+    def __init__(
+        self, simulation_mode: bool = False, simulation_file: str | Path | None = None
+    ):
         """
         Initialize VISA connection manager.
 
@@ -44,7 +46,9 @@ class VISAConnection:
 
         if self._simulation_mode:
             if self._simulation_file is None:
-                raise ValueError("simulation_file required when simulation_mode is True")
+                raise ValueError(
+                    "simulation_file required when simulation_mode is True"
+                )
 
             sim_path = Path(self._simulation_file)
             if not sim_path.is_absolute():
@@ -55,7 +59,9 @@ class VISAConnection:
                 raise FileNotFoundError(f"Simulation file not found: {sim_path}")
 
             backend = f"{sim_path}@sim"
-            logger.info("Opening VISA resource manager with simulation backend: %s", sim_path)
+            logger.info(
+                "Opening VISA resource manager with simulation backend: %s", sim_path
+            )
         else:
             backend = ""
             logger.info("Opening VISA resource manager with default backend")
@@ -84,15 +90,17 @@ class VISAConnection:
             raise RuntimeError("Resource manager not open. Call open() first.")
 
         resources = self._resource_manager.list_resources(query)
-        logger.debug("Found %d resources matching '%s': %s", len(resources), query, resources)
+        logger.debug(
+            "Found %d resources matching '%s': %s", len(resources), query, resources
+        )
         return resources
 
     def open_resource(
         self,
         resource_address: str,
         timeout_ms: int = 5000,
-        read_termination: str | None = '\n',
-        write_termination: str | None = '\n',
+        read_termination: str | None = "\n",
+        write_termination: str | None = "\n",
     ) -> pyvisa.resources.Resource:
         """
         Open a VISA resource.

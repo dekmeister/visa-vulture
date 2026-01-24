@@ -19,7 +19,6 @@ from ..view import MainWindow
 logger = logging.getLogger(__name__)
 
 
-
 class EquipmentPresenter:
     """
     Coordinates model and view.
@@ -29,7 +28,9 @@ class EquipmentPresenter:
     Updates view based on model state changes.
     """
 
-    def __init__(self, model: EquipmentModel, view: MainWindow, poll_interval_ms: int = 100):
+    def __init__(
+        self, model: EquipmentModel, view: MainWindow, poll_interval_ms: int = 100
+    ):
         """
         Initialize presenter.
 
@@ -86,8 +87,10 @@ class EquipmentPresenter:
             self._model.connect()
 
         def on_complete(result):
-            if isinstance(result, Exception) or (hasattr(result, 'success') and not result.success):
-                error = result.error if hasattr(result, 'error') else result
+            if isinstance(result, Exception) or (
+                hasattr(result, "success") and not result.success
+            ):
+                error = result.error if hasattr(result, "error") else result
                 self._view.show_error("Connection Error", str(error))
                 self._view.set_status("Connection failed")
             else:
@@ -145,7 +148,9 @@ class EquipmentPresenter:
                 times = [s.time_seconds for s in test_plan.steps]
                 freqs = [s.frequency for s in test_plan.steps]  # type: ignore[attr-defined]
                 powers = [s.power for s in test_plan.steps]  # type: ignore[attr-defined]
-                self._view.signal_gen_plot_panel.load_test_plan_preview(times, freqs, powers)
+                self._view.signal_gen_plot_panel.load_test_plan_preview(
+                    times, freqs, powers
+                )
 
                 # Load test steps into table
                 self._view.sg_table.load_steps(test_plan.steps)
@@ -213,7 +218,9 @@ class EquipmentPresenter:
 
     # Model callback handlers
 
-    def _on_state_changed(self, old_state: EquipmentState, new_state: EquipmentState) -> None:
+    def _on_state_changed(
+        self, old_state: EquipmentState, new_state: EquipmentState
+    ) -> None:
         """Handle model state change."""
         logger.debug("State changed: %s -> %s", old_state.name, new_state.name)
 
@@ -226,6 +233,7 @@ class EquipmentPresenter:
 
     def _on_test_progress(self, current: int, total: int, step: TestStep) -> None:
         """Handle test progress update."""
+
         # Schedule view update on main thread
         def update():
             self._view.set_progress(current, total)
@@ -253,6 +261,7 @@ class EquipmentPresenter:
 
     def _on_test_complete(self, success: bool, message: str) -> None:
         """Handle test completion."""
+
         def update():
             if success:
                 self._view.set_status(message)
@@ -264,7 +273,10 @@ class EquipmentPresenter:
             self._view.set_progress(0, 0)
 
             # Clear position indicators and table highlighting
-            if self._model.test_plan and self._model.test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
+            if (
+                self._model.test_plan
+                and self._model.test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR
+            ):
                 self._view.signal_gen_plot_panel.clear_position()
                 self._view.sg_table.clear_highlight()
             else:
@@ -286,10 +298,14 @@ class EquipmentPresenter:
         tab_index = self._view.get_selected_tab_index()
         if tab_index == 0:
             # Power Supply tab
-            model_name, tooltip = self._model.get_instrument_identification("power_supply")
+            model_name, tooltip = self._model.get_instrument_identification(
+                "power_supply"
+            )
         else:
             # Signal Generator tab
-            model_name, tooltip = self._model.get_instrument_identification("signal_generator")
+            model_name, tooltip = self._model.get_instrument_identification(
+                "signal_generator"
+            )
 
         self._view.set_instrument_display(model_name, tooltip)
 
