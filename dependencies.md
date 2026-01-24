@@ -2,13 +2,7 @@
 
 ## External Dependencies
 
-### requirements.txt
-
-```
-pyvisa>=1.13.0
-pyvisa-sim>=0.5.1
-matplotlib>=3.7.0
-```
+Refer to requirements.txt
 
 ### Notes
 
