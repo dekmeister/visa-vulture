@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass, field
 
-
 # Plan type constants
 PLAN_TYPE_POWER_SUPPLY = "power_supply"
 PLAN_TYPE_SIGNAL_GENERATOR = "signal_generator"
