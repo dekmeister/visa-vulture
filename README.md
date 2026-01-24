@@ -66,7 +66,7 @@ Test plans are CSV files. The format depends on the instrument type. Step number
 | current | Yes | Current limit in amps |
 | description | No | Optional step description |
 
-Example (`sample_test_plan.csv`):
+Example (`./plans/sample_power_supply/test_plan.csv`):
 ```csv
 time,voltage,current,description
 0.0,5.0,1.0,Initial voltage
@@ -85,7 +85,7 @@ time,voltage,current,description
 | power | Yes | Power level in dBm |
 | description | No | Optional step description |
 
-Example (`sample_signal_generator_test_plan.csv`):
+Example (`./plans/sample_signal_generator_test_plan.csv`):
 ```csv
 type,time,frequency,power,description
 signal_generator,0.0,1000000,0,Start at 1 MHz
