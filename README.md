@@ -1,4 +1,4 @@
-# Equipment Controller
+# VISA Vulture
 
 A Python GUI application for controlling test equipment over VISA. Load test plans from CSV files, execute them against connected instruments, and monitor results through real-time logging and plotting.
 
