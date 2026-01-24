@@ -2,15 +2,14 @@
 
 import logging
 import time
-from typing import Union
 
 from ..file_io import read_test_plan
 from ..model import (
     EquipmentModel,
     EquipmentState,
     TestStep,
+    PowerSupplyTestStep,
     SignalGeneratorTestStep,
-    SignalGeneratorTestPlan,
     PLAN_TYPE_POWER_SUPPLY,
     PLAN_TYPE_SIGNAL_GENERATOR,
 )
@@ -19,8 +18,6 @@ from ..view import MainWindow
 
 logger = logging.getLogger(__name__)
 
-# Type alias for any test step
-AnyTestStep = Union[TestStep, SignalGeneratorTestStep]
 
 
 class EquipmentPresenter:
@@ -144,11 +141,11 @@ class EquipmentPresenter:
                 self._view.show_signal_generator_plot()
 
                 # Load test plan preview (show full trajectory)
-                if isinstance(test_plan, SignalGeneratorTestPlan):
-                    times = [s.time_seconds for s in test_plan.steps]
-                    freqs = [s.frequency for s in test_plan.steps]
-                    powers = [s.power for s in test_plan.steps]
-                    self._view.signal_gen_plot_panel.load_test_plan_preview(times, freqs, powers)
+                # Steps are SignalGeneratorTestStep when plan_type is signal_generator
+                times = [s.time_seconds for s in test_plan.steps]
+                freqs = [s.frequency for s in test_plan.steps]  # type: ignore[attr-defined]
+                powers = [s.power for s in test_plan.steps]  # type: ignore[attr-defined]
+                self._view.signal_gen_plot_panel.load_test_plan_preview(times, freqs, powers)
 
                 # Load test steps into table
                 self._view.sg_table.load_steps(test_plan.steps)
@@ -159,9 +156,10 @@ class EquipmentPresenter:
                 self._view.show_power_supply_plot()
 
                 # Load test plan preview (show full trajectory)
+                # Steps are PowerSupplyTestStep when plan_type is power_supply
                 times = [s.time_seconds for s in test_plan.steps]
-                voltages = [s.voltage for s in test_plan.steps]
-                currents = [s.current for s in test_plan.steps]
+                voltages = [s.voltage for s in test_plan.steps]  # type: ignore[attr-defined]
+                currents = [s.current for s in test_plan.steps]  # type: ignore[attr-defined]
                 self._view.plot_panel.load_test_plan_preview(times, voltages, currents)
 
                 # Load test steps into table
@@ -226,7 +224,7 @@ class EquipmentPresenter:
         # Schedule view update on main thread
         self._view.schedule(0, lambda: self._update_view_for_state(new_state))
 
-    def _on_test_progress(self, current: int, total: int, step: AnyTestStep) -> None:
+    def _on_test_progress(self, current: int, total: int, step: TestStep) -> None:
         """Handle test progress update."""
         # Schedule view update on main thread
         def update():
@@ -241,7 +239,7 @@ class EquipmentPresenter:
                 self._view.signal_gen_plot_panel.set_current_position(step.time_seconds)
                 # Highlight current row in table
                 self._view.sg_table.highlight_step(step.step_number)
-            else:
+            elif isinstance(step, PowerSupplyTestStep):
                 # Power supply step
                 self._view.set_status(
                     f"Step {current}/{total}: V={step.voltage:.2f}V, I={step.current:.2f}A"

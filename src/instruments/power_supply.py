@@ -20,7 +20,7 @@ class PowerSupply(BaseInstrument):
         resource_address: str, 
         timeout_ms: int = 5000,
         read_termination: str | None = '\n',
-        write_termination: str | None = '\n'
+        write_termination: str | None = '\n',
         ):
         """
         Initialize power supply.

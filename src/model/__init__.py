@@ -5,7 +5,7 @@ from .equipment import EquipmentModel
 from .test_plan import (
     TestPlan,
     TestStep,
-    SignalGeneratorTestPlan,
+    PowerSupplyTestStep,
     SignalGeneratorTestStep,
     PLAN_TYPE_POWER_SUPPLY,
     PLAN_TYPE_SIGNAL_GENERATOR,
@@ -16,7 +16,7 @@ __all__ = [
     "EquipmentModel",
     "TestPlan",
     "TestStep",
-    "SignalGeneratorTestPlan",
+    "PowerSupplyTestStep",
     "SignalGeneratorTestStep",
     "PLAN_TYPE_POWER_SUPPLY",
     "PLAN_TYPE_SIGNAL_GENERATOR",

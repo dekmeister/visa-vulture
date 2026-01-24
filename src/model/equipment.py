@@ -2,14 +2,14 @@
 
 import logging
 import time
-from typing import Callable, Union
+from typing import Callable
 
 from ..instruments import BaseInstrument, PowerSupply, SignalGenerator, VISAConnection
 from .state_machine import EquipmentState, StateMachine
 from .test_plan import (
     TestPlan,
     TestStep,
-    SignalGeneratorTestPlan,
+    PowerSupplyTestStep,
     SignalGeneratorTestStep,
     PLAN_TYPE_POWER_SUPPLY,
     PLAN_TYPE_SIGNAL_GENERATOR,
@@ -18,9 +18,7 @@ from .test_plan import (
 logger = logging.getLogger(__name__)
 
 # Type aliases
-AnyTestStep = Union[TestStep, SignalGeneratorTestStep]
-AnyTestPlan = Union[TestPlan, SignalGeneratorTestPlan]
-TestProgressCallback = Callable[[int, int, AnyTestStep], None]
+TestProgressCallback = Callable[[int, int, TestStep], None]
 TestCompleteCallback = Callable[[bool, str], None]
 
 
@@ -42,7 +40,7 @@ class EquipmentModel:
         self._visa = visa_connection
         self._state_machine = StateMachine()
         self._instruments: dict[str, BaseInstrument] = {}
-        self._test_plan: AnyTestPlan | None = None
+        self._test_plan: TestPlan | None = None
         self._stop_requested = False
 
         # Callbacks for test execution
@@ -55,7 +53,7 @@ class EquipmentModel:
         return self._state_machine.state
 
     @property
-    def test_plan(self) -> AnyTestPlan | None:
+    def test_plan(self) -> TestPlan | None:
         """Get loaded test plan."""
         return self._test_plan
 
@@ -186,7 +184,7 @@ class EquipmentModel:
         # TODO - review if this is necessary
         self._visa.close()
 
-    def load_test_plan(self, test_plan: AnyTestPlan) -> None:
+    def load_test_plan(self, test_plan: TestPlan) -> None:
         """
         Load a test plan.
 
@@ -249,7 +247,7 @@ class EquipmentModel:
 
     def _execute_power_supply_plan(self) -> None:
         """Execute power supply test plan steps."""
-        if not isinstance(self._test_plan, TestPlan):
+        if self._test_plan is None or self._test_plan.plan_type != PLAN_TYPE_POWER_SUPPLY:
             return
 
         # Get the power supply
@@ -302,7 +300,7 @@ class EquipmentModel:
 
     def _execute_signal_generator_plan(self) -> None:
         """Execute signal generator test plan steps."""
-        if not isinstance(self._test_plan, SignalGeneratorTestPlan):
+        if self._test_plan is None or self._test_plan.plan_type != PLAN_TYPE_SIGNAL_GENERATOR:
             return
 
         # Get the signal generator
@@ -359,7 +357,7 @@ class EquipmentModel:
         while time.time() < end_time and not self._stop_requested:
             time.sleep(min(0.1, end_time - time.time()))
 
-    def _notify_progress(self, current: int, total: int, step: AnyTestStep) -> None:
+    def _notify_progress(self, current: int, total: int, step: TestStep) -> None:
         """Notify progress callbacks."""
         for callback in self._progress_callbacks:
             try:

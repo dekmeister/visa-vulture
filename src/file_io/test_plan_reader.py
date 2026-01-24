@@ -3,12 +3,10 @@
 import csv
 import logging
 from pathlib import Path
-from typing import Union
 
 from ..model.test_plan import (
     TestPlan,
-    TestStep,
-    SignalGeneratorTestPlan,
+    PowerSupplyTestStep,
     SignalGeneratorTestStep,
     PLAN_TYPE_POWER_SUPPLY,
     PLAN_TYPE_SIGNAL_GENERATOR,
@@ -21,11 +19,9 @@ POWER_SUPPLY_COLUMNS = {"time", "voltage", "current"}
 SIGNAL_GENERATOR_COLUMNS = {"time", "frequency", "power"}
 OPTIONAL_COLUMNS = {"description", "type"}
 
-# Type alias for return type
-AnyTestPlan = Union[TestPlan, SignalGeneratorTestPlan]
 
 
-def read_test_plan(file_path: str | Path) -> tuple[AnyTestPlan | None, list[str]]:
+def read_test_plan(file_path: str | Path) -> tuple[TestPlan | None, list[str]]:
     """
     Read a test plan from a CSV file.
 
@@ -157,7 +153,7 @@ def _parse_power_supply_plan(
     errors: list[str],
 ) -> tuple[TestPlan | None, list[str]]:
     """Parse rows into a power supply TestPlan."""
-    steps: list[TestStep] = []
+    steps: list[PowerSupplyTestStep] = []
 
     for row_num, row in enumerate(rows, start=2):
         step_number = row_num - 1  # 1-based step number (row 2 = step 1)
@@ -191,7 +187,7 @@ def _parse_signal_generator_plan(
     rows: list[dict[str, str]],
     column_map: dict[str, str],
     errors: list[str],
-) -> tuple[SignalGeneratorTestPlan | None, list[str]]:
+) -> tuple[TestPlan | None, list[str]]:
     """Parse rows into a signal generator TestPlan."""
     steps: list[SignalGeneratorTestStep] = []
 
@@ -211,7 +207,7 @@ def _parse_signal_generator_plan(
         return None, errors
 
     plan_name = file_path.stem
-    test_plan = SignalGeneratorTestPlan(name=plan_name, steps=steps, plan_type=PLAN_TYPE_SIGNAL_GENERATOR)
+    test_plan = TestPlan(name=plan_name, steps=steps, plan_type=PLAN_TYPE_SIGNAL_GENERATOR)
 
     validation_errors = test_plan.validate()
     if validation_errors:
@@ -235,7 +231,7 @@ def _parse_power_supply_row(
     column_map: dict[str, str],
     row_num: int,
     step_number: int,
-) -> tuple[TestStep | None, list[str]]:
+) -> tuple[PowerSupplyTestStep | None, list[str]]:
     """Parse a single CSV row into a power supply TestStep."""
     errors: list[str] = []
 
@@ -276,7 +272,7 @@ def _parse_power_supply_row(
         return None, errors
 
     return (
-        TestStep(
+        PowerSupplyTestStep(
             step_number=step_number,
             time_seconds=time_seconds,
             voltage=voltage,
