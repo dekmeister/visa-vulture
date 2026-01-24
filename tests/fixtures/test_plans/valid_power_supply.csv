@@ -1,0 +1,4 @@
+time,voltage,current,description
+0.0,5.0,1.0,Start
+1.0,10.0,2.0,Ramp up
+2.0,5.0,1.0,Return to start

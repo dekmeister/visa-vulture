@@ -1,0 +1,4 @@
+time,voltage,current,description
+abc,5.0,1.0,Bad time value
+0.0,xyz,1.0,Bad voltage value
+0.0,5.0,bad,Bad current value
