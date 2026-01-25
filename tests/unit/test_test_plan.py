@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.model.test_plan import (
+from visa_vulture.model.test_plan import (
     PLAN_TYPE_POWER_SUPPLY,
     PLAN_TYPE_SIGNAL_GENERATOR,
     PowerSupplyTestStep,

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from src.config.loader import load_config
+from visa_vulture.config.loader import load_config
 
 
 class TestLoadConfigFile:

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from src.instruments import PowerSupply, SignalGenerator, VISAConnection
+from visa_vulture.instruments import PowerSupply, SignalGenerator, VISAConnection
 
 
 @pytest.mark.integration

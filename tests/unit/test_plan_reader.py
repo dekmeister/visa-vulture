@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from src.file_io.test_plan_reader import read_test_plan
-from src.model.test_plan import (
+from visa_vulture.file_io.test_plan_reader import read_test_plan
+from visa_vulture.model.test_plan import (
     PLAN_TYPE_POWER_SUPPLY,
     PLAN_TYPE_SIGNAL_GENERATOR,
     PowerSupplyTestStep,

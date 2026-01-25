@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from src.instruments.power_supply import PowerSupply
+from visa_vulture.instruments.power_supply import PowerSupply
 
 
 class TestBaseInstrumentProperties:

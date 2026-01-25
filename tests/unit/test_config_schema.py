@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from src.config.schema import AppConfig, InstrumentConfig, validate_config
+from visa_vulture.config.schema import AppConfig, InstrumentConfig, validate_config
 
 
 class TestInstrumentConfig:

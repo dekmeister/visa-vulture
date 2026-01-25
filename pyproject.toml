@@ -1,0 +1,93 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "visa-vulture"
+dynamic = ["version"]
+description = "A Python GUI application for controlling test equipment over VISA"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Declan Walsh" }
+]
+keywords = [
+    "visa",
+    "pyvisa",
+    "test-equipment",
+    "instrument-control",
+    "gui",
+    "automation",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: X11 Applications",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Interface Engine/Protocol Translator",
+    "Typing :: Typed",
+]
+dependencies = [
+    "pyvisa>=1.13.0",
+    "pyvisa-sim>=0.5.1",
+    "matplotlib>=3.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "mypy>=1.0.0",
+]
+
+[project.scripts]
+visa-vulture = "visa_vulture.main:main"
+
+[project.urls]
+Homepage = "https://github.com/dekmeister/visa-vulture"
+Repository = "https://github.com/dekmeister/visa-vulture"
+Issues = "https://github.com/dekmeister/visa-vulture/issues"
+
+[tool.hatch.version]
+path = "visa_vulture/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/visa_vulture",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["visa_vulture"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning:pyvisa.*",
+]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.black]
+line-length = 88
+target-version = ["py310", "py311", "py312"]

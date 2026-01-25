@@ -15,42 +15,56 @@ A Python GUI application for controlling test equipment over VISA. Load test pla
 
 - Python 3.10+
 - Tkinter (usually included with Python)
-- pyvisa >= 1.13.0
-- pyvisa-sim >= 0.5.1
-- matplotlib >= 3.7.0
 
 ## Installation
 
+### From PyPI
+
+```bash
+pip install visa-vulture
+```
+
+### From Source
+
 1. Clone the repository:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/dekmeister/visa-vulture.git
    cd visa-vulture
    ```
 
-2. Create and activate a virtual environment:
+2. Install the package:
    ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   pip install .
    ```
 
-3. Install dependencies:
+   Or for development (includes pytest, black, mypy):
    ```bash
-   pip install -r requirements.txt
+   pip install -e ".[dev]"
    ```
 
 ## Usage
 
 ### Running the Application
 
+After installation via pip:
+
 ```bash
 # Run with default configuration (simulation mode)
-python run.py
+visa-vulture
 
 # Run with simulation mode explicitly enabled
-python run.py --simulation
+visa-vulture --simulation
 
 # Run with custom configuration file
-python run.py --config path/to/config.json
+visa-vulture --config path/to/config.json
+```
+
+If running from source:
+
+```bash
+python run.py
+# or
+python -m visa_vulture
 ```
 
 ### Test Plan Format
@@ -118,7 +132,7 @@ Configuration is stored in JSON format. Key settings:
 }
 ```
 
-See `src/config/default_config.json` for full configuration options.
+See `visa_vulture/config/default_config.json` for full configuration options.
 
 ## Architecture
 
@@ -152,7 +166,7 @@ The application follows the Model-View-Presenter (MVP) pattern:
 ## Project Structure
 
 ```
-src/
+visa_vulture/
 ├── main.py                 # Entry point
 ├── config/                 # Configuration loading
 ├── model/                  # Business logic, state machine
@@ -167,11 +181,11 @@ src/
 
 ## Adding New Instruments
 
-1. Create a new class in `instruments/` inheriting from `BaseInstrument`
+1. Create a new class in `visa_vulture/instruments/` inheriting from `BaseInstrument`
 2. Implement required methods: `connect`, `disconnect`, `get_status`
 3. Add instrument-specific commands
-4. Register the type in `model/equipment.py`
-5. Add simulation responses to `simulation/instruments.yaml`
+4. Register the type in `visa_vulture/model/equipment.py`
+5. Add simulation responses to `visa_vulture/simulation/instruments.yaml`
 
 ## Development
 
@@ -183,7 +197,7 @@ src/
 
 ### Extending Simulation
 
-Edit `src/simulation/instruments.yaml` to add:
+Edit `visa_vulture/simulation/instruments.yaml` to add:
 - New instrument responses
 - Additional SCPI commands
 - Stateful properties

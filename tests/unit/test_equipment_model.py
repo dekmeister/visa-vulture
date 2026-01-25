@@ -4,9 +4,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from src.model.equipment import EquipmentModel
-from src.model.state_machine import EquipmentState
-from src.model.test_plan import (
+from visa_vulture.model.equipment import EquipmentModel
+from visa_vulture.model.state_machine import EquipmentState
+from visa_vulture.model.test_plan import (
     PLAN_TYPE_POWER_SUPPLY,
     PLAN_TYPE_SIGNAL_GENERATOR,
     PowerSupplyTestStep,

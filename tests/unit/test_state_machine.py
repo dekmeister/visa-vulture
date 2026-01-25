@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.model.state_machine import EquipmentState, StateMachine
+from visa_vulture.model.state_machine import EquipmentState, StateMachine
 
 
 class TestEquipmentState:

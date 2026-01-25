@@ -117,7 +117,7 @@ def mock_signal_generator() -> Mock:
 @pytest.fixture
 def state_machine():
     """Fresh StateMachine instance."""
-    from src.model.state_machine import StateMachine
+    from visa_vulture.model.state_machine import StateMachine
 
     return StateMachine()
 
@@ -125,7 +125,7 @@ def state_machine():
 @pytest.fixture
 def equipment_model(mock_visa_connection: Mock):
     """EquipmentModel with mock VISA connection."""
-    from src.model.equipment import EquipmentModel
+    from visa_vulture.model.equipment import EquipmentModel
 
     return EquipmentModel(mock_visa_connection)
 
@@ -136,7 +136,7 @@ def equipment_model(mock_visa_connection: Mock):
 @pytest.fixture
 def sample_power_supply_plan():
     """Sample PowerSupply test plan."""
-    from src.model.test_plan import (
+    from visa_vulture.model.test_plan import (
         PLAN_TYPE_POWER_SUPPLY,
         PowerSupplyTestStep,
         TestPlan,
@@ -159,7 +159,7 @@ def sample_power_supply_plan():
 @pytest.fixture
 def sample_signal_generator_plan():
     """Sample SignalGenerator test plan."""
-    from src.model.test_plan import (
+    from visa_vulture.model.test_plan import (
         PLAN_TYPE_SIGNAL_GENERATOR,
         SignalGeneratorTestStep,
         TestPlan,
@@ -185,13 +185,13 @@ def sample_signal_generator_plan():
 @pytest.fixture
 def simulation_yaml_path() -> Path:
     """Path to simulation YAML file."""
-    return Path(__file__).parent.parent / "src" / "simulation" / "instruments.yaml"
+    return Path(__file__).parent.parent / "visa_vulture" / "simulation" / "instruments.yaml"
 
 
 @pytest.fixture
 def visa_connection_sim(simulation_yaml_path: Path):
     """Real VISAConnection with simulation backend."""
-    from src.instruments import VISAConnection
+    from visa_vulture.instruments import VISAConnection
 
     conn = VISAConnection(simulation_mode=True, simulation_file=simulation_yaml_path)
     yield conn
