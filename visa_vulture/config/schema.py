@@ -22,7 +22,7 @@ class AppConfig:
     simulation_file: str = "simulation/instruments.yaml"
     log_file: str = "equipment_controller.log"
     log_level: str = "INFO"
-    window_title: str = "Equipment Controller"
+    window_title: str = "VISA Vulture"
     window_width: int = 1200
     window_height: int = 800
     poll_interval_ms: int = 100
@@ -73,10 +73,10 @@ def validate_config(config_dict: dict[str, Any]) -> tuple[AppConfig | None, list
         log_level = log_level.upper()
 
     # Validate window settings
-    window_title = config_dict.get("window_title", "Equipment Controller")
+    window_title = config_dict.get("window_title", "VISA Vulture")
     if not isinstance(window_title, str):
         errors.append(f"window_title must be string, got {type(window_title).__name__}")
-        window_title = "Equipment Controller"
+        window_title = "VISA Vulture"
 
     window_width = config_dict.get("window_width", 1200)
     if not isinstance(window_width, int) or window_width < 400:

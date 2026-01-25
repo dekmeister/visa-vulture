@@ -3,7 +3,7 @@
     "simulation_file": "simulation/instruments.yaml",
     "log_file": "test.log",
     "log_level": "DEBUG",
-    "window_title": "Test Controller",
+    "window_title": "VISA Vulture",
     "window_width": 800,
     "window_height": 600,
     "poll_interval_ms": 50,

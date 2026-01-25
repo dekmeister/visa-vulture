@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Equipment Controller - Main entry point."""
+"""VISA Vulture - Main entry point."""
 
 import argparse
 import logging
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Equipment Controller - VISA Test Equipment Control Application"
+        description="VISA Vulture - VISA Test Equipment Control Application"
     )
     parser.add_argument(
         "--config",
@@ -63,7 +63,7 @@ def main() -> int:
         log_level=config.log_level,
     )
 
-    logger.info("Starting Equipment Controller")
+    logger.info("Starting VISA Vulture")
     logger.info("Simulation mode: %s", config.simulation_mode)
 
     # Create VISA connection

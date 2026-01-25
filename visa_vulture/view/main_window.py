@@ -21,7 +21,7 @@ class MainWindow:
     def __init__(
         self,
         root: tk.Tk,
-        title: str = "Equipment Controller",
+        title: str = "VISA Vulture",
         width: int = 1200,
         height: int = 800,
     ):
