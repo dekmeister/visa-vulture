@@ -1,6 +1,6 @@
 """Tests for the equipment model module."""
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -336,6 +336,49 @@ class TestEquipmentModelStopTest:
 
         assert model._stop_requested is True
         assert model._pause_requested is False
+
+    def test_stop_from_paused_transitions_to_idle(
+        self, mock_visa_connection: Mock, sample_power_supply_plan
+    ) -> None:
+        """Stopping from PAUSED state transitions to IDLE (regression test).
+
+        This tests the run_test() finally block: when a test is paused and stop
+        is requested, the finally block must transition to IDLE.
+        Previously, it only checked for RUNNING state and missed PAUSED.
+        """
+        model = EquipmentModel(mock_visa_connection)
+        model._state_machine._state = EquipmentState.IDLE
+        model._test_plan = sample_power_supply_plan
+
+        # Track state transitions
+        state_changes: list[tuple[EquipmentState, EquipmentState]] = []
+
+        def track_state(old: EquipmentState, new: EquipmentState) -> None:
+            state_changes.append((old, new))
+
+        model.register_state_callback(track_state)
+
+        # Mock _execute_power_supply_plan to simulate pause then stop
+        def mock_execute() -> None:
+            # Simulate: start running, pause, then stop
+            model._pause_requested = True
+            model._state_machine.to_paused()
+            # Now simulate stop while paused
+            model._stop_requested = True
+            model._pause_requested = False
+            # Method returns, run_test's finally block should handle transition
+
+        with patch.object(model, "_execute_power_supply_plan", mock_execute):
+            model.run_test()
+
+        # The final state should be IDLE, not stuck at PAUSED
+        assert model.state == EquipmentState.IDLE
+
+        # Verify we went through the expected state transitions
+        # IDLE -> RUNNING -> PAUSED -> IDLE
+        assert (EquipmentState.IDLE, EquipmentState.RUNNING) in state_changes
+        assert (EquipmentState.RUNNING, EquipmentState.PAUSED) in state_changes
+        assert (EquipmentState.PAUSED, EquipmentState.IDLE) in state_changes
 
 
 class TestEquipmentModelPauseTest:

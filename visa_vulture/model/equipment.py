@@ -257,7 +257,10 @@ class EquipmentModel:
             self._notify_complete(False, str(e))
             raise
         finally:
-            if self._state_machine.state == EquipmentState.RUNNING:
+            if self._state_machine.state in (
+                EquipmentState.RUNNING,
+                EquipmentState.PAUSED,
+            ):
                 self._state_machine.to_idle()
 
         self._notify_complete(success, message)
