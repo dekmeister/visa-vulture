@@ -519,7 +519,7 @@ class MainWindow:
 
     def get_selected_tab_index(self) -> int:
         """Get the index of the currently selected plot tab."""
-        return self._plot_notebook.index(self._plot_notebook.select())
+        return int(self._plot_notebook.index(self._plot_notebook.select()))
 
     def show_power_supply_plot(self) -> None:
         """Switch to power supply plot tab."""
