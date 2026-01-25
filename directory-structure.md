@@ -1,4 +1,4 @@
-# Equipment Controller - Directory Structure
+# VISA Vulture - Directory Structure
 
 ```
 visa_vulture/

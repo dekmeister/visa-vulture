@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the Equipment Controller application."""
+"""Run the VISA Vulture application."""
 
 import sys
 from visa_vulture.main import main

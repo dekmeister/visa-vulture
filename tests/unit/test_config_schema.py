@@ -52,7 +52,7 @@ class TestAppConfig:
         assert config.simulation_file == "simulation/instruments.yaml"
         assert config.log_file == "equipment_controller.log"
         assert config.log_level == "INFO"
-        assert config.window_title == "Equipment Controller"
+        assert config.window_title == "VISA Vulture"
         assert config.window_width == 1200
         assert config.window_height == 800
         assert config.poll_interval_ms == 100
@@ -73,9 +73,7 @@ class TestAppConfig:
 class TestValidateConfigHappyPath:
     """Tests for validate_config happy path."""
 
-    def test_valid_config_returns_app_config(
-        self, config_fixtures_path: Path
-    ) -> None:
+    def test_valid_config_returns_app_config(self, config_fixtures_path: Path) -> None:
         """Valid config returns AppConfig with no errors."""
         with open(config_fixtures_path / "valid_config.json") as f:
             config_dict = json.load(f)
@@ -169,9 +167,7 @@ class TestValidateConfigLogLevel:
         assert config is not None
         assert config.log_level == "DEBUG"
 
-    @pytest.mark.parametrize(
-        "level", ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-    )
+    @pytest.mark.parametrize("level", ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
     def test_all_valid_log_levels(self, level: str) -> None:
         """All valid log levels are accepted."""
         config, errors = validate_config({"log_level": level})
@@ -393,9 +389,7 @@ class TestValidateConfigInstruments:
 class TestValidateConfigErrorAccumulation:
     """Tests for error accumulation behavior."""
 
-    def test_multiple_errors_accumulated(
-        self, config_fixtures_path: Path
-    ) -> None:
+    def test_multiple_errors_accumulated(self, config_fixtures_path: Path) -> None:
         """Validate returns ALL errors, not just first."""
         with open(config_fixtures_path / "invalid_config_wrong_types.json") as f:
             config_dict = json.load(f)

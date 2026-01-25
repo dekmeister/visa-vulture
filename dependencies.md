@@ -1,4 +1,4 @@
-# Equipment Controller - Dependencies & Data Flow
+# VISA Vulture - Dependencies & Data Flow
 
 ## External Dependencies
 
