@@ -1,7 +1,7 @@
 # Equipment Controller - Directory Structure
 
 ```
-src/
+visa_vulture/
 │
 ├── main.py
 │
