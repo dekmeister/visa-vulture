@@ -174,6 +174,9 @@ class EquipmentPresenter:
             if self._model.state == EquipmentState.IDLE:
                 self._view.set_buttons_for_state("IDLE")
 
+            # Show total duration as remaining time
+            self._view.set_remaining_time_display(test_plan.total_duration)
+
             logger.info("Test plan loaded: %s", test_plan)
 
         except ValueError as e:
@@ -189,7 +192,6 @@ class EquipmentPresenter:
             return
 
         self._view.set_status("Running test...")
-        self._view.set_progress(0, self._model.test_plan.step_count)
 
         # Start runtime timer
         self._run_start_time = time.time()
@@ -236,8 +238,6 @@ class EquipmentPresenter:
 
         # Schedule view update on main thread
         def update():
-            self._view.set_progress(current, total)
-
             if isinstance(step, SignalGeneratorTestStep):
                 # Signal generator step
                 self._view.set_status(
@@ -269,8 +269,6 @@ class EquipmentPresenter:
             else:
                 self._view.set_status(f"Error: {message}")
                 self._view.show_error("Test Error", message)
-
-            self._view.set_progress(0, 0)
 
             # Clear position indicators and table highlighting
             if (
@@ -333,9 +331,11 @@ class EquipmentPresenter:
 
     def _update_runtime(self) -> None:
         """Update runtime display and schedule next update."""
-        if self._run_start_time is not None:
-            elapsed = int(time.time() - self._run_start_time)
-            self._view.set_runtime_display(elapsed)
+        if self._run_start_time is not None and self._model.test_plan is not None:
+            elapsed = time.time() - self._run_start_time
+            remaining = max(0.0, self._model.test_plan.total_duration - elapsed)
+            self._view.set_runtime_display(int(elapsed))
+            self._view.set_remaining_time_display(remaining)
             self._runtime_timer_id = self._view.schedule(1000, self._update_runtime)
 
     def _stop_runtime_timer(self) -> None:
@@ -345,6 +345,11 @@ class EquipmentPresenter:
             self._runtime_timer_id = None
         self._run_start_time = None
         self._view.set_runtime_display(None)
+        # Show total duration if a plan is loaded, otherwise --:--
+        if self._model.test_plan is not None:
+            self._view.set_remaining_time_display(self._model.test_plan.total_duration)
+        else:
+            self._view.set_remaining_time_display(None)
 
     def shutdown(self) -> None:
         """Clean shutdown of presenter."""

@@ -118,10 +118,6 @@ class MainWindow:
         )
         self._stop_btn.pack(side=tk.LEFT, padx=2)
 
-        # Progress bar
-        self._progress = ttk.Progressbar(run_frame, length=150, mode="determinate")
-        self._progress.pack(side=tk.LEFT, padx=5)
-
         # State and runtime display (vertical layout)
         status_frame = ttk.Frame(panel)
         status_frame.pack(side=tk.RIGHT, padx=10)
@@ -145,14 +141,19 @@ class MainWindow:
         )
         self._state_label.pack(side=tk.LEFT, padx=5)
 
-        # Runtime display (bottom row)
+        # Runtime and remaining time display (bottom row)
         runtime_frame = ttk.Frame(status_frame)
         runtime_frame.pack(side=tk.TOP, anchor=tk.E, pady=(2, 0))
         ttk.Label(runtime_frame, text="Runtime:").pack(side=tk.LEFT)
         self._runtime_label = ttk.Label(
             runtime_frame, text="--:--", font=("TkDefaultFont", 10, "bold")
         )
-        self._runtime_label.pack(side=tk.LEFT, padx=5)
+        self._runtime_label.pack(side=tk.LEFT, padx=(5, 15))
+        ttk.Label(runtime_frame, text="Remaining:").pack(side=tk.LEFT)
+        self._remaining_label = ttk.Label(
+            runtime_frame, text="--:--", font=("TkDefaultFont", 10, "bold")
+        )
+        self._remaining_label.pack(side=tk.LEFT, padx=5)
 
     def _create_content_area(self) -> None:
         """Create main content area with plot, table, and log panels."""
@@ -286,6 +287,21 @@ class MainWindow:
             seconds = elapsed_seconds % 60
             self._runtime_label.config(text=f"{minutes:02d}:{seconds:02d}")
 
+    def set_remaining_time_display(self, remaining_seconds: float | None) -> None:
+        """
+        Update remaining time display.
+
+        Args:
+            remaining_seconds: Remaining time in seconds, or None to show --:--
+        """
+        if remaining_seconds is None:
+            self._remaining_label.config(text="--:--")
+        else:
+            remaining_int = max(0, int(remaining_seconds))
+            minutes = remaining_int // 60
+            seconds = remaining_int % 60
+            self._remaining_label.config(text=f"{minutes:02d}:{seconds:02d}")
+
     def set_connection_status(self, connected: bool) -> None:
         """
         Update connection indicator.
@@ -339,20 +355,6 @@ class MainWindow:
             self._plan_label.config(text=name)
         else:
             self._plan_label.config(text="No plan loaded")
-
-    def set_progress(self, current: int, total: int) -> None:
-        """
-        Update progress bar.
-
-        Args:
-            current: Current step
-            total: Total steps
-        """
-        if total > 0:
-            self._progress["maximum"] = total
-            self._progress["value"] = current
-        else:
-            self._progress["value"] = 0
 
     def set_status(self, message: str) -> None:
         """
