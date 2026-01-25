@@ -101,7 +101,7 @@ class VISAConnection:
         timeout_ms: int = 5000,
         read_termination: str | None = "\n",
         write_termination: str | None = "\n",
-    ) -> pyvisa.resources.Resource:
+    ) -> pyvisa.resources.MessageBasedResource:
         """
         Open a VISA resource.
 
@@ -119,9 +119,15 @@ class VISAConnection:
 
         logger.info("Opening resource: %s (timeout=%dms)", resource_address, timeout_ms)
         resource = self._resource_manager.open_resource(resource_address)
+        # Type assertion: INSTR resources are always MessageBasedResource
+        if not isinstance(resource, pyvisa.resources.MessageBasedResource):
+            resource.close()
+            raise TypeError(f"Expected MessageBasedResource, got {type(resource)}")
         resource.timeout = timeout_ms
-        resource.read_termination = read_termination
-        resource.write_termination = write_termination
+        if read_termination is not None:
+            resource.read_termination = read_termination
+        if write_termination is not None:
+            resource.write_termination = write_termination
         return resource
 
     def __enter__(self) -> "VISAConnection":

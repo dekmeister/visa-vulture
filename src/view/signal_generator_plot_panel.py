@@ -10,6 +10,7 @@ matplotlib.use("TkAgg")
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
 
 
 class SignalGeneratorPlotPanel(ttk.Frame):
@@ -36,7 +37,7 @@ class SignalGeneratorPlotPanel(ttk.Frame):
         self._powers: list[float] = []
 
         # Position indicator
-        self._position_line = None
+        self._position_line: Line2D | None = None
 
         self._create_widgets()
 
@@ -44,7 +45,7 @@ class SignalGeneratorPlotPanel(ttk.Frame):
         """Create matplotlib figure and canvas."""
         # Create figure with constrained layout
         self._figure = Figure(figsize=(8, 4), dpi=100)
-        self._figure.set_tight_layout(True)
+        self._figure.tight_layout()
 
         # Primary axis for frequency
         self._ax_freq = self._figure.add_subplot(111)
@@ -74,7 +75,7 @@ class SignalGeneratorPlotPanel(ttk.Frame):
 
         # Legend
         lines = [self._freq_line, self._power_line]
-        labels = [line.get_label() for line in lines]
+        labels = [str(line.get_label()) for line in lines]
         self._ax_freq.legend(lines, labels, loc="upper left")
 
         # Embed in Tkinter

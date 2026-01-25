@@ -75,6 +75,7 @@ class TestReadPowerSupplyPlan:
 
         step1 = plan.get_step(1)
         assert step1 is not None
+        assert isinstance(step1, PowerSupplyTestStep)
         assert step1.time_seconds == 0.0
         assert step1.voltage == 5.0
         assert step1.current == 1.0

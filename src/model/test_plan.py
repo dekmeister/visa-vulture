@@ -1,6 +1,7 @@
 """Test plan data structures."""
 
 from dataclasses import dataclass, field
+from typing import Sequence
 
 # Plan type constants
 PLAN_TYPE_POWER_SUPPLY = "power_supply"
@@ -68,7 +69,7 @@ class TestPlan:
 
     name: str
     plan_type: str
-    steps: list[TestStep] = field(default_factory=list)
+    steps: Sequence[TestStep] = field(default_factory=list)
     description: str = ""
 
     @property

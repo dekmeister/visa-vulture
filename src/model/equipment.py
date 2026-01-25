@@ -134,6 +134,7 @@ class EquipmentModel:
             read_termination: Character(s) appended to reads, or None for no termination
             write_termination: Character(s) appended to writes, or None for no termination
         """
+        instrument: BaseInstrument
         if instrument_type == "power_supply":
             instrument = PowerSupply(
                 name, resource_address, timeout_ms, read_termination, write_termination
@@ -309,6 +310,10 @@ class EquipmentModel:
                 logger.info("Test stopped at step %d", step.step_number)
                 break
 
+            # Type narrow: steps in power supply plan must be PowerSupplyTestStep
+            if not isinstance(step, PowerSupplyTestStep):
+                raise TypeError(f"Expected PowerSupplyTestStep, got {type(step)}")
+
             logger.info(
                 "Executing step %d/%d: V=%.3f, I=%.3f",
                 step.step_number,
@@ -364,6 +369,10 @@ class EquipmentModel:
             if self._stop_requested:
                 logger.info("Test stopped at step %d", step.step_number)
                 break
+
+            # Type narrow: steps in signal generator plan must be SignalGeneratorTestStep
+            if not isinstance(step, SignalGeneratorTestStep):
+                raise TypeError(f"Expected SignalGeneratorTestStep, got {type(step)}")
 
             logger.info(
                 "Executing step %d/%d: F=%.1f Hz, P=%.2f dBm",

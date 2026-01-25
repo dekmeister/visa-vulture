@@ -39,7 +39,7 @@ class BaseInstrument(ABC):
         self._timeout_ms = timeout_ms
         self._read_termination = read_termination
         self._write_termination = write_termination
-        self._resource: pyvisa.resources.Resource | None = None
+        self._resource: pyvisa.resources.MessageBasedResource | None = None
         self._identification: str | None = None
 
     @property
@@ -124,7 +124,7 @@ class BaseInstrument(ABC):
             f"Firmware: {self.firmware()}"
         )
 
-    def connect(self, visa_resource: pyvisa.resources.Resource) -> None:
+    def connect(self, visa_resource: pyvisa.resources.MessageBasedResource) -> None:
         """
         Connect to the instrument.
 
@@ -170,6 +170,7 @@ class BaseInstrument(ABC):
             command: SCPI command string
         """
         self._check_connected()
+        assert self._resource is not None  # Type narrowing: _check_connected ensures this
         logger.debug("%s: Write: %s", self._name, command)
         self._resource.write(command)
 
@@ -181,6 +182,7 @@ class BaseInstrument(ABC):
             Response string
         """
         self._check_connected()
+        assert self._resource is not None  # Type narrowing: _check_connected ensures this
         response = self._resource.read().strip()
         logger.debug("%s: Read: %s", self._name, response)
         return response
@@ -196,6 +198,7 @@ class BaseInstrument(ABC):
             Response string
         """
         self._check_connected()
+        assert self._resource is not None  # Type narrowing: _check_connected ensures this
         logger.debug("%s: Query: %s", self._name, command)
         response = self._resource.query(command).strip()
         logger.debug("%s: Response: %s", self._name, response)
