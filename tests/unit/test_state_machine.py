@@ -9,10 +9,11 @@ class TestEquipmentState:
     """Tests for EquipmentState enum."""
 
     def test_state_values_exist(self) -> None:
-        """Verify all four states exist."""
+        """Verify all five states exist."""
         assert EquipmentState.UNKNOWN is not None
         assert EquipmentState.IDLE is not None
         assert EquipmentState.RUNNING is not None
+        assert EquipmentState.PAUSED is not None
         assert EquipmentState.ERROR is not None
 
     def test_states_are_unique(self) -> None:
@@ -21,6 +22,7 @@ class TestEquipmentState:
             EquipmentState.UNKNOWN,
             EquipmentState.IDLE,
             EquipmentState.RUNNING,
+            EquipmentState.PAUSED,
             EquipmentState.ERROR,
         ]
         values = [s.value for s in states]
@@ -107,6 +109,41 @@ class TestCanTransitionTo:
         """ERROR -> RUNNING is invalid."""
         sm = StateMachine(initial_state=EquipmentState.ERROR)
         assert sm.can_transition_to(EquipmentState.RUNNING) is False
+
+    def test_can_transition_from_running_to_paused(self) -> None:
+        """RUNNING -> PAUSED is valid."""
+        sm = StateMachine(initial_state=EquipmentState.RUNNING)
+        assert sm.can_transition_to(EquipmentState.PAUSED) is True
+
+    def test_can_transition_from_paused_to_running(self) -> None:
+        """PAUSED -> RUNNING is valid (resume)."""
+        sm = StateMachine(initial_state=EquipmentState.PAUSED)
+        assert sm.can_transition_to(EquipmentState.RUNNING) is True
+
+    def test_can_transition_from_paused_to_idle(self) -> None:
+        """PAUSED -> IDLE is valid (stop while paused)."""
+        sm = StateMachine(initial_state=EquipmentState.PAUSED)
+        assert sm.can_transition_to(EquipmentState.IDLE) is True
+
+    def test_can_transition_from_paused_to_error(self) -> None:
+        """PAUSED -> ERROR is valid."""
+        sm = StateMachine(initial_state=EquipmentState.PAUSED)
+        assert sm.can_transition_to(EquipmentState.ERROR) is True
+
+    def test_can_transition_from_paused_to_unknown(self) -> None:
+        """PAUSED -> UNKNOWN is valid."""
+        sm = StateMachine(initial_state=EquipmentState.PAUSED)
+        assert sm.can_transition_to(EquipmentState.UNKNOWN) is True
+
+    def test_cannot_transition_from_idle_to_paused(self) -> None:
+        """IDLE -> PAUSED is invalid (must go through RUNNING first)."""
+        sm = StateMachine(initial_state=EquipmentState.IDLE)
+        assert sm.can_transition_to(EquipmentState.PAUSED) is False
+
+    def test_cannot_transition_from_unknown_to_paused(self) -> None:
+        """UNKNOWN -> PAUSED is invalid."""
+        sm = StateMachine(initial_state=EquipmentState.UNKNOWN)
+        assert sm.can_transition_to(EquipmentState.PAUSED) is False
 
 
 class TestTransitionTo:
@@ -295,3 +332,15 @@ class TestConvenienceMethods:
         sm = StateMachine(initial_state=EquipmentState.UNKNOWN)
         with pytest.raises(ValueError):
             sm.to_running()  # UNKNOWN -> RUNNING is invalid
+
+    def test_to_paused_transitions_to_paused_state(self) -> None:
+        """to_paused() transitions to PAUSED state."""
+        sm = StateMachine(initial_state=EquipmentState.RUNNING)
+        sm.to_paused()
+        assert sm.state == EquipmentState.PAUSED
+
+    def test_to_paused_from_idle_raises(self) -> None:
+        """to_paused() from IDLE state raises ValueError."""
+        sm = StateMachine(initial_state=EquipmentState.IDLE)
+        with pytest.raises(ValueError):
+            sm.to_paused()  # IDLE -> PAUSED is invalid

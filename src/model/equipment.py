@@ -42,6 +42,8 @@ class EquipmentModel:
         self._instruments: dict[str, BaseInstrument] = {}
         self._test_plan: TestPlan | None = None
         self._stop_requested = False
+        self._pause_requested = False
+        self._time_remaining_in_step: float | None = None
 
         # Callbacks for test execution
         self._progress_callbacks: list[TestProgressCallback] = []
@@ -234,6 +236,7 @@ class EquipmentModel:
             )
 
         self._stop_requested = False
+        self._pause_requested = False
         self._state_machine.to_running()
 
         try:
@@ -260,9 +263,25 @@ class EquipmentModel:
 
     def stop_test(self) -> None:
         """Request test execution to stop."""
-        if self._state_machine.state == EquipmentState.RUNNING:
+        if self._state_machine.state in (
+            EquipmentState.RUNNING,
+            EquipmentState.PAUSED,
+        ):
             logger.info("Stop requested")
             self._stop_requested = True
+            self._pause_requested = False  # Clear pause flag so loop can exit
+
+    def pause_test(self) -> None:
+        """Request test execution to pause."""
+        if self._state_machine.state == EquipmentState.RUNNING:
+            logger.info("Pause requested")
+            self._pause_requested = True
+
+    def resume_test(self) -> None:
+        """Request test execution to resume."""
+        if self._state_machine.state == EquipmentState.PAUSED:
+            logger.info("Resume requested")
+            self._pause_requested = False
 
     def _execute_power_supply_plan(self) -> None:
         """Execute power supply test plan steps."""
@@ -377,10 +396,31 @@ class EquipmentModel:
             signal_gen.disable_output()
 
     def _interruptible_sleep(self, duration: float) -> None:
-        """Sleep that can be interrupted by stop request."""
-        end_time = time.time() + duration
-        while time.time() < end_time and not self._stop_requested:
-            time.sleep(min(0.1, end_time - time.time()))
+        """Sleep that can be interrupted by stop or pause request."""
+        remaining = duration
+
+        while remaining > 0 and not self._stop_requested:
+            if self._pause_requested:
+                # Store remaining time for this step
+                self._time_remaining_in_step = remaining
+
+                # Transition to PAUSED state
+                self._state_machine.to_paused()
+
+                # Wait until resumed or stopped
+                while self._pause_requested and not self._stop_requested:
+                    time.sleep(0.1)
+
+                if not self._stop_requested:
+                    # Resumed - continue with remaining time
+                    remaining = self._time_remaining_in_step or remaining
+                    self._time_remaining_in_step = None
+                    self._state_machine.to_running()
+            else:
+                # Normal sleep chunk
+                sleep_chunk = min(0.1, remaining)
+                time.sleep(sleep_chunk)
+                remaining -= sleep_chunk
 
     def _notify_progress(self, current: int, total: int, step: TestStep) -> None:
         """Notify progress callbacks."""

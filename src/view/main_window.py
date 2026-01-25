@@ -44,6 +44,7 @@ class MainWindow:
         self._on_load_test_plan: Callable[[str], None] | None = None
         self._on_run: Callable[[], None] | None = None
         self._on_stop: Callable[[], None] | None = None
+        self._on_pause: Callable[[], None] | None = None
 
         # Tooltip state
         self._tooltip: tk.Toplevel | None = None
@@ -117,6 +118,11 @@ class MainWindow:
             run_frame, text="Stop", command=self._handle_stop, state=tk.DISABLED
         )
         self._stop_btn.pack(side=tk.LEFT, padx=2)
+
+        self._pause_btn = ttk.Button(
+            run_frame, text="Pause", command=self._handle_pause, state=tk.DISABLED
+        )
+        self._pause_btn.pack(side=tk.LEFT, padx=2)
 
         # State and runtime display (vertical layout)
         status_frame = ttk.Frame(panel)
@@ -231,6 +237,11 @@ class MainWindow:
         if self._on_stop:
             self._on_stop()
 
+    def _handle_pause(self) -> None:
+        """Handle pause button click."""
+        if self._on_pause:
+            self._on_pause()
+
     # Callback setters
 
     def set_on_connect(self, callback: Callable[[], None]) -> None:
@@ -253,6 +264,10 @@ class MainWindow:
         """Set callback for stop button."""
         self._on_stop = callback
 
+    def set_on_pause(self, callback: Callable[[], None]) -> None:
+        """Set callback for pause button."""
+        self._on_pause = callback
+
     # View update methods
 
     def set_state_display(self, state: str) -> None:
@@ -269,6 +284,7 @@ class MainWindow:
             "UNKNOWN": "gray",
             "IDLE": "green",
             "RUNNING": "blue",
+            "PAUSED": "orange",
             "ERROR": "red",
         }
         self._state_label.config(foreground=colors.get(state, "black"))
@@ -325,24 +341,49 @@ class MainWindow:
             self._load_btn.config(state=tk.NORMAL)
             self._run_btn.config(state=tk.DISABLED)
             self._stop_btn.config(state=tk.DISABLED)
+            self._pause_btn.config(state=tk.DISABLED)
+            self.set_run_button_text("Run")
         elif state == "IDLE":
             self._connect_btn.config(state=tk.DISABLED)
             self._disconnect_btn.config(state=tk.NORMAL)
             self._load_btn.config(state=tk.NORMAL)
             self._run_btn.config(state=tk.NORMAL)
             self._stop_btn.config(state=tk.DISABLED)
+            self._pause_btn.config(state=tk.DISABLED)
+            self.set_run_button_text("Run")
         elif state == "RUNNING":
             self._connect_btn.config(state=tk.DISABLED)
             self._disconnect_btn.config(state=tk.DISABLED)
             self._load_btn.config(state=tk.DISABLED)
             self._run_btn.config(state=tk.DISABLED)
             self._stop_btn.config(state=tk.NORMAL)
+            self._pause_btn.config(state=tk.NORMAL)
+            self.set_run_button_text("Run")
+        elif state == "PAUSED":
+            self._connect_btn.config(state=tk.DISABLED)
+            self._disconnect_btn.config(state=tk.DISABLED)
+            self._load_btn.config(state=tk.DISABLED)
+            self._run_btn.config(state=tk.NORMAL)
+            self._stop_btn.config(state=tk.NORMAL)
+            self._pause_btn.config(state=tk.DISABLED)
+            self.set_run_button_text("Resume")
         elif state == "ERROR":
             self._connect_btn.config(state=tk.NORMAL)
             self._disconnect_btn.config(state=tk.NORMAL)
             self._load_btn.config(state=tk.NORMAL)
             self._run_btn.config(state=tk.DISABLED)
             self._stop_btn.config(state=tk.DISABLED)
+            self._pause_btn.config(state=tk.DISABLED)
+            self.set_run_button_text("Run")
+
+    def set_run_button_text(self, text: str) -> None:
+        """
+        Update Run button text.
+
+        Args:
+            text: Button text (e.g., 'Run' or 'Resume')
+        """
+        self._run_btn.config(text=text)
 
     def set_test_plan_name(self, name: str | None) -> None:
         """

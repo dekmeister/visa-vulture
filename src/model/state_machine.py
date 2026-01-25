@@ -13,6 +13,7 @@ class EquipmentState(Enum):
     UNKNOWN = auto()  # Default startup state
     IDLE = auto()  # Connected and ready
     RUNNING = auto()  # Executing test plan
+    PAUSED = auto()  # Test paused, can resume
     ERROR = auto()  # Failure occurred
 
 
@@ -25,6 +26,13 @@ _VALID_TRANSITIONS: dict[EquipmentState, set[EquipmentState]] = {
         EquipmentState.UNKNOWN,
     },
     EquipmentState.RUNNING: {
+        EquipmentState.IDLE,
+        EquipmentState.PAUSED,
+        EquipmentState.ERROR,
+        EquipmentState.UNKNOWN,
+    },
+    EquipmentState.PAUSED: {
+        EquipmentState.RUNNING,
         EquipmentState.IDLE,
         EquipmentState.ERROR,
         EquipmentState.UNKNOWN,
@@ -145,6 +153,10 @@ class StateMachine:
     def to_running(self) -> None:
         """Transition to RUNNING state."""
         self.transition_to(EquipmentState.RUNNING)
+
+    def to_paused(self) -> None:
+        """Transition to PAUSED state."""
+        self.transition_to(EquipmentState.PAUSED)
 
     def reset(self) -> None:
         """Reset to UNKNOWN state (for reconnection)."""

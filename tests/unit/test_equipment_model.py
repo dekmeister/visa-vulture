@@ -316,13 +316,89 @@ class TestEquipmentModelStopTest:
 
         assert model._stop_requested is True
 
-    def test_stop_only_when_running(
+    def test_stop_only_when_running_or_paused(
         self, equipment_model: EquipmentModel
     ) -> None:
-        """stop_test only sets flag when in RUNNING state."""
+        """stop_test only sets flag when in RUNNING or PAUSED state."""
         equipment_model.stop_test()
 
         assert equipment_model._stop_requested is False
+
+    def test_stop_from_paused_sets_flag(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """stop_test sets stop flag and clears pause flag when paused."""
+        model = EquipmentModel(mock_visa_connection)
+        model._state_machine._state = EquipmentState.PAUSED
+        model._pause_requested = True
+
+        model.stop_test()
+
+        assert model._stop_requested is True
+        assert model._pause_requested is False
+
+
+class TestEquipmentModelPauseTest:
+    """Tests for pause_test method."""
+
+    def test_pause_sets_flag_when_running(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """pause_test sets the pause flag when running."""
+        model = EquipmentModel(mock_visa_connection)
+        model._state_machine._state = EquipmentState.RUNNING
+
+        model.pause_test()
+
+        assert model._pause_requested is True
+
+    def test_pause_only_when_running(
+        self, equipment_model: EquipmentModel
+    ) -> None:
+        """pause_test only sets flag when in RUNNING state."""
+        equipment_model.pause_test()
+
+        assert equipment_model._pause_requested is False
+
+    def test_pause_from_idle_does_nothing(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """pause_test does nothing when in IDLE state."""
+        model = EquipmentModel(mock_visa_connection)
+        model._state_machine._state = EquipmentState.IDLE
+
+        model.pause_test()
+
+        assert model._pause_requested is False
+
+
+class TestEquipmentModelResumeTest:
+    """Tests for resume_test method."""
+
+    def test_resume_clears_pause_flag(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """resume_test clears the pause flag when paused."""
+        model = EquipmentModel(mock_visa_connection)
+        model._state_machine._state = EquipmentState.PAUSED
+        model._pause_requested = True
+
+        model.resume_test()
+
+        assert model._pause_requested is False
+
+    def test_resume_only_when_paused(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """resume_test only clears flag when in PAUSED state."""
+        model = EquipmentModel(mock_visa_connection)
+        model._state_machine._state = EquipmentState.RUNNING
+        model._pause_requested = True
+
+        model.resume_test()
+
+        # Flag should still be set since we're not in PAUSED state
+        assert model._pause_requested is True
 
 
 class TestEquipmentModelIdentification:

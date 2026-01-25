@@ -49,6 +49,7 @@ class EquipmentPresenter:
         # Runtime timer state
         self._runtime_timer_id: str | None = None
         self._run_start_time: float | None = None
+        self._elapsed_at_pause: float | None = None
 
         # Wire everything up
         self._wire_callbacks()
@@ -67,6 +68,7 @@ class EquipmentPresenter:
         self._view.set_on_load_test_plan(self._handle_load_test_plan)
         self._view.set_on_run(self._handle_run)
         self._view.set_on_stop(self._handle_stop)
+        self._view.set_on_pause(self._handle_pause)
 
         # Model callbacks
         self._model.register_state_callback(self._on_state_changed)
@@ -184,7 +186,20 @@ class EquipmentPresenter:
             logger.error("Test plan validation failed: %s", e)
 
     def _handle_run(self) -> None:
-        """Handle run button."""
+        """Handle run button (also handles resume when paused)."""
+        # Handle resume from paused state
+        if self._model.state == EquipmentState.PAUSED:
+            logger.info("Resume requested")
+            self._model.resume_test()
+            self._view.set_status("Resuming test...")
+
+            # Restore runtime timer from where we left off
+            if self._elapsed_at_pause is not None:
+                self._run_start_time = time.time() - self._elapsed_at_pause
+                self._elapsed_at_pause = None
+                self._start_runtime_timer()
+            return
+
         logger.info("Run requested")
 
         if self._model.test_plan is None:
@@ -217,6 +232,14 @@ class EquipmentPresenter:
         logger.info("Stop requested")
         self._model.stop_test()
         self._view.set_status("Stopping...")
+        # Clear pause state if stopping from paused
+        self._elapsed_at_pause = None
+
+    def _handle_pause(self) -> None:
+        """Handle pause button."""
+        logger.info("Pause requested")
+        self._model.pause_test()
+        self._view.set_status("Pausing...")
 
     # Model callback handlers
 
@@ -226,9 +249,21 @@ class EquipmentPresenter:
         """Handle model state change."""
         logger.debug("State changed: %s -> %s", old_state.name, new_state.name)
 
-        # Stop runtime timer when leaving RUNNING state
+        # Handle timer when leaving RUNNING state
         if old_state == EquipmentState.RUNNING and new_state != EquipmentState.RUNNING:
-            self._view.schedule(0, self._stop_runtime_timer)
+            if new_state == EquipmentState.PAUSED:
+                # Pausing - save elapsed time and stop timer
+                if self._run_start_time is not None:
+                    self._elapsed_at_pause = time.time() - self._run_start_time
+                self._view.schedule(0, self._stop_runtime_timer_for_pause)
+            else:
+                # Actually stopping
+                self._elapsed_at_pause = None
+                self._view.schedule(0, self._stop_runtime_timer)
+
+        # Clear pause state when transitioning from PAUSED to IDLE (stop while paused)
+        if old_state == EquipmentState.PAUSED and new_state == EquipmentState.IDLE:
+            self._elapsed_at_pause = None
 
         # Schedule view update on main thread
         self._view.schedule(0, lambda: self._update_view_for_state(new_state))
@@ -289,7 +324,11 @@ class EquipmentPresenter:
 
     def _update_instrument_display(self) -> None:
         """Update instrument identification based on selected tab."""
-        if self._model.state not in (EquipmentState.IDLE, EquipmentState.RUNNING):
+        if self._model.state not in (
+            EquipmentState.IDLE,
+            EquipmentState.RUNNING,
+            EquipmentState.PAUSED,
+        ):
             self._view.set_instrument_display(None, None)
             return
 
@@ -315,7 +354,11 @@ class EquipmentPresenter:
         self._view.set_buttons_for_state(state_name)
 
         # Update connection indicator
-        connected = state in (EquipmentState.IDLE, EquipmentState.RUNNING)
+        connected = state in (
+            EquipmentState.IDLE,
+            EquipmentState.RUNNING,
+            EquipmentState.PAUSED,
+        )
         self._view.set_connection_status(connected)
 
         # Check if run should be enabled (need both connection and test plan)
@@ -351,6 +394,13 @@ class EquipmentPresenter:
         else:
             self._view.set_remaining_time_display(None)
 
+    def _stop_runtime_timer_for_pause(self) -> None:
+        """Stop the runtime timer but preserve display values for pause."""
+        if self._runtime_timer_id is not None:
+            self._view.cancel_schedule(self._runtime_timer_id)
+            self._runtime_timer_id = None
+        # Don't reset run_start_time or displays - keep showing paused values
+
     def shutdown(self) -> None:
         """Clean shutdown of presenter."""
         logger.info("EquipmentPresenter shutting down")
@@ -358,7 +408,11 @@ class EquipmentPresenter:
         self._task_runner.stop()
 
         # Disconnect if connected
-        if self._model.state in (EquipmentState.IDLE, EquipmentState.RUNNING):
+        if self._model.state in (
+            EquipmentState.IDLE,
+            EquipmentState.RUNNING,
+            EquipmentState.PAUSED,
+        ):
             try:
                 self._model.disconnect()
             except Exception as e:
