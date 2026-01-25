@@ -1,7 +1,8 @@
 """Shared pytest fixtures."""
 
+from collections.abc import Callable
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
 
@@ -197,3 +198,122 @@ def visa_connection_sim(simulation_yaml_path: Path):
     yield conn
     if conn.is_open:
         conn.close()
+
+
+# === Presenter Test Fixtures ===
+
+
+@pytest.fixture
+def mock_view() -> Mock:
+    """Mock MainWindow with callback capture and method tracking."""
+    view = Mock()
+
+    # Storage for callbacks (presenter sets these)
+    view._callbacks = {
+        "on_connect": None,
+        "on_disconnect": None,
+        "on_load_test_plan": None,
+        "on_run": None,
+        "on_stop": None,
+        "on_pause": None,
+    }
+
+    # Capture callbacks when set
+    def make_callback_setter(name: str) -> Callable:
+        def setter(callback: Callable) -> None:
+            view._callbacks[name] = callback
+
+        return setter
+
+    view.set_on_connect.side_effect = make_callback_setter("on_connect")
+    view.set_on_disconnect.side_effect = make_callback_setter("on_disconnect")
+    view.set_on_load_test_plan.side_effect = make_callback_setter("on_load_test_plan")
+    view.set_on_run.side_effect = make_callback_setter("on_run")
+    view.set_on_stop.side_effect = make_callback_setter("on_stop")
+    view.set_on_pause.side_effect = make_callback_setter("on_pause")
+
+    # Timer tracking for schedule/cancel_schedule
+    view._timer_counter = 0
+    view._scheduled_callbacks = {}
+
+    def mock_schedule(delay_ms: int, callback: Callable) -> str:
+        view._timer_counter += 1
+        timer_id = f"timer_{view._timer_counter}"
+        view._scheduled_callbacks[timer_id] = callback
+        return timer_id
+
+    def mock_cancel_schedule(timer_id: str) -> None:
+        view._scheduled_callbacks.pop(timer_id, None)
+
+    view.schedule.side_effect = mock_schedule
+    view.cancel_schedule.side_effect = mock_cancel_schedule
+
+    # Mock panel objects
+    view.plot_panel = Mock()
+    view.signal_gen_plot_panel = Mock()
+    view.ps_table = Mock()
+    view.sg_table = Mock()
+    view.plot_notebook = Mock()
+
+    # Default tab index (0 = Power Supply)
+    view.get_selected_tab_index.return_value = 0
+
+    return view
+
+
+@pytest.fixture
+def mock_model_for_presenter() -> Mock:
+    """Mock EquipmentModel with callback registration and state tracking."""
+    from visa_vulture.model import EquipmentState
+
+    model = Mock()
+
+    # State tracking via property
+    model._current_state = EquipmentState.UNKNOWN
+    type(model).state = PropertyMock(side_effect=lambda: model._current_state)
+
+    # Test plan tracking via property
+    model._test_plan = None
+    type(model).test_plan = PropertyMock(side_effect=lambda: model._test_plan)
+
+    # Instruments tracking
+    model._instruments = {}
+    type(model).instruments = PropertyMock(side_effect=lambda: model._instruments)
+
+    # Callback storage
+    model._state_callbacks = []
+    model._progress_callbacks = []
+    model._complete_callbacks = []
+
+    def register_state_callback(callback: Callable) -> None:
+        model._state_callbacks.append(callback)
+
+    def register_progress_callback(callback: Callable) -> None:
+        model._progress_callbacks.append(callback)
+
+    def register_complete_callback(callback: Callable) -> None:
+        model._complete_callbacks.append(callback)
+
+    model.register_state_callback.side_effect = register_state_callback
+    model.register_progress_callback.side_effect = register_progress_callback
+    model.register_complete_callback.side_effect = register_complete_callback
+
+    # Default return values
+    model.get_instrument_identification.return_value = (None, None)
+
+    return model
+
+
+@pytest.fixture
+def presenter(mock_model_for_presenter: Mock, mock_view: Mock):
+    """Create presenter with mocked dependencies and synchronous task runner."""
+    from tests.unit.presenter_test_helpers import SynchronousTaskRunner
+    from visa_vulture.presenter import EquipmentPresenter
+
+    # Patch BackgroundTaskRunner to use SynchronousTaskRunner
+    with patch(
+        "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+        SynchronousTaskRunner,
+    ):
+        presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
+        yield presenter
