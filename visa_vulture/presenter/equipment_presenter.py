@@ -158,8 +158,8 @@ class EquipmentPresenter:
                 self._view.sg_table.load_steps(test_plan.steps)
             else:
                 # Power supply plan
-                self._view.plot_panel.clear()
-                self._view.plot_panel.set_title(test_plan.name)
+                self._view.power_supply_plot_panel.clear()
+                self._view.power_supply_plot_panel.set_title(test_plan.name)
                 self._view.show_power_supply_plot()
 
                 # Load test plan preview (show full trajectory)
@@ -167,7 +167,9 @@ class EquipmentPresenter:
                 times = [s.absolute_time_seconds for s in test_plan.steps]
                 voltages = [s.voltage for s in test_plan.steps]  # type: ignore[attr-defined]
                 currents = [s.current for s in test_plan.steps]  # type: ignore[attr-defined]
-                self._view.plot_panel.load_test_plan_preview(times, voltages, currents)
+                self._view.power_supply_plot_panel.load_test_plan_preview(
+                    times, voltages, currents
+                )
 
                 # Load test steps into table
                 self._view.ps_table.load_steps(test_plan.steps)
@@ -216,7 +218,7 @@ class EquipmentPresenter:
         if self._model.test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
             self._view.signal_gen_plot_panel.clear_position()
         else:
-            self._view.plot_panel.clear_position()
+            self._view.power_supply_plot_panel.clear_position()
 
         def task():
             self._model.run_test()
@@ -279,7 +281,9 @@ class EquipmentPresenter:
                     f"Step {current}/{total}: F={step.frequency/1e6:.3f} MHz, P={step.power:.1f} dBm"
                 )
                 # Update position indicator on the plot
-                self._view.signal_gen_plot_panel.set_current_position(step.absolute_time_seconds)
+                self._view.signal_gen_plot_panel.set_current_position(
+                    step.absolute_time_seconds
+                )
                 # Highlight current row in table
                 self._view.sg_table.highlight_step(step.step_number)
             elif isinstance(step, PowerSupplyTestStep):
@@ -288,7 +292,9 @@ class EquipmentPresenter:
                     f"Step {current}/{total}: V={step.voltage:.2f}V, I={step.current:.2f}A"
                 )
                 # Update position indicator on the plot
-                self._view.plot_panel.set_current_position(step.absolute_time_seconds)
+                self._view.power_supply_plot_panel.set_current_position(
+                    step.absolute_time_seconds
+                )
                 # Highlight current row in table
                 self._view.ps_table.highlight_step(step.step_number)
 
@@ -313,7 +319,7 @@ class EquipmentPresenter:
                 self._view.signal_gen_plot_panel.clear_position()
                 self._view.sg_table.clear_highlight()
             else:
-                self._view.plot_panel.clear_position()
+                self._view.power_supply_plot_panel.clear_position()
                 self._view.ps_table.clear_highlight()
 
         self._view.schedule(0, update)

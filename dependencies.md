@@ -180,7 +180,7 @@ User clicks "Run"
                     PowerSupply.set_...   LogPanel updates
                             │
                             ▼
-                    PlotPanel.update(data)
+                    PowerSupplyPlotPanel.update(data)
                             │
                     (test complete)
                             │

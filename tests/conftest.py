@@ -186,7 +186,12 @@ def sample_signal_generator_plan():
 @pytest.fixture
 def simulation_yaml_path() -> Path:
     """Path to simulation YAML file."""
-    return Path(__file__).parent.parent / "visa_vulture" / "simulation" / "instruments.yaml"
+    return (
+        Path(__file__).parent.parent
+        / "visa_vulture"
+        / "simulation"
+        / "instruments.yaml"
+    )
 
 
 @pytest.fixture
@@ -249,7 +254,7 @@ def mock_view() -> Mock:
     view.cancel_schedule.side_effect = mock_cancel_schedule
 
     # Mock panel objects
-    view.plot_panel = Mock()
+    view.power_supply_plot_panel = Mock()
     view.signal_gen_plot_panel = Mock()
     view.ps_table = Mock()
     view.sg_table = Mock()

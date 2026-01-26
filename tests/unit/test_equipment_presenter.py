@@ -298,7 +298,7 @@ class TestLoadTestPlanHandler:
         mock_model_for_presenter.load_test_plan.assert_called_once()
         mock_view.set_test_plan_name.assert_called()
         mock_view.show_power_supply_plot.assert_called_once()
-        mock_view.plot_panel.load_test_plan_preview.assert_called_once()
+        mock_view.power_supply_plot_panel.load_test_plan_preview.assert_called_once()
         mock_view.ps_table.load_steps.assert_called_once()
 
     def test_load_valid_signal_generator_plan_updates_view(
@@ -411,20 +411,20 @@ class TestRunHandler:
 
         assert presenter._run_start_time is not None
 
-    def test_run_clears_plot_position(
+    def test_run_clears_power_supply_position_for_sg_plan(
         self,
         presenter: EquipmentPresenter,
         mock_model_for_presenter: Mock,
         mock_view: Mock,
         sample_power_supply_plan,
     ) -> None:
-        """Run clears position indicator on plot."""
+        """Run clears position indicator on pwoer supply plot for PS plan."""
         set_model_state(mock_model_for_presenter, EquipmentState.IDLE)
         mock_model_for_presenter._test_plan = sample_power_supply_plan
 
         trigger_view_callback(mock_view, "on_run")
 
-        mock_view.plot_panel.clear_position.assert_called()
+        mock_view.power_supply_plot_panel.clear_position.assert_called()
 
     def test_run_clears_signal_gen_position_for_sg_plan(
         self,
@@ -719,14 +719,17 @@ class TestProgressCallback:
     ) -> None:
         """Progress updates position indicator on power supply plot."""
         step = PowerSupplyTestStep(
-            step_number=1, duration_seconds=5.0, voltage=10.0, current=1.0,
+            step_number=1,
+            duration_seconds=5.0,
+            voltage=10.0,
+            current=1.0,
             absolute_time_seconds=5.0,
         )
 
         trigger_progress(mock_model_for_presenter, current=1, total=3, step=step)
         execute_scheduled_callbacks(mock_view)
 
-        mock_view.plot_panel.set_current_position.assert_called_with(5.0)
+        mock_view.power_supply_plot_panel.set_current_position.assert_called_with(5.0)
 
     def test_progress_updates_signal_generator_plot_position(
         self,
@@ -736,7 +739,10 @@ class TestProgressCallback:
     ) -> None:
         """Progress updates position indicator on signal generator plot."""
         step = SignalGeneratorTestStep(
-            step_number=1, duration_seconds=7.5, frequency=2e6, power=-5.0,
+            step_number=1,
+            duration_seconds=7.5,
+            frequency=2e6,
+            power=-5.0,
             absolute_time_seconds=7.5,
         )
 
@@ -792,7 +798,9 @@ class TestCompleteCallback:
         mock_model_for_presenter._test_plan = sample_power_supply_plan
 
         trigger_complete(
-            mock_model_for_presenter, success=True, message="Test completed successfully"
+            mock_model_for_presenter,
+            success=True,
+            message="Test completed successfully",
         )
         execute_scheduled_callbacks(mock_view)
 
@@ -828,7 +836,7 @@ class TestCompleteCallback:
         trigger_complete(mock_model_for_presenter, success=True, message="Done")
         execute_scheduled_callbacks(mock_view)
 
-        mock_view.plot_panel.clear_position.assert_called()
+        mock_view.power_supply_plot_panel.clear_position.assert_called()
 
     def test_complete_clears_signal_generator_plot_position(
         self,

@@ -22,7 +22,6 @@ visa_vulture/
 │   ├── main_window.py
 │   ├── log_panel.py
 │   ├── plot_panel.py
-│   ├── signal_generator_plot_panel.py
 │   └── test_points_table.py
 │
 ├── presenter/
@@ -103,11 +102,10 @@ GUI components, no business logic.
 
 | File | Purpose |
 |------|---------|
-| `__init__.py` | Exports: `MainWindow` |
+| `__init__.py` | Exports: `MainWindow`, `PlotPanel`, `PowerSupplyPlotPanel`, `SignalGeneratorPlotPanel`, `AxisConfig` |
 | `main_window.py` | Main application window, assembles panels, exposes callbacks |
 | `log_panel.py` | `LogPanel` widget with scrolling text, level filtering, auto-scroll |
-| `plot_panel.py` | `PlotPanel` widget embedding matplotlib figure for power supply data |
-| `signal_generator_plot_panel.py` | Plot panel for signal generator frequency/power data |
+| `plot_panel.py` | `PlotPanel` base class, `PowerSupplyPlotPanel` and `SignalGeneratorPlotPanel` subclasses for dual-axis matplotlib plots |
 | `test_points_table.py` | Tabular display of all test plan steps |
 
 ---
@@ -200,6 +198,7 @@ from .test_plan import (
 
 # view/__init__.py
 from .main_window import MainWindow
+from .plot_panel import AxisConfig, PlotPanel, PowerSupplyPlotPanel, SignalGeneratorPlotPanel
 
 # presenter/__init__.py
 from .equipment_presenter import EquipmentPresenter

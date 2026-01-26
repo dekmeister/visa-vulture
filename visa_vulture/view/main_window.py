@@ -5,8 +5,7 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Callable
 
 from .log_panel import LogPanel
-from .plot_panel import PlotPanel
-from .signal_generator_plot_panel import SignalGeneratorPlotPanel
+from .plot_panel import PowerSupplyPlotPanel, SignalGeneratorPlotPanel
 from .test_points_table import TestPointsTable, InstrumentType
 
 
@@ -175,8 +174,8 @@ class MainWindow:
         ps_container = ttk.PanedWindow(self._plot_notebook, orient=tk.HORIZONTAL)
         self._plot_notebook.add(ps_container, text="Power Supply")
 
-        self._plot_panel = PlotPanel(ps_container)
-        ps_container.add(self._plot_panel, weight=3)
+        self._power_supply_plot_panel = PowerSupplyPlotPanel(ps_container)
+        ps_container.add(self._power_supply_plot_panel, weight=3)
 
         self._ps_table = TestPointsTable(ps_container, InstrumentType.POWER_SUPPLY)
         ps_container.add(self._ps_table, weight=1)
@@ -493,9 +492,9 @@ class MainWindow:
         return self._log_panel
 
     @property
-    def plot_panel(self) -> PlotPanel:
+    def power_supply_plot_panel(self) -> PowerSupplyPlotPanel:
         """Get power supply plot panel widget."""
-        return self._plot_panel
+        return self._power_supply_plot_panel
 
     @property
     def signal_gen_plot_panel(self) -> SignalGeneratorPlotPanel:
