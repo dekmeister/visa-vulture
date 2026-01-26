@@ -444,6 +444,210 @@ class TestEquipmentModelResumeTest:
         assert model._pause_requested is True
 
 
+class TestEquipmentModelRunTestExecution:
+    """Integration tests for run_test() execution paths and state transitions.
+
+    These tests verify that run_test() correctly transitions through states
+    during actual execution, using mocked _execute_*_plan() methods to control
+    the execution flow without requiring real instruments.
+    """
+
+    def _make_model_at_idle(
+        self, mock_visa_connection: Mock, sample_power_supply_plan: TestPlan
+    ) -> EquipmentModel:
+        """Create a model in IDLE state with a loaded test plan."""
+        model = EquipmentModel(mock_visa_connection)
+        model._state_machine._state = EquipmentState.IDLE
+        model._test_plan = sample_power_supply_plan
+        return model
+
+    def _track_state_changes(
+        self, model: EquipmentModel
+    ) -> list[tuple[EquipmentState, EquipmentState]]:
+        """Register a callback that records state transitions."""
+        changes: list[tuple[EquipmentState, EquipmentState]] = []
+
+        def track(old: EquipmentState, new: EquipmentState) -> None:
+            changes.append((old, new))
+
+        model.register_state_callback(track)
+        return changes
+
+    def test_successful_execution_transitions(
+        self, mock_visa_connection: Mock, sample_power_supply_plan: TestPlan
+    ) -> None:
+        """Successful test run transitions IDLE → RUNNING → IDLE."""
+        model = self._make_model_at_idle(
+            mock_visa_connection, sample_power_supply_plan
+        )
+        state_changes = self._track_state_changes(model)
+
+        complete_results: list[tuple[bool, str]] = []
+        model.register_complete_callback(
+            lambda success, msg: complete_results.append((success, msg))
+        )
+
+        def mock_execute() -> None:
+            # Simulate successful execution (no exceptions, no stop)
+            pass
+
+        with patch.object(model, "_execute_power_supply_plan", mock_execute):
+            model.run_test()
+
+        assert model.state == EquipmentState.IDLE
+        assert (EquipmentState.IDLE, EquipmentState.RUNNING) in state_changes
+        assert (EquipmentState.RUNNING, EquipmentState.IDLE) in state_changes
+        assert len(complete_results) == 1
+        assert complete_results[0][0] is True
+
+    def test_exception_during_execution_transitions_to_error(
+        self, mock_visa_connection: Mock, sample_power_supply_plan: TestPlan
+    ) -> None:
+        """Exception during execution transitions IDLE → RUNNING → ERROR."""
+        model = self._make_model_at_idle(
+            mock_visa_connection, sample_power_supply_plan
+        )
+        state_changes = self._track_state_changes(model)
+
+        complete_results: list[tuple[bool, str]] = []
+        model.register_complete_callback(
+            lambda success, msg: complete_results.append((success, msg))
+        )
+
+        def mock_execute() -> None:
+            raise RuntimeError("Instrument communication error")
+
+        with patch.object(model, "_execute_power_supply_plan", mock_execute):
+            with pytest.raises(RuntimeError, match="Instrument communication error"):
+                model.run_test()
+
+        assert model.state == EquipmentState.ERROR
+        assert (EquipmentState.IDLE, EquipmentState.RUNNING) in state_changes
+        assert (EquipmentState.RUNNING, EquipmentState.ERROR) in state_changes
+        # Finally block should NOT also transition (already in ERROR)
+        assert (EquipmentState.ERROR, EquipmentState.IDLE) not in state_changes
+        assert len(complete_results) == 1
+        assert complete_results[0][0] is False
+
+    def test_stop_while_running_transitions_to_idle(
+        self, mock_visa_connection: Mock, sample_power_supply_plan: TestPlan
+    ) -> None:
+        """Stop during execution transitions IDLE → RUNNING → IDLE."""
+        model = self._make_model_at_idle(
+            mock_visa_connection, sample_power_supply_plan
+        )
+        state_changes = self._track_state_changes(model)
+
+        complete_results: list[tuple[bool, str]] = []
+        model.register_complete_callback(
+            lambda success, msg: complete_results.append((success, msg))
+        )
+
+        def mock_execute() -> None:
+            # Simulate stop requested during execution
+            model._stop_requested = True
+
+        with patch.object(model, "_execute_power_supply_plan", mock_execute):
+            model.run_test()
+
+        assert model.state == EquipmentState.IDLE
+        assert (EquipmentState.IDLE, EquipmentState.RUNNING) in state_changes
+        assert (EquipmentState.RUNNING, EquipmentState.IDLE) in state_changes
+        assert len(complete_results) == 1
+        assert complete_results[0][0] is False  # Stopped, not successful
+
+    def test_pause_transitions_to_paused(
+        self, mock_visa_connection: Mock, sample_power_supply_plan: TestPlan
+    ) -> None:
+        """Pause during execution transitions RUNNING → PAUSED, then stop resumes to IDLE."""
+        model = self._make_model_at_idle(
+            mock_visa_connection, sample_power_supply_plan
+        )
+        state_changes = self._track_state_changes(model)
+
+        def mock_execute() -> None:
+            # Simulate: pause, then stop (to exit)
+            model._pause_requested = True
+            model._state_machine.to_paused()
+            # Then stop to let run_test() finish
+            model._stop_requested = True
+            model._pause_requested = False
+
+        with patch.object(model, "_execute_power_supply_plan", mock_execute):
+            model.run_test()
+
+        assert model.state == EquipmentState.IDLE
+        assert (EquipmentState.IDLE, EquipmentState.RUNNING) in state_changes
+        assert (EquipmentState.RUNNING, EquipmentState.PAUSED) in state_changes
+        assert (EquipmentState.PAUSED, EquipmentState.IDLE) in state_changes
+
+    def test_resume_from_paused_continues_execution(
+        self, mock_visa_connection: Mock, sample_power_supply_plan: TestPlan
+    ) -> None:
+        """Resume after pause transitions PAUSED → RUNNING → IDLE."""
+        model = self._make_model_at_idle(
+            mock_visa_connection, sample_power_supply_plan
+        )
+        state_changes = self._track_state_changes(model)
+
+        complete_results: list[tuple[bool, str]] = []
+        model.register_complete_callback(
+            lambda success, msg: complete_results.append((success, msg))
+        )
+
+        def mock_execute() -> None:
+            # Simulate: pause, then resume, then complete
+            model._pause_requested = True
+            model._state_machine.to_paused()
+            # Resume
+            model._pause_requested = False
+            model._state_machine.to_running()
+
+        with patch.object(model, "_execute_power_supply_plan", mock_execute):
+            model.run_test()
+
+        assert model.state == EquipmentState.IDLE
+        assert (EquipmentState.IDLE, EquipmentState.RUNNING) in state_changes
+        assert (EquipmentState.RUNNING, EquipmentState.PAUSED) in state_changes
+        assert (EquipmentState.PAUSED, EquipmentState.RUNNING) in state_changes
+        assert (EquipmentState.RUNNING, EquipmentState.IDLE) in state_changes
+        # Completed successfully after resume
+        assert len(complete_results) == 1
+        assert complete_results[0][0] is True
+
+    def test_exception_while_paused_transitions_to_error(
+        self, mock_visa_connection: Mock, sample_power_supply_plan: TestPlan
+    ) -> None:
+        """Exception while paused transitions PAUSED → ERROR."""
+        model = self._make_model_at_idle(
+            mock_visa_connection, sample_power_supply_plan
+        )
+        state_changes = self._track_state_changes(model)
+
+        complete_results: list[tuple[bool, str]] = []
+        model.register_complete_callback(
+            lambda success, msg: complete_results.append((success, msg))
+        )
+
+        def mock_execute() -> None:
+            # Simulate: pause, then error
+            model._pause_requested = True
+            model._state_machine.to_paused()
+            raise RuntimeError("Instrument lost connection")
+
+        with patch.object(model, "_execute_power_supply_plan", mock_execute):
+            with pytest.raises(RuntimeError, match="Instrument lost connection"):
+                model.run_test()
+
+        assert model.state == EquipmentState.ERROR
+        assert (EquipmentState.RUNNING, EquipmentState.PAUSED) in state_changes
+        assert (EquipmentState.PAUSED, EquipmentState.ERROR) in state_changes
+        # Finally block should NOT also transition (already in ERROR)
+        assert (EquipmentState.ERROR, EquipmentState.IDLE) not in state_changes
+        assert len(complete_results) == 1
+        assert complete_results[0][0] is False
+
+
 class TestEquipmentModelIdentification:
     """Tests for get_instrument_identification method."""
 
