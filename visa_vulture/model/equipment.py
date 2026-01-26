@@ -337,11 +337,8 @@ class EquipmentModel:
             self._notify_progress(step.step_number, total_steps, step)
 
             # Wait for step duration
-            if step.step_number < total_steps:
-                next_step = sorted_steps[step.step_number]  # step_number is 1-based
-                wait_time = next_step.time_seconds - step.time_seconds
-                if wait_time > 0:
-                    self._interruptible_sleep(wait_time)
+            if step.duration_seconds > 0:
+                self._interruptible_sleep(step.duration_seconds)
 
         # Disable output at end
         if power_supply.is_connected:
@@ -397,11 +394,8 @@ class EquipmentModel:
             self._notify_progress(step.step_number, total_steps, step)
 
             # Wait for step duration
-            if step.step_number < total_steps:
-                next_step = sorted_steps[step.step_number]  # step_number is 1-based
-                wait_time = next_step.time_seconds - step.time_seconds
-                if wait_time > 0:
-                    self._interruptible_sleep(wait_time)
+            if step.duration_seconds > 0:
+                self._interruptible_sleep(step.duration_seconds)
 
         # Disable output at end
         if signal_gen.is_connected:

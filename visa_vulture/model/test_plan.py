@@ -18,13 +18,16 @@ class TestStep:
     """
 
     step_number: int
-    time_seconds: float
+    duration_seconds: float
     description: str = ""
+    absolute_time_seconds: float = 0.0  # Computed by TestPlan
 
     def __post_init__(self) -> None:
         """Validate common step values."""
-        if self.time_seconds < 0:
-            raise ValueError(f"time_seconds must be >= 0, got {self.time_seconds}")
+        if self.duration_seconds < 0:
+            raise ValueError(
+                f"duration_seconds must be >= 0, got {self.duration_seconds}"
+            )
 
 
 @dataclass
@@ -63,8 +66,10 @@ class TestPlan:
     A complete test plan with multiple steps.
 
     Test plans define sequences of instrument settings to apply
-    at specific times during a test run. The plan_type field determines
-    which execution path is used and what step types are expected.
+    during a test run. Each step specifies a duration (how long it
+    lasts) and the plan computes absolute times as cumulative sums.
+    The plan_type field determines which execution path is used and
+    what step types are expected.
     """
 
     name: str
@@ -72,12 +77,24 @@ class TestPlan:
     steps: Sequence[TestStep] = field(default_factory=list)
     description: str = ""
 
+    def __post_init__(self) -> None:
+        """Compute absolute times from step durations."""
+        self._compute_absolute_times()
+
+    def _compute_absolute_times(self) -> None:
+        """Set absolute_time_seconds on each step as cumulative sum of durations."""
+        sorted_steps = sorted(self.steps, key=lambda s: s.step_number)
+        cumulative = 0.0
+        for step in sorted_steps:
+            step.absolute_time_seconds = cumulative
+            cumulative += step.duration_seconds
+
     @property
     def total_duration(self) -> float:
         """Get total test duration in seconds."""
         if not self.steps:
             return 0.0
-        return max(step.time_seconds for step in self.steps)
+        return sum(step.duration_seconds for step in self.steps)
 
     @property
     def step_count(self) -> int:
@@ -114,18 +131,6 @@ class TestPlan:
         if not self.steps:
             errors.append("Test plan must have at least one step")
             return errors
-
-        # Check times are non-decreasing
-        times = [
-            step.time_seconds
-            for step in sorted(self.steps, key=lambda s: s.step_number)
-        ]
-        for i in range(1, len(times)):
-            if times[i] < times[i - 1]:
-                errors.append(
-                    f"Step times must be non-decreasing: step {i} has time {times[i-1]}, "
-                    f"step {i+1} has time {times[i]}"
-                )
 
         return errors
 

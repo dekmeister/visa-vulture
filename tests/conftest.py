@@ -148,10 +148,10 @@ def sample_power_supply_plan():
         plan_type=PLAN_TYPE_POWER_SUPPLY,
         steps=[
             PowerSupplyTestStep(
-                step_number=1, time_seconds=0.0, voltage=5.0, current=1.0
+                step_number=1, duration_seconds=1.0, voltage=5.0, current=1.0
             ),
             PowerSupplyTestStep(
-                step_number=2, time_seconds=1.0, voltage=10.0, current=2.0
+                step_number=2, duration_seconds=1.0, voltage=10.0, current=2.0
             ),
         ],
     )
@@ -171,10 +171,10 @@ def sample_signal_generator_plan():
         plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
         steps=[
             SignalGeneratorTestStep(
-                step_number=1, time_seconds=0.0, frequency=1e6, power=0
+                step_number=1, duration_seconds=1.0, frequency=1e6, power=0
             ),
             SignalGeneratorTestStep(
-                step_number=2, time_seconds=1.0, frequency=2e6, power=-10
+                step_number=2, duration_seconds=1.0, frequency=2e6, power=-10
             ),
         ],
     )

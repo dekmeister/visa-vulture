@@ -17,25 +17,30 @@ class TestTestStep:
 
     def test_step_creation_with_valid_values(self) -> None:
         """TestStep can be created with valid values."""
-        step = TestStep(step_number=1, time_seconds=0.0, description="Test step")
+        step = TestStep(step_number=1, duration_seconds=5.0, description="Test step")
         assert step.step_number == 1
-        assert step.time_seconds == 0.0
+        assert step.duration_seconds == 5.0
         assert step.description == "Test step"
 
-    def test_step_negative_time_raises_value_error(self) -> None:
-        """Negative time_seconds raises ValueError."""
-        with pytest.raises(ValueError, match="time_seconds must be >= 0"):
-            TestStep(step_number=1, time_seconds=-1.0)
+    def test_step_negative_duration_raises_value_error(self) -> None:
+        """Negative duration_seconds raises ValueError."""
+        with pytest.raises(ValueError, match="duration_seconds must be >= 0"):
+            TestStep(step_number=1, duration_seconds=-1.0)
 
     def test_step_default_description_is_empty(self) -> None:
         """Default description is an empty string."""
-        step = TestStep(step_number=1, time_seconds=0.0)
+        step = TestStep(step_number=1, duration_seconds=0.0)
         assert step.description == ""
 
-    def test_step_zero_time_is_valid(self) -> None:
-        """Zero time_seconds is valid."""
-        step = TestStep(step_number=1, time_seconds=0.0)
-        assert step.time_seconds == 0.0
+    def test_step_zero_duration_is_valid(self) -> None:
+        """Zero duration_seconds is valid."""
+        step = TestStep(step_number=1, duration_seconds=0.0)
+        assert step.duration_seconds == 0.0
+
+    def test_step_default_absolute_time_is_zero(self) -> None:
+        """Default absolute_time_seconds is 0.0."""
+        step = TestStep(step_number=1, duration_seconds=5.0)
+        assert step.absolute_time_seconds == 0.0
 
 
 class TestPowerSupplyTestStep:
@@ -45,13 +50,13 @@ class TestPowerSupplyTestStep:
         """PowerSupplyTestStep can be created with valid values."""
         step = PowerSupplyTestStep(
             step_number=1,
-            time_seconds=0.0,
+            duration_seconds=5.0,
             voltage=5.0,
             current=1.0,
             description="Power step",
         )
         assert step.step_number == 1
-        assert step.time_seconds == 0.0
+        assert step.duration_seconds == 5.0
         assert step.voltage == 5.0
         assert step.current == 1.0
         assert step.description == "Power step"
@@ -59,23 +64,23 @@ class TestPowerSupplyTestStep:
     def test_negative_voltage_raises_value_error(self) -> None:
         """Negative voltage raises ValueError."""
         with pytest.raises(ValueError, match="voltage must be >= 0"):
-            PowerSupplyTestStep(step_number=1, time_seconds=0.0, voltage=-5.0)
+            PowerSupplyTestStep(step_number=1, duration_seconds=0.0, voltage=-5.0)
 
     def test_negative_current_raises_value_error(self) -> None:
         """Negative current raises ValueError."""
         with pytest.raises(ValueError, match="current must be >= 0"):
-            PowerSupplyTestStep(step_number=1, time_seconds=0.0, current=-1.0)
+            PowerSupplyTestStep(step_number=1, duration_seconds=0.0, current=-1.0)
 
     def test_defaults_to_zero_voltage_and_current(self) -> None:
         """Default voltage and current are 0.0."""
-        step = PowerSupplyTestStep(step_number=1, time_seconds=0.0)
+        step = PowerSupplyTestStep(step_number=1, duration_seconds=0.0)
         assert step.voltage == 0.0
         assert step.current == 0.0
 
-    def test_inherits_time_validation(self) -> None:
-        """Inherits negative time validation from parent."""
-        with pytest.raises(ValueError, match="time_seconds must be >= 0"):
-            PowerSupplyTestStep(step_number=1, time_seconds=-1.0, voltage=5.0)
+    def test_inherits_duration_validation(self) -> None:
+        """Inherits negative duration validation from parent."""
+        with pytest.raises(ValueError, match="duration_seconds must be >= 0"):
+            PowerSupplyTestStep(step_number=1, duration_seconds=-1.0, voltage=5.0)
 
 
 class TestSignalGeneratorTestStep:
@@ -85,13 +90,13 @@ class TestSignalGeneratorTestStep:
         """SignalGeneratorTestStep can be created with valid values."""
         step = SignalGeneratorTestStep(
             step_number=1,
-            time_seconds=0.0,
+            duration_seconds=5.0,
             frequency=1e6,
             power=0.0,
             description="Signal step",
         )
         assert step.step_number == 1
-        assert step.time_seconds == 0.0
+        assert step.duration_seconds == 5.0
         assert step.frequency == 1e6
         assert step.power == 0.0
         assert step.description == "Signal step"
@@ -99,25 +104,27 @@ class TestSignalGeneratorTestStep:
     def test_negative_frequency_raises_value_error(self) -> None:
         """Negative frequency raises ValueError."""
         with pytest.raises(ValueError, match="frequency must be >= 0"):
-            SignalGeneratorTestStep(step_number=1, time_seconds=0.0, frequency=-1e6)
+            SignalGeneratorTestStep(step_number=1, duration_seconds=0.0, frequency=-1e6)
 
     def test_power_can_be_negative(self) -> None:
         """Power can be negative (dBm values)."""
         step = SignalGeneratorTestStep(
-            step_number=1, time_seconds=0.0, frequency=1e6, power=-10.0
+            step_number=1, duration_seconds=0.0, frequency=1e6, power=-10.0
         )
         assert step.power == -10.0
 
     def test_defaults_to_zero_frequency_and_power(self) -> None:
         """Default frequency and power are 0.0."""
-        step = SignalGeneratorTestStep(step_number=1, time_seconds=0.0)
+        step = SignalGeneratorTestStep(step_number=1, duration_seconds=0.0)
         assert step.frequency == 0.0
         assert step.power == 0.0
 
-    def test_inherits_time_validation(self) -> None:
-        """Inherits negative time validation from parent."""
-        with pytest.raises(ValueError, match="time_seconds must be >= 0"):
-            SignalGeneratorTestStep(step_number=1, time_seconds=-1.0, frequency=1e6)
+    def test_inherits_duration_validation(self) -> None:
+        """Inherits negative duration validation from parent."""
+        with pytest.raises(ValueError, match="duration_seconds must be >= 0"):
+            SignalGeneratorTestStep(
+                step_number=1, duration_seconds=-1.0, frequency=1e6
+            )
 
 
 class TestTestPlanProperties:
@@ -129,18 +136,18 @@ class TestTestPlanProperties:
         assert plan.name == "Test"
         assert plan.plan_type == PLAN_TYPE_POWER_SUPPLY
 
-    def test_total_duration_returns_max_time(self) -> None:
-        """total_duration returns maximum time_seconds from steps."""
+    def test_total_duration_returns_sum_of_durations(self) -> None:
+        """total_duration returns sum of duration_seconds from all steps."""
         plan = TestPlan(
             name="Test",
             plan_type=PLAN_TYPE_POWER_SUPPLY,
             steps=[
-                PowerSupplyTestStep(step_number=1, time_seconds=0.0),
-                PowerSupplyTestStep(step_number=2, time_seconds=5.0),
-                PowerSupplyTestStep(step_number=3, time_seconds=3.0),
+                PowerSupplyTestStep(step_number=1, duration_seconds=2.0),
+                PowerSupplyTestStep(step_number=2, duration_seconds=5.0),
+                PowerSupplyTestStep(step_number=3, duration_seconds=3.0),
             ],
         )
-        assert plan.total_duration == 5.0
+        assert plan.total_duration == 10.0
 
     def test_total_duration_with_no_steps_is_zero(self) -> None:
         """total_duration is 0.0 when there are no steps."""
@@ -153,8 +160,8 @@ class TestTestPlanProperties:
             name="Test",
             plan_type=PLAN_TYPE_POWER_SUPPLY,
             steps=[
-                PowerSupplyTestStep(step_number=1, time_seconds=0.0),
-                PowerSupplyTestStep(step_number=2, time_seconds=1.0),
+                PowerSupplyTestStep(step_number=1, duration_seconds=1.0),
+                PowerSupplyTestStep(step_number=2, duration_seconds=1.0),
             ],
         )
         assert plan.step_count == 2
@@ -165,13 +172,58 @@ class TestTestPlanProperties:
         assert plan.step_count == 0
 
 
+class TestTestPlanAbsoluteTime:
+    """Tests for absolute time computation from durations."""
+
+    def test_absolute_times_computed_from_durations(self) -> None:
+        """Absolute times are cumulative sums of durations."""
+        plan = TestPlan(
+            name="Test",
+            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            steps=[
+                PowerSupplyTestStep(step_number=1, duration_seconds=2.0),
+                PowerSupplyTestStep(step_number=2, duration_seconds=3.0),
+                PowerSupplyTestStep(step_number=3, duration_seconds=5.0),
+            ],
+        )
+        assert plan.steps[0].absolute_time_seconds == 0.0
+        assert plan.steps[1].absolute_time_seconds == 2.0
+        assert plan.steps[2].absolute_time_seconds == 5.0
+
+    def test_absolute_times_with_zero_duration(self) -> None:
+        """Zero-duration step does not advance absolute time."""
+        plan = TestPlan(
+            name="Test",
+            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            steps=[
+                PowerSupplyTestStep(step_number=1, duration_seconds=0.0),
+                PowerSupplyTestStep(step_number=2, duration_seconds=3.0),
+                PowerSupplyTestStep(step_number=3, duration_seconds=2.0),
+            ],
+        )
+        assert plan.steps[0].absolute_time_seconds == 0.0
+        assert plan.steps[1].absolute_time_seconds == 0.0
+        assert plan.steps[2].absolute_time_seconds == 3.0
+
+    def test_absolute_times_single_step(self) -> None:
+        """Single step starts at absolute time 0."""
+        plan = TestPlan(
+            name="Test",
+            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            steps=[
+                PowerSupplyTestStep(step_number=1, duration_seconds=10.0),
+            ],
+        )
+        assert plan.steps[0].absolute_time_seconds == 0.0
+
+
 class TestTestPlanGetStep:
     """Tests for TestPlan.get_step method."""
 
     def test_get_step_by_number(self) -> None:
         """get_step returns the correct step by number."""
-        step1 = PowerSupplyTestStep(step_number=1, time_seconds=0.0, voltage=5.0)
-        step2 = PowerSupplyTestStep(step_number=2, time_seconds=1.0, voltage=10.0)
+        step1 = PowerSupplyTestStep(step_number=1, duration_seconds=1.0, voltage=5.0)
+        step2 = PowerSupplyTestStep(step_number=2, duration_seconds=1.0, voltage=10.0)
         plan = TestPlan(
             name="Test",
             plan_type=PLAN_TYPE_POWER_SUPPLY,
@@ -185,7 +237,7 @@ class TestTestPlanGetStep:
         plan = TestPlan(
             name="Test",
             plan_type=PLAN_TYPE_POWER_SUPPLY,
-            steps=[PowerSupplyTestStep(step_number=1, time_seconds=0.0)],
+            steps=[PowerSupplyTestStep(step_number=1, duration_seconds=1.0)],
         )
         assert plan.get_step(99) is None
 
@@ -203,7 +255,7 @@ class TestTestPlanValidation:
         plan = TestPlan(
             name="",
             plan_type=PLAN_TYPE_POWER_SUPPLY,
-            steps=[PowerSupplyTestStep(step_number=1, time_seconds=0.0)],
+            steps=[PowerSupplyTestStep(step_number=1, duration_seconds=1.0)],
         )
         errors = plan.validate()
         assert any("name is required" in e for e in errors)
@@ -214,43 +266,29 @@ class TestTestPlanValidation:
         errors = plan.validate()
         assert any("at least one step" in e for e in errors)
 
-    def test_validate_decreasing_times_returns_error(self) -> None:
-        """Decreasing times returns validation error."""
-        plan = TestPlan(
-            name="Test",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
-            steps=[
-                PowerSupplyTestStep(step_number=1, time_seconds=0.0),
-                PowerSupplyTestStep(step_number=2, time_seconds=5.0),
-                PowerSupplyTestStep(step_number=3, time_seconds=3.0),  # Decreasing
-            ],
-        )
-        errors = plan.validate()
-        assert any("non-decreasing" in e for e in errors)
-
     def test_validate_valid_plan_returns_empty_list(self) -> None:
         """Valid plan returns empty error list."""
         plan = TestPlan(
             name="Test",
             plan_type=PLAN_TYPE_POWER_SUPPLY,
             steps=[
-                PowerSupplyTestStep(step_number=1, time_seconds=0.0),
-                PowerSupplyTestStep(step_number=2, time_seconds=1.0),
-                PowerSupplyTestStep(step_number=3, time_seconds=2.0),
+                PowerSupplyTestStep(step_number=1, duration_seconds=1.0),
+                PowerSupplyTestStep(step_number=2, duration_seconds=2.0),
+                PowerSupplyTestStep(step_number=3, duration_seconds=3.0),
             ],
         )
         errors = plan.validate()
         assert errors == []
 
-    def test_validate_equal_times_is_valid(self) -> None:
-        """Equal consecutive times are valid (non-decreasing)."""
+    def test_validate_any_duration_combination_is_valid(self) -> None:
+        """Any combination of non-negative durations is valid."""
         plan = TestPlan(
             name="Test",
             plan_type=PLAN_TYPE_POWER_SUPPLY,
             steps=[
-                PowerSupplyTestStep(step_number=1, time_seconds=0.0),
-                PowerSupplyTestStep(step_number=2, time_seconds=1.0),
-                PowerSupplyTestStep(step_number=3, time_seconds=1.0),  # Same as step 2
+                PowerSupplyTestStep(step_number=1, duration_seconds=5.0),
+                PowerSupplyTestStep(step_number=2, duration_seconds=0.0),
+                PowerSupplyTestStep(step_number=3, duration_seconds=10.0),
             ],
         )
         errors = plan.validate()
@@ -266,8 +304,8 @@ class TestTestPlanStr:
             name="My Test",
             plan_type=PLAN_TYPE_POWER_SUPPLY,
             steps=[
-                PowerSupplyTestStep(step_number=1, time_seconds=0.0),
-                PowerSupplyTestStep(step_number=2, time_seconds=5.0),
+                PowerSupplyTestStep(step_number=1, duration_seconds=2.0),
+                PowerSupplyTestStep(step_number=2, duration_seconds=3.0),
             ],
         )
         result = str(plan)

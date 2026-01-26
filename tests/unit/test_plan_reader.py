@@ -37,7 +37,7 @@ class TestReadTestPlanFileHandling:
     def test_no_data_rows_returns_error(self, tmp_path: Path) -> None:
         """File with only header returns error."""
         csv_path = tmp_path / "header_only.csv"
-        csv_path.write_text("time,voltage,current\n")
+        csv_path.write_text("duration,voltage,current\n")
 
         plan, errors = read_test_plan(csv_path)
 
@@ -76,7 +76,8 @@ class TestReadPowerSupplyPlan:
         step1 = plan.get_step(1)
         assert step1 is not None
         assert isinstance(step1, PowerSupplyTestStep)
-        assert step1.time_seconds == 0.0
+        assert step1.duration_seconds == 1.0
+        assert step1.absolute_time_seconds == 0.0
         assert step1.voltage == 5.0
         assert step1.current == 1.0
         assert step1.description == "Start"
@@ -125,7 +126,8 @@ class TestReadSignalGeneratorPlan:
         step1 = plan.get_step(1)
         assert step1 is not None
         assert isinstance(step1, SignalGeneratorTestStep)
-        assert step1.time_seconds == 0.0
+        assert step1.duration_seconds == 1.0
+        assert step1.absolute_time_seconds == 0.0
         assert step1.frequency == 1000000
         assert step1.power == 0
         assert step1.description == "Start at 1MHz"
@@ -150,16 +152,16 @@ class TestReadSignalGeneratorPlan:
 class TestReadTestPlanValueValidation:
     """Tests for value validation during parsing."""
 
-    def test_invalid_time_value_returns_error(
+    def test_invalid_duration_value_returns_error(
         self, test_plan_fixtures_path: Path
     ) -> None:
-        """Invalid time value returns error."""
+        """Invalid duration value returns error."""
         plan, errors = read_test_plan(
             test_plan_fixtures_path / "invalid_bad_values.csv"
         )
 
         assert plan is None
-        assert any("invalid time value" in e.lower() for e in errors)
+        assert any("invalid duration value" in e.lower() for e in errors)
 
     def test_invalid_voltage_value_returns_error(
         self, test_plan_fixtures_path: Path
@@ -183,10 +185,10 @@ class TestReadTestPlanValueValidation:
         assert plan is None
         assert any("invalid current value" in e.lower() for e in errors)
 
-    def test_negative_time_returns_error(self, tmp_path: Path) -> None:
-        """Negative time value returns error."""
-        csv_path = tmp_path / "negative_time.csv"
-        csv_path.write_text("time,voltage,current\n-1.0,5.0,1.0\n")
+    def test_negative_duration_returns_error(self, tmp_path: Path) -> None:
+        """Negative duration value returns error."""
+        csv_path = tmp_path / "negative_duration.csv"
+        csv_path.write_text("duration,voltage,current\n-1.0,5.0,1.0\n")
 
         plan, errors = read_test_plan(csv_path)
 
@@ -196,7 +198,7 @@ class TestReadTestPlanValueValidation:
     def test_negative_voltage_returns_error(self, tmp_path: Path) -> None:
         """Negative voltage value returns error."""
         csv_path = tmp_path / "negative_voltage.csv"
-        csv_path.write_text("time,voltage,current\n0.0,-5.0,1.0\n")
+        csv_path.write_text("duration,voltage,current\n0.0,-5.0,1.0\n")
 
         plan, errors = read_test_plan(csv_path)
 
@@ -206,7 +208,7 @@ class TestReadTestPlanValueValidation:
     def test_negative_current_returns_error(self, tmp_path: Path) -> None:
         """Negative current value returns error."""
         csv_path = tmp_path / "negative_current.csv"
-        csv_path.write_text("time,voltage,current\n0.0,5.0,-1.0\n")
+        csv_path.write_text("duration,voltage,current\n0.0,5.0,-1.0\n")
 
         plan, errors = read_test_plan(csv_path)
 
@@ -216,7 +218,7 @@ class TestReadTestPlanValueValidation:
     def test_negative_frequency_returns_error(self, tmp_path: Path) -> None:
         """Negative frequency value returns error."""
         csv_path = tmp_path / "negative_freq.csv"
-        csv_path.write_text("type,time,frequency,power\nsignal_generator,0.0,-1000,0\n")
+        csv_path.write_text("type,duration,frequency,power\nsignal_generator,0.0,-1000,0\n")
 
         plan, errors = read_test_plan(csv_path)
 
@@ -231,7 +233,7 @@ class TestReadTestPlanTypeDetection:
         """Type is detected from 'type' column."""
         csv_path = tmp_path / "explicit_type.csv"
         csv_path.write_text(
-            "type,time,frequency,power\nsignal_generator,0.0,1000000,0\n"
+            "type,duration,frequency,power\nsignal_generator,0.0,1000000,0\n"
         )
 
         plan, errors = read_test_plan(csv_path)
@@ -245,7 +247,7 @@ class TestReadTestPlanTypeDetection:
     ) -> None:
         """Type is inferred from power supply columns."""
         csv_path = tmp_path / "inferred_ps.csv"
-        csv_path.write_text("time,voltage,current\n0.0,5.0,1.0\n")
+        csv_path.write_text("duration,voltage,current\n0.0,5.0,1.0\n")
 
         plan, errors = read_test_plan(csv_path)
 
@@ -258,7 +260,7 @@ class TestReadTestPlanTypeDetection:
     ) -> None:
         """Type is inferred from signal generator columns."""
         csv_path = tmp_path / "inferred_sg.csv"
-        csv_path.write_text("time,frequency,power\n0.0,1000000,0\n")
+        csv_path.write_text("duration,frequency,power\n0.0,1000000,0\n")
 
         plan, errors = read_test_plan(csv_path)
 
@@ -270,7 +272,7 @@ class TestReadTestPlanTypeDetection:
         """Ambiguous columns (both types) returns error."""
         csv_path = tmp_path / "ambiguous.csv"
         # Has columns for both power supply and signal generator
-        csv_path.write_text("time,voltage,current,frequency,power\n0.0,5.0,1.0,1000,0\n")
+        csv_path.write_text("duration,voltage,current,frequency,power\n0.0,5.0,1.0,1000,0\n")
 
         plan, errors = read_test_plan(csv_path)
 
@@ -283,7 +285,7 @@ class TestReadTestPlanTypeDetection:
         """Unknown type value falls back to column detection if columns match."""
         csv_path = tmp_path / "unknown_type.csv"
         # Has voltage/current columns, so falls back to power supply detection
-        csv_path.write_text("type,time,voltage,current\nunknown_type,0.0,5.0,1.0\n")
+        csv_path.write_text("type,duration,voltage,current\nunknown_type,0.0,5.0,1.0\n")
 
         plan, errors = read_test_plan(csv_path)
 
@@ -299,7 +301,7 @@ class TestReadTestPlanColumnNormalization:
     def test_column_names_case_insensitive(self, tmp_path: Path) -> None:
         """Column names are case insensitive."""
         csv_path = tmp_path / "uppercase.csv"
-        csv_path.write_text("TIME,VOLTAGE,CURRENT\n0.0,5.0,1.0\n")
+        csv_path.write_text("DURATION,VOLTAGE,CURRENT\n0.0,5.0,1.0\n")
 
         plan, errors = read_test_plan(csv_path)
 
@@ -309,7 +311,7 @@ class TestReadTestPlanColumnNormalization:
     def test_column_names_trimmed(self, tmp_path: Path) -> None:
         """Column names with whitespace are trimmed."""
         csv_path = tmp_path / "whitespace.csv"
-        csv_path.write_text(" time , voltage , current \n0.0,5.0,1.0\n")
+        csv_path.write_text(" duration , voltage , current \n0.0,5.0,1.0\n")
 
         plan, errors = read_test_plan(csv_path)
 
@@ -362,21 +364,6 @@ class TestReadTestPlanName:
         assert errors == []
         assert plan is not None
         assert plan.name == "valid_power_supply"
-
-
-class TestReadTestPlanValidation:
-    """Tests for plan validation during reading."""
-
-    def test_decreasing_times_returns_error(
-        self, test_plan_fixtures_path: Path
-    ) -> None:
-        """Decreasing times are caught by validation."""
-        plan, errors = read_test_plan(
-            test_plan_fixtures_path / "invalid_decreasing_times.csv"
-        )
-
-        assert plan is None
-        assert any("non-decreasing" in e.lower() for e in errors)
 
 
 class TestReadTestPlanErrorAccumulation:

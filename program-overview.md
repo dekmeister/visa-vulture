@@ -94,8 +94,9 @@ UNKNOWN  ──►  IDLE  ──►  RUNNING  ──►  IDLE
 
 - Simple, editable format for test sequences
 - Format varies by instrument type:
-  - Power supply: time, voltage, current columns
-  - Signal generator: type, time, frequency, power columns
+  - Power supply: duration, voltage, current columns
+  - Signal generator: type, duration, frequency, power columns
+- Each step specifies a duration (how long it lasts); absolute times are computed automatically
 - Validated on load with clear error reporting
 
 ## Technology Stack

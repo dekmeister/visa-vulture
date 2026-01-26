@@ -153,7 +153,7 @@ class TestEquipmentModelTestPlan:
         invalid_plan = TestPlan(
             name="",  # Empty name is invalid
             plan_type=PLAN_TYPE_POWER_SUPPLY,
-            steps=[PowerSupplyTestStep(step_number=1, time_seconds=0.0)],
+            steps=[PowerSupplyTestStep(step_number=1, duration_seconds=1.0)],
         )
 
         with pytest.raises(ValueError, match="Invalid test plan"):

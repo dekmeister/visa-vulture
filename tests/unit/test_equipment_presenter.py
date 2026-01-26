@@ -682,7 +682,7 @@ class TestProgressCallback:
     ) -> None:
         """Progress callback updates status with power supply values."""
         step = PowerSupplyTestStep(
-            step_number=3, time_seconds=10.0, voltage=12.5, current=2.0
+            step_number=3, duration_seconds=5.0, voltage=12.5, current=2.0
         )
 
         trigger_progress(mock_model_for_presenter, current=3, total=5, step=step)
@@ -700,7 +700,7 @@ class TestProgressCallback:
     ) -> None:
         """Progress callback updates status with signal generator values."""
         step = SignalGeneratorTestStep(
-            step_number=2, time_seconds=5.0, frequency=1e6, power=-10.0
+            step_number=2, duration_seconds=5.0, frequency=1e6, power=-10.0
         )
 
         trigger_progress(mock_model_for_presenter, current=2, total=4, step=step)
@@ -719,7 +719,8 @@ class TestProgressCallback:
     ) -> None:
         """Progress updates position indicator on power supply plot."""
         step = PowerSupplyTestStep(
-            step_number=1, time_seconds=5.0, voltage=10.0, current=1.0
+            step_number=1, duration_seconds=5.0, voltage=10.0, current=1.0,
+            absolute_time_seconds=5.0,
         )
 
         trigger_progress(mock_model_for_presenter, current=1, total=3, step=step)
@@ -735,7 +736,8 @@ class TestProgressCallback:
     ) -> None:
         """Progress updates position indicator on signal generator plot."""
         step = SignalGeneratorTestStep(
-            step_number=1, time_seconds=7.5, frequency=2e6, power=-5.0
+            step_number=1, duration_seconds=7.5, frequency=2e6, power=-5.0,
+            absolute_time_seconds=7.5,
         )
 
         trigger_progress(mock_model_for_presenter, current=1, total=2, step=step)
@@ -751,7 +753,7 @@ class TestProgressCallback:
     ) -> None:
         """Progress highlights current row in power supply table."""
         step = PowerSupplyTestStep(
-            step_number=4, time_seconds=15.0, voltage=20.0, current=3.0
+            step_number=4, duration_seconds=5.0, voltage=20.0, current=3.0
         )
 
         trigger_progress(mock_model_for_presenter, current=4, total=5, step=step)
@@ -767,7 +769,7 @@ class TestProgressCallback:
     ) -> None:
         """Progress highlights current row in signal generator table."""
         step = SignalGeneratorTestStep(
-            step_number=2, time_seconds=10.0, frequency=3e6, power=-15.0
+            step_number=2, duration_seconds=5.0, frequency=3e6, power=-15.0
         )
 
         trigger_progress(mock_model_for_presenter, current=2, total=3, step=step)

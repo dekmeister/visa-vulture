@@ -75,18 +75,18 @@ Test plans are CSV files. The format depends on the instrument type. Step number
 
 | Column | Required | Description |
 |--------|----------|-------------|
-| time | Yes | Time in seconds when step starts |
+| duration | Yes | Duration of this step in seconds |
 | voltage | Yes | Voltage setpoint in volts |
 | current | Yes | Current limit in amps |
 | description | No | Optional step description |
 
-Example (`./plans/sample_power_supply/test_plan.csv`):
+Example (`./plans/sample_power_supply_test_plan.csv`):
 ```csv
-time,voltage,current,description
-0.0,5.0,1.0,Initial voltage
+duration,voltage,current,description
+5.0,5.0,1.0,Initial voltage
 5.0,10.0,1.5,Ramp to 10V
 10.0,12.0,2.0,Final voltage
-15.0,0.0,0.0,Power down
+5.0,0.0,0.0,Power down
 ```
 
 #### Signal Generator Test Plans
@@ -94,17 +94,17 @@ time,voltage,current,description
 | Column | Required | Description |
 |--------|----------|-------------|
 | type | Yes | Must be "signal_generator" |
-| time | Yes | Time in seconds when step starts |
+| duration | Yes | Duration of this step in seconds |
 | frequency | Yes | Frequency in Hz |
 | power | Yes | Power level in dBm |
 | description | No | Optional step description |
 
 Example (`./plans/sample_signal_generator_test_plan.csv`):
 ```csv
-type,time,frequency,power,description
-signal_generator,0.0,1000000,0,Start at 1 MHz
+type,duration,frequency,power,description
+signal_generator,5.0,1000000,0,Start at 1 MHz
 signal_generator,5.0,5000000,-5,Sweep to 5 MHz
-signal_generator,10.0,10000000,-10,Peak at 10 MHz
+signal_generator,5.0,10000000,-10,Peak at 10 MHz
 ```
 
 ### Configuration

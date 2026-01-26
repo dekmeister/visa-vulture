@@ -15,8 +15,8 @@ from ..model.test_plan import (
 logger = logging.getLogger(__name__)
 
 # Column requirements by plan type
-POWER_SUPPLY_COLUMNS = {"time", "voltage", "current"}
-SIGNAL_GENERATOR_COLUMNS = {"time", "frequency", "power"}
+POWER_SUPPLY_COLUMNS = {"duration", "voltage", "current"}
+SIGNAL_GENERATOR_COLUMNS = {"duration", "frequency", "power"}
 OPTIONAL_COLUMNS = {"description", "type"}
 
 
@@ -29,13 +29,13 @@ def read_test_plan(file_path: str | Path) -> tuple[TestPlan | None, list[str]]:
     Step numbers are automatically calculated from row order (1-based).
 
     Power Supply CSV format:
-        time,voltage,current,description
-        0.0,5.0,1.0,Initial
+        duration,voltage,current,description
+        5.0,5.0,1.0,Initial
         ...
 
     Signal Generator CSV format:
-        type,time,frequency,power,description
-        signal_generator,0.0,1000000,0,Start
+        type,duration,frequency,power,description
+        signal_generator,5.0,1000000,0,Start
         ...
 
     Args:
@@ -137,7 +137,7 @@ def _detect_plan_type(
             if type_value in (PLAN_TYPE_POWER_SUPPLY, PLAN_TYPE_SIGNAL_GENERATOR):
                 return type_value
 
-    # Infer from columns (backwards compatibility)
+    # Infer from columns
     has_power_supply_cols = POWER_SUPPLY_COLUMNS.issubset(columns)
     has_signal_gen_cols = SIGNAL_GENERATOR_COLUMNS.issubset(columns)
 
@@ -256,14 +256,16 @@ def _parse_power_supply_row(
     """Parse a single CSV row into a power supply TestStep."""
     errors: list[str] = []
 
-    # Parse time
-    time_str = _get_value(row, column_map, "time")
+    # Parse duration
+    duration_str = _get_value(row, column_map, "duration")
     try:
-        time_seconds = float(time_str)
-        if time_seconds < 0:
-            errors.append(f"Row {row_num}: time must be >= 0, got {time_seconds}")
+        duration_seconds = float(duration_str)
+        if duration_seconds < 0:
+            errors.append(
+                f"Row {row_num}: duration must be >= 0, got {duration_seconds}"
+            )
     except ValueError:
-        errors.append(f"Row {row_num}: invalid time value '{time_str}'")
+        errors.append(f"Row {row_num}: invalid duration value '{duration_str}'")
         return None, errors
 
     # Parse voltage
@@ -295,7 +297,7 @@ def _parse_power_supply_row(
     return (
         PowerSupplyTestStep(
             step_number=step_number,
-            time_seconds=time_seconds,
+            duration_seconds=duration_seconds,
             voltage=voltage,
             current=current,
             description=description,
@@ -313,14 +315,16 @@ def _parse_signal_generator_row(
     """Parse a single CSV row into a signal generator TestStep."""
     errors: list[str] = []
 
-    # Parse time
-    time_str = _get_value(row, column_map, "time")
+    # Parse duration
+    duration_str = _get_value(row, column_map, "duration")
     try:
-        time_seconds = float(time_str)
-        if time_seconds < 0:
-            errors.append(f"Row {row_num}: time must be >= 0, got {time_seconds}")
+        duration_seconds = float(duration_str)
+        if duration_seconds < 0:
+            errors.append(
+                f"Row {row_num}: duration must be >= 0, got {duration_seconds}"
+            )
     except ValueError:
-        errors.append(f"Row {row_num}: invalid time value '{time_str}'")
+        errors.append(f"Row {row_num}: invalid duration value '{duration_str}'")
         return None, errors
 
     # Parse frequency
@@ -350,7 +354,7 @@ def _parse_signal_generator_row(
     return (
         SignalGeneratorTestStep(
             step_number=step_number,
-            time_seconds=time_seconds,
+            duration_seconds=duration_seconds,
             frequency=frequency,
             power=power,
             description=description,

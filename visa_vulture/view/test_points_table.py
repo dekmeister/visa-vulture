@@ -24,14 +24,16 @@ class TestPointsTable(ttk.Frame):
     COLUMNS = {
         InstrumentType.POWER_SUPPLY: [
             ("step", "Step", 50),
-            ("time", "Time (s)", 70),
+            ("duration", "Duration (s)", 80),
+            ("abs_time", "Abs. Time (s)", 80),
             ("voltage", "Voltage (V)", 80),
             ("current", "Current (A)", 80),
             ("description", "Description", 150),
         ],
         InstrumentType.SIGNAL_GENERATOR: [
             ("step", "Step", 50),
-            ("time", "Time (s)", 70),
+            ("duration", "Duration (s)", 80),
+            ("abs_time", "Abs. Time (s)", 80),
             ("frequency", "Frequency", 90),
             ("power", "Power (dBm)", 80),
             ("description", "Description", 150),
@@ -114,7 +116,8 @@ class TestPointsTable(ttk.Frame):
             if self._instrument_type == InstrumentType.POWER_SUPPLY:
                 values = (
                     step.step_number,
-                    f"{step.time_seconds:.1f}",
+                    f"{step.duration_seconds:.1f}",
+                    f"{step.absolute_time_seconds:.1f}",
                     f"{step.voltage:.2f}",
                     f"{step.current:.2f}",
                     step.description,
@@ -133,7 +136,8 @@ class TestPointsTable(ttk.Frame):
 
                 values = (
                     step.step_number,
-                    f"{step.time_seconds:.1f}",
+                    f"{step.duration_seconds:.1f}",
+                    f"{step.absolute_time_seconds:.1f}",
                     freq_str,
                     f"{step.power:.1f}",
                     step.description,

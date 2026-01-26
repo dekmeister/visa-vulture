@@ -147,7 +147,7 @@ class EquipmentPresenter:
 
                 # Load test plan preview (show full trajectory)
                 # Steps are SignalGeneratorTestStep when plan_type is signal_generator
-                times = [s.time_seconds for s in test_plan.steps]
+                times = [s.absolute_time_seconds for s in test_plan.steps]
                 freqs = [s.frequency for s in test_plan.steps]  # type: ignore[attr-defined]
                 powers = [s.power for s in test_plan.steps]  # type: ignore[attr-defined]
                 self._view.signal_gen_plot_panel.load_test_plan_preview(
@@ -164,7 +164,7 @@ class EquipmentPresenter:
 
                 # Load test plan preview (show full trajectory)
                 # Steps are PowerSupplyTestStep when plan_type is power_supply
-                times = [s.time_seconds for s in test_plan.steps]
+                times = [s.absolute_time_seconds for s in test_plan.steps]
                 voltages = [s.voltage for s in test_plan.steps]  # type: ignore[attr-defined]
                 currents = [s.current for s in test_plan.steps]  # type: ignore[attr-defined]
                 self._view.plot_panel.load_test_plan_preview(times, voltages, currents)
@@ -279,7 +279,7 @@ class EquipmentPresenter:
                     f"Step {current}/{total}: F={step.frequency/1e6:.3f} MHz, P={step.power:.1f} dBm"
                 )
                 # Update position indicator on the plot
-                self._view.signal_gen_plot_panel.set_current_position(step.time_seconds)
+                self._view.signal_gen_plot_panel.set_current_position(step.absolute_time_seconds)
                 # Highlight current row in table
                 self._view.sg_table.highlight_step(step.step_number)
             elif isinstance(step, PowerSupplyTestStep):
@@ -288,7 +288,7 @@ class EquipmentPresenter:
                     f"Step {current}/{total}: V={step.voltage:.2f}V, I={step.current:.2f}A"
                 )
                 # Update position indicator on the plot
-                self._view.plot_panel.set_current_position(step.time_seconds)
+                self._view.plot_panel.set_current_position(step.absolute_time_seconds)
                 # Highlight current row in table
                 self._view.ps_table.highlight_step(step.step_number)
 
