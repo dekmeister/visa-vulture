@@ -1,7 +1,9 @@
 """Log panel widget for displaying application logs."""
 
 import logging
+import threading
 import tkinter as tk
+from collections import deque
 from tkinter import ttk
 from typing import Callable
 
@@ -12,6 +14,9 @@ class LogPanel(ttk.Frame):
 
     Displays log messages with color coding by level and
     provides a filter dropdown to show only certain levels.
+
+    Log records are buffered and flushed to the display periodically
+    to avoid overwhelming the Tkinter event loop during high-volume logging.
     """
 
     # Color scheme for log levels
@@ -31,6 +36,9 @@ class LogPanel(ttk.Frame):
         logging.CRITICAL: "CRITICAL",
     }
 
+    _MAX_LOG_RECORDS = 10_000
+    _FLUSH_INTERVAL_MS = 100
+
     def __init__(self, parent: tk.Widget, **kwargs):
         """
         Initialize log panel.
@@ -44,6 +52,15 @@ class LogPanel(ttk.Frame):
         self._min_level = logging.DEBUG
         self._auto_scroll = True
         self._log_records: list[logging.LogRecord] = []
+
+        self._pending_records: deque[logging.LogRecord] = deque()
+        self._pending_lock = threading.Lock()
+        self._flush_timer_id: str | None = None
+
+        self._formatter = logging.Formatter(
+            "%(asctime)s | %(levelname)-8s | %(message)s",
+            datefmt="%H:%M:%S",
+        )
 
         self._create_widgets()
         self._configure_tags()
@@ -115,53 +132,70 @@ class LogPanel(ttk.Frame):
         if self._auto_scroll:
             self._text.see(tk.END)
 
-    def append_record(self, record: logging.LogRecord) -> None:
-        """
-        Append a log record to the panel.
+    def start_flush_timer(self) -> None:
+        """Start the periodic flush timer for batched log display."""
+        self._schedule_flush()
 
-        Thread-safe: schedules update on main thread.
+    def stop_flush_timer(self) -> None:
+        """Stop the periodic flush timer."""
+        if self._flush_timer_id is not None:
+            self.after_cancel(self._flush_timer_id)
+            self._flush_timer_id = None
 
-        Args:
-            record: Log record to display
-        """
-        self._log_records.append(record)
-
-        if record.levelno >= self._min_level:
-            self._append_formatted(record)
-
-    def _append_formatted(self, record: logging.LogRecord) -> None:
-        """Append formatted record to text widget."""
-        # Format the message
-        formatter = logging.Formatter(
-            "%(asctime)s | %(levelname)-8s | %(message)s",
-            datefmt="%H:%M:%S",
+    def _schedule_flush(self) -> None:
+        """Schedule the next flush."""
+        self._flush_timer_id = self.after(
+            self._FLUSH_INTERVAL_MS, self._flush_pending
         )
-        message = formatter.format(record) + "\n"
 
-        # Get tag for level
-        tag = self.LEVEL_TAGS.get(record.levelno, "INFO")
+    def _flush_pending(self) -> None:
+        """Flush all pending log records to the display in a single batch."""
+        with self._pending_lock:
+            records = list(self._pending_records)
+            self._pending_records.clear()
 
-        # Update text widget
-        self._text.config(state=tk.NORMAL)
-        self._text.insert(tk.END, message, tag)
-        self._text.config(state=tk.DISABLED)
+        if records:
+            self._log_records.extend(records)
 
-        # Auto-scroll
-        if self._auto_scroll:
-            self._text.see(tk.END)
+            # Trim old records if over limit
+            if len(self._log_records) > self._MAX_LOG_RECORDS:
+                excess = len(self._log_records) - self._MAX_LOG_RECORDS
+                del self._log_records[:excess]
+                self._refresh_display()
+            else:
+                # Insert only the new visible records
+                visible = [r for r in records if r.levelno >= self._min_level]
+                if visible:
+                    self._text.config(state=tk.NORMAL)
+                    for record in visible:
+                        message = self._formatter.format(record) + "\n"
+                        tag = self.LEVEL_TAGS.get(record.levelno, "INFO")
+                        self._text.insert(tk.END, message, tag)
+                    self._text.config(state=tk.DISABLED)
+
+                    if self._auto_scroll:
+                        self._text.see(tk.END)
+
+        self._schedule_flush()
 
     def _refresh_display(self) -> None:
         """Refresh display with current filter."""
         self._text.config(state=tk.NORMAL)
         self._text.delete("1.0", tk.END)
-        self._text.config(state=tk.DISABLED)
-
         for record in self._log_records:
             if record.levelno >= self._min_level:
-                self._append_formatted(record)
+                message = self._formatter.format(record) + "\n"
+                tag = self.LEVEL_TAGS.get(record.levelno, "INFO")
+                self._text.insert(tk.END, message, tag)
+        self._text.config(state=tk.DISABLED)
+
+        if self._auto_scroll:
+            self._text.see(tk.END)
 
     def clear(self) -> None:
         """Clear all log entries."""
+        with self._pending_lock:
+            self._pending_records.clear()
         self._log_records.clear()
         self._text.config(state=tk.NORMAL)
         self._text.delete("1.0", tk.END)
@@ -171,14 +205,15 @@ class LogPanel(ttk.Frame):
         """
         Get a callback function for use with GUILogHandler.
 
-        The returned function schedules updates on the main thread.
+        Records are buffered and flushed to the display periodically
+        to avoid overwhelming the Tkinter event loop.
 
         Returns:
             Callback function that accepts log records
         """
 
         def callback(record: logging.LogRecord) -> None:
-            # Schedule on main thread
-            self.after(0, lambda: self.append_record(record))
+            with self._pending_lock:
+                self._pending_records.append(record)
 
         return callback

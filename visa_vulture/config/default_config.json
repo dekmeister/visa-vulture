@@ -2,7 +2,7 @@
     "simulation_mode": true,
     "simulation_file": "simulation/instruments.yaml",
     "log_file": "equipment_controller.log",
-    "log_level": "INFO",
+    "log_level": "DEBUG",
     "window_title": "VISAVulture",
     "window_width": 1200,
     "window_height": 800,

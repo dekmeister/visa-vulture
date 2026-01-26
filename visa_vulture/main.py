@@ -96,6 +96,7 @@ def main() -> int:
 
     # Wire GUI log handler
     gui_handler.set_callback(view.log_panel.get_log_handler_callback())
+    view.log_panel.start_flush_timer()
 
     # Create presenter
     presenter = EquipmentPresenter(
@@ -107,6 +108,7 @@ def main() -> int:
     # Setup clean shutdown
     def on_closing():
         logger.info("Application closing")
+        view.log_panel.stop_flush_timer()
         presenter.shutdown()
         visa_connection.close()
         root.destroy()

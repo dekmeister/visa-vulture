@@ -102,6 +102,25 @@ def setup_logging(
     gui_handler.setFormatter(formatter)
     root_logger.addHandler(gui_handler)
 
+    # Suppress noisy third-party loggers in debug mode.
+    # These libraries emit excessive debug output that is not relevant
+    # to application debugging and can overwhelm the GUI log panel.
+    _NOISY_LOGGERS = [
+        "matplotlib",
+        "matplotlib.font_manager",
+        "matplotlib.backends",
+        "matplotlib.pyplot",
+        "matplotlib.colorbar",
+        "matplotlib.ticker",
+        "pyvisa",
+        "PIL",
+        "PIL.PngImagePlugin",
+    ]
+
+    if numeric_level <= logging.DEBUG:
+        for logger_name in _NOISY_LOGGERS:
+            logging.getLogger(logger_name).setLevel(logging.WARNING)
+
     logging.info("Logging configured: level=%s, file=%s", log_level, log_path)
 
     return gui_handler
