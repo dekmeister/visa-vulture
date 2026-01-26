@@ -8,6 +8,7 @@ import matplotlib
 
 matplotlib.use("TkAgg")
 
+from matplotlib.axes import Axes
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
@@ -37,6 +38,10 @@ class PlotPanel(ttk.Frame):
 
         # Position indicator
         self._position_line: Line2D | None = None
+
+        # Y-axis scale state: 'linear' or 'log'
+        self._voltage_scale: str = "linear"
+        self._current_scale: str = "linear"
 
         self._create_widgets()
 
@@ -81,6 +86,9 @@ class PlotPanel(ttk.Frame):
         toolbar_frame.pack(fill=tk.X)
         self._toolbar = NavigationToolbar2Tk(self._canvas, toolbar_frame)
         self._toolbar.update()
+
+        # Right-click context menu for scale selection
+        self._canvas.get_tk_widget().bind("<Button-3>", self._show_scale_menu)
 
     def add_point(self, time: float, voltage: float, current: float) -> None:
         """
@@ -149,6 +157,84 @@ class PlotPanel(ttk.Frame):
             self._position_line = None
             self._canvas.draw_idle()
 
+    def _show_scale_menu(self, event: "tk.Event[tk.Widget]") -> None:
+        """Show right-click context menu for Y-axis scale selection."""
+        menu = tk.Menu(self, tearoff=0)
+
+        voltage_label = (
+            "Voltage Y-Axis: Switch to Log"
+            if self._voltage_scale == "linear"
+            else "Voltage Y-Axis: Switch to Linear"
+        )
+        menu.add_command(label=voltage_label, command=self._toggle_voltage_scale)
+
+        current_label = (
+            "Current Y-Axis: Switch to Log"
+            if self._current_scale == "linear"
+            else "Current Y-Axis: Switch to Linear"
+        )
+        menu.add_command(label=current_label, command=self._toggle_current_scale)
+
+        menu.tk_popup(event.x_root, event.y_root)
+
+    def _toggle_voltage_scale(self) -> None:
+        """Toggle voltage Y-axis between linear and log scale."""
+        self._voltage_scale = "log" if self._voltage_scale == "linear" else "linear"
+        self._apply_scales()
+        self._update_plot()
+
+    def _toggle_current_scale(self) -> None:
+        """Toggle current Y-axis between linear and log scale."""
+        self._current_scale = "log" if self._current_scale == "linear" else "linear"
+        self._apply_scales()
+        self._update_plot()
+
+    def _apply_scales(self) -> None:
+        """Apply current scale settings to axes and update labels."""
+        self._ax_voltage.set_yscale(self._voltage_scale)
+        self._ax_current.set_yscale(self._current_scale)
+
+        voltage_suffix = " (log)" if self._voltage_scale == "log" else ""
+        current_suffix = " (log)" if self._current_scale == "log" else ""
+        self._ax_voltage.set_ylabel(f"Voltage (V){voltage_suffix}", color="blue")
+        self._ax_current.set_ylabel(f"Current (A){current_suffix}", color="red")
+
+    def _set_ylim_for_scale(
+        self,
+        ax: Axes,
+        values: list[float],
+        scale: str,
+        lower_bound_zero: bool = True,
+    ) -> None:
+        """
+        Set Y-axis limits appropriate for the current scale mode.
+
+        Args:
+            ax: The matplotlib axis to set limits on
+            values: Data values for computing limits
+            scale: 'linear' or 'log'
+            lower_bound_zero: Whether the lower bound should be 0 in linear mode
+        """
+        if not values:
+            return
+
+        if scale == "log":
+            positive_values = [v for v in values if v > 0]
+            if positive_values:
+                v_min = min(positive_values)
+                v_max = max(positive_values)
+                ax.set_ylim(v_min / 2, v_max * 2)
+            else:
+                ax.set_ylim(0.1, 10)
+        else:
+            v_min = min(values)
+            v_max = max(values)
+            if lower_bound_zero:
+                ax.set_ylim(0, v_max * 1.1 or 1)
+            else:
+                margin = (v_max - v_min) * 0.1 or 1
+                ax.set_ylim(v_min - margin, v_max + margin)
+
     def load_test_plan_preview(
         self,
         times: Sequence[float],
@@ -177,12 +263,20 @@ class PlotPanel(ttk.Frame):
             self._ax_voltage.set_xlim(0, max(self._times) * 1.05 or 1)
 
             if self._voltages:
-                v_max = max(self._voltages) * 1.1 or 1
-                self._ax_voltage.set_ylim(0, v_max)
+                self._set_ylim_for_scale(
+                    self._ax_voltage,
+                    self._voltages,
+                    self._voltage_scale,
+                    lower_bound_zero=True,
+                )
 
             if self._currents:
-                c_max = max(self._currents) * 1.1 or 1
-                self._ax_current.set_ylim(0, c_max)
+                self._set_ylim_for_scale(
+                    self._ax_current,
+                    self._currents,
+                    self._current_scale,
+                    lower_bound_zero=True,
+                )
 
         # Redraw
         self._canvas.draw_idle()
@@ -200,6 +294,11 @@ class PlotPanel(ttk.Frame):
         if self._position_line is not None:
             self._position_line.remove()
             self._position_line = None
+
+        # Reset scales to defaults
+        self._voltage_scale = "linear"
+        self._current_scale = "linear"
+        self._apply_scales()
 
         self._ax_voltage.set_xlim(0, 1)
         self._ax_voltage.set_ylim(0, 1)

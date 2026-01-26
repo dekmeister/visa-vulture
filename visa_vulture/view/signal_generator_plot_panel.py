@@ -8,6 +8,7 @@ import matplotlib
 
 matplotlib.use("TkAgg")
 
+from matplotlib.axes import Axes
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
@@ -38,6 +39,11 @@ class SignalGeneratorPlotPanel(ttk.Frame):
 
         # Position indicator
         self._position_line: Line2D | None = None
+
+        # Y-axis scale state: 'linear' or 'log'
+        # Frequency defaults to log scale; power (dBm) defaults to linear
+        self._freq_scale: str = "log"
+        self._power_scale: str = "linear"
 
         self._create_widgets()
 
@@ -78,6 +84,10 @@ class SignalGeneratorPlotPanel(ttk.Frame):
         labels = [str(line.get_label()) for line in lines]
         self._ax_freq.legend(lines, labels, loc="upper left")
 
+        # Apply default log scale for frequency axis
+        self._ax_freq.set_yscale("log")
+        self._ax_freq.set_ylabel("Frequency (Hz) (log)", color="green")
+
         # Embed in Tkinter
         self._canvas = FigureCanvasTkAgg(self._figure, master=self)
         self._canvas.draw()
@@ -88,6 +98,9 @@ class SignalGeneratorPlotPanel(ttk.Frame):
         toolbar_frame.pack(fill=tk.X)
         self._toolbar = NavigationToolbar2Tk(self._canvas, toolbar_frame)
         self._toolbar.update()
+
+        # Right-click context menu for scale selection
+        self._canvas.get_tk_widget().bind("<Button-3>", self._show_scale_menu)
 
     def add_point(self, time: float, frequency: float, power: float) -> None:
         """
@@ -156,6 +169,84 @@ class SignalGeneratorPlotPanel(ttk.Frame):
             self._position_line = None
             self._canvas.draw_idle()
 
+    def _show_scale_menu(self, event: "tk.Event[tk.Widget]") -> None:
+        """Show right-click context menu for Y-axis scale selection."""
+        menu = tk.Menu(self, tearoff=0)
+
+        freq_label = (
+            "Frequency Y-Axis: Switch to Linear"
+            if self._freq_scale == "log"
+            else "Frequency Y-Axis: Switch to Log"
+        )
+        menu.add_command(label=freq_label, command=self._toggle_freq_scale)
+
+        power_label = (
+            "Power Y-Axis: Switch to Log"
+            if self._power_scale == "linear"
+            else "Power Y-Axis: Switch to Linear"
+        )
+        menu.add_command(label=power_label, command=self._toggle_power_scale)
+
+        menu.tk_popup(event.x_root, event.y_root)
+
+    def _toggle_freq_scale(self) -> None:
+        """Toggle frequency Y-axis between linear and log scale."""
+        self._freq_scale = "log" if self._freq_scale == "linear" else "linear"
+        self._apply_scales()
+        self._update_plot()
+
+    def _toggle_power_scale(self) -> None:
+        """Toggle power Y-axis between linear and log scale."""
+        self._power_scale = "log" if self._power_scale == "linear" else "linear"
+        self._apply_scales()
+        self._update_plot()
+
+    def _apply_scales(self) -> None:
+        """Apply current scale settings to axes and update labels."""
+        self._ax_freq.set_yscale(self._freq_scale)
+        self._ax_power.set_yscale(self._power_scale)
+
+        freq_suffix = " (log)" if self._freq_scale == "log" else ""
+        power_suffix = " (log)" if self._power_scale == "log" else ""
+        self._ax_freq.set_ylabel(f"Frequency (Hz){freq_suffix}", color="green")
+        self._ax_power.set_ylabel(f"Power (dBm){power_suffix}", color="orange")
+
+    def _set_ylim_for_scale(
+        self,
+        ax: Axes,
+        values: list[float],
+        scale: str,
+        lower_bound_zero: bool = True,
+    ) -> None:
+        """
+        Set Y-axis limits appropriate for the current scale mode.
+
+        Args:
+            ax: The matplotlib axis to set limits on
+            values: Data values for computing limits
+            scale: 'linear' or 'log'
+            lower_bound_zero: Whether the lower bound should be 0 in linear mode
+        """
+        if not values:
+            return
+
+        if scale == "log":
+            positive_values = [v for v in values if v > 0]
+            if positive_values:
+                v_min = min(positive_values)
+                v_max = max(positive_values)
+                ax.set_ylim(v_min / 2, v_max * 2)
+            else:
+                ax.set_ylim(0.1, 10)
+        else:
+            v_min = min(values)
+            v_max = max(values)
+            if lower_bound_zero:
+                ax.set_ylim(max(0, v_min), v_max * 1.1 or 1)
+            else:
+                margin = (v_max - v_min) * 0.1 or 1
+                ax.set_ylim(v_min - margin, v_max + margin)
+
     def _update_plot(self) -> None:
         """Update plot with current data."""
         # Update line data
@@ -167,16 +258,20 @@ class SignalGeneratorPlotPanel(ttk.Frame):
             self._ax_freq.set_xlim(0, max(self._times) * 1.05 or 1)
 
             if self._frequencies:
-                f_min = min(self._frequencies)
-                f_max = max(self._frequencies)
-                margin = (f_max - f_min) * 0.1 or f_max * 0.1 or 1
-                self._ax_freq.set_ylim(max(0, f_min - margin), f_max + margin)
+                self._set_ylim_for_scale(
+                    self._ax_freq,
+                    self._frequencies,
+                    self._freq_scale,
+                    lower_bound_zero=True,
+                )
 
             if self._powers:
-                p_min = min(self._powers)
-                p_max = max(self._powers)
-                margin = (p_max - p_min) * 0.1 or 1
-                self._ax_power.set_ylim(p_min - margin, p_max + margin)
+                self._set_ylim_for_scale(
+                    self._ax_power,
+                    self._powers,
+                    self._power_scale,
+                    lower_bound_zero=False,
+                )
 
         # Redraw
         self._canvas.draw_idle()
@@ -195,8 +290,13 @@ class SignalGeneratorPlotPanel(ttk.Frame):
             self._position_line.remove()
             self._position_line = None
 
+        # Reset scales to defaults (frequency defaults to log)
+        self._freq_scale = "log"
+        self._power_scale = "linear"
+        self._apply_scales()
+
         self._ax_freq.set_xlim(0, 1)
-        self._ax_freq.set_ylim(0, 1)
+        self._ax_freq.set_ylim(1, 1000)
         self._ax_power.set_ylim(-20, 10)
 
         self._canvas.draw_idle()
