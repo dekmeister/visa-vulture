@@ -3,6 +3,9 @@ CLAUDE.md
 .claude/
 testing-approach.md
 
+# VS code specific files
+.vscode/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
