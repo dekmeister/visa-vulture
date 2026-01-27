@@ -32,12 +32,12 @@ class TestReadTestPlanFileHandling:
 
         assert plan is None
         assert len(errors) >= 1
-        assert any("empty" in e.lower() or "no header" in e.lower() for e in errors)
+        assert any("missing required metadata" in e.lower() for e in errors)
 
     def test_no_data_rows_returns_error(self, tmp_path: Path) -> None:
         """File with only header returns error."""
         csv_path = tmp_path / "header_only.csv"
-        csv_path.write_text("duration,voltage,current\n")
+        csv_path.write_text("# instrument_type: power_supply\nduration,voltage,current\n")
 
         plan, errors = read_test_plan(csv_path)
 
@@ -91,8 +91,7 @@ class TestReadPowerSupplyPlan:
         )
 
         assert plan is None
-        # When columns are missing, the reader can't determine plan type
-        assert any("cannot determine plan type" in e.lower() for e in errors)
+        assert any("missing required columns" in e.lower() for e in errors)
 
 
 class TestReadSignalGeneratorPlan:
@@ -188,7 +187,9 @@ class TestReadTestPlanValueValidation:
     def test_negative_duration_returns_error(self, tmp_path: Path) -> None:
         """Negative duration value returns error."""
         csv_path = tmp_path / "negative_duration.csv"
-        csv_path.write_text("duration,voltage,current\n-1.0,5.0,1.0\n")
+        csv_path.write_text(
+            "# instrument_type: power_supply\nduration,voltage,current\n-1.0,5.0,1.0\n"
+        )
 
         plan, errors = read_test_plan(csv_path)
 
@@ -198,7 +199,9 @@ class TestReadTestPlanValueValidation:
     def test_negative_voltage_returns_error(self, tmp_path: Path) -> None:
         """Negative voltage value returns error."""
         csv_path = tmp_path / "negative_voltage.csv"
-        csv_path.write_text("duration,voltage,current\n0.0,-5.0,1.0\n")
+        csv_path.write_text(
+            "# instrument_type: power_supply\nduration,voltage,current\n0.0,-5.0,1.0\n"
+        )
 
         plan, errors = read_test_plan(csv_path)
 
@@ -208,7 +211,9 @@ class TestReadTestPlanValueValidation:
     def test_negative_current_returns_error(self, tmp_path: Path) -> None:
         """Negative current value returns error."""
         csv_path = tmp_path / "negative_current.csv"
-        csv_path.write_text("duration,voltage,current\n0.0,5.0,-1.0\n")
+        csv_path.write_text(
+            "# instrument_type: power_supply\nduration,voltage,current\n0.0,5.0,-1.0\n"
+        )
 
         plan, errors = read_test_plan(csv_path)
 
@@ -218,7 +223,10 @@ class TestReadTestPlanValueValidation:
     def test_negative_frequency_returns_error(self, tmp_path: Path) -> None:
         """Negative frequency value returns error."""
         csv_path = tmp_path / "negative_freq.csv"
-        csv_path.write_text("type,duration,frequency,power\nsignal_generator,0.0,-1000,0\n")
+        csv_path.write_text(
+            "# instrument_type: signal_generator\n"
+            "duration,frequency,power\n0.0,-1000,0\n"
+        )
 
         plan, errors = read_test_plan(csv_path)
 
@@ -227,13 +235,14 @@ class TestReadTestPlanValueValidation:
 
 
 class TestReadTestPlanTypeDetection:
-    """Tests for plan type detection."""
+    """Tests for plan type detection via metadata."""
 
-    def test_type_detected_from_explicit_column(self, tmp_path: Path) -> None:
-        """Type is detected from 'type' column."""
-        csv_path = tmp_path / "explicit_type.csv"
+    def test_type_detected_from_metadata(self, tmp_path: Path) -> None:
+        """Type is detected from instrument_type metadata."""
+        csv_path = tmp_path / "metadata_type.csv"
         csv_path.write_text(
-            "type,duration,frequency,power\nsignal_generator,0.0,1000000,0\n"
+            "# instrument_type: signal_generator\n"
+            "duration,frequency,power\n0.0,1000000,0\n"
         )
 
         plan, errors = read_test_plan(csv_path)
@@ -242,57 +251,59 @@ class TestReadTestPlanTypeDetection:
         assert plan is not None
         assert plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR
 
-    def test_type_inferred_from_power_supply_columns(
+    def test_missing_metadata_returns_error(self, tmp_path: Path) -> None:
+        """CSV with no metadata comment lines returns error."""
+        csv_path = tmp_path / "no_metadata.csv"
+        csv_path.write_text("duration,voltage,current\n0.0,5.0,1.0\n")
+
+        plan, errors = read_test_plan(csv_path)
+
+        assert plan is None
+        assert any("missing required metadata" in e.lower() for e in errors)
+
+    def test_missing_instrument_type_metadata_returns_error(
         self, tmp_path: Path
     ) -> None:
-        """Type is inferred from power supply columns."""
-        csv_path = tmp_path / "inferred_ps.csv"
-        csv_path.write_text("duration,voltage,current\n0.0,5.0,1.0\n")
+        """Metadata present but missing instrument_type returns error."""
+        csv_path = tmp_path / "wrong_metadata.csv"
+        csv_path.write_text(
+            "# description: some test plan\n"
+            "duration,voltage,current\n0.0,5.0,1.0\n"
+        )
+
+        plan, errors = read_test_plan(csv_path)
+
+        assert plan is None
+        assert any("missing required metadata field" in e.lower() for e in errors)
+
+    def test_invalid_instrument_type_returns_error(
+        self, tmp_path: Path
+    ) -> None:
+        """Invalid instrument_type value returns error with no fallback."""
+        csv_path = tmp_path / "bad_type.csv"
+        csv_path.write_text(
+            "# instrument_type: unknown_type\n"
+            "duration,voltage,current\n0.0,5.0,1.0\n"
+        )
+
+        plan, errors = read_test_plan(csv_path)
+
+        assert plan is None
+        assert any("invalid instrument_type" in e.lower() for e in errors)
+
+    def test_metadata_whitespace_handling(self, tmp_path: Path) -> None:
+        """Metadata with extra whitespace is parsed correctly."""
+        csv_path = tmp_path / "whitespace_metadata.csv"
+        csv_path.write_text(
+            "#  instrument_type :  power_supply \n"
+            "duration,voltage,current\n0.0,5.0,1.0\n"
+        )
 
         plan, errors = read_test_plan(csv_path)
 
         assert errors == []
         assert plan is not None
         assert plan.plan_type == PLAN_TYPE_POWER_SUPPLY
-
-    def test_type_inferred_from_signal_generator_columns(
-        self, tmp_path: Path
-    ) -> None:
-        """Type is inferred from signal generator columns."""
-        csv_path = tmp_path / "inferred_sg.csv"
-        csv_path.write_text("duration,frequency,power\n0.0,1000000,0\n")
-
-        plan, errors = read_test_plan(csv_path)
-
-        assert errors == []
-        assert plan is not None
-        assert plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR
-
-    def test_ambiguous_type_returns_error(self, tmp_path: Path) -> None:
-        """Ambiguous columns (both types) returns error."""
-        csv_path = tmp_path / "ambiguous.csv"
-        # Has columns for both power supply and signal generator
-        csv_path.write_text("duration,voltage,current,frequency,power\n0.0,5.0,1.0,1000,0\n")
-
-        plan, errors = read_test_plan(csv_path)
-
-        assert plan is None
-        assert any("cannot determine plan type" in e.lower() for e in errors)
-
-    def test_unknown_type_value_falls_back_to_columns(
-        self, tmp_path: Path
-    ) -> None:
-        """Unknown type value falls back to column detection if columns match."""
-        csv_path = tmp_path / "unknown_type.csv"
-        # Has voltage/current columns, so falls back to power supply detection
-        csv_path.write_text("type,duration,voltage,current\nunknown_type,0.0,5.0,1.0\n")
-
-        plan, errors = read_test_plan(csv_path)
-
-        # With matching columns, it successfully infers power_supply type
-        assert errors == []
-        assert plan is not None
-        assert plan.plan_type == "power_supply"
 
 
 class TestReadTestPlanColumnNormalization:
@@ -301,7 +312,9 @@ class TestReadTestPlanColumnNormalization:
     def test_column_names_case_insensitive(self, tmp_path: Path) -> None:
         """Column names are case insensitive."""
         csv_path = tmp_path / "uppercase.csv"
-        csv_path.write_text("DURATION,VOLTAGE,CURRENT\n0.0,5.0,1.0\n")
+        csv_path.write_text(
+            "# instrument_type: power_supply\nDURATION,VOLTAGE,CURRENT\n0.0,5.0,1.0\n"
+        )
 
         plan, errors = read_test_plan(csv_path)
 
@@ -311,7 +324,9 @@ class TestReadTestPlanColumnNormalization:
     def test_column_names_trimmed(self, tmp_path: Path) -> None:
         """Column names with whitespace are trimmed."""
         csv_path = tmp_path / "whitespace.csv"
-        csv_path.write_text(" duration , voltage , current \n0.0,5.0,1.0\n")
+        csv_path.write_text(
+            "# instrument_type: power_supply\n duration , voltage , current \n0.0,5.0,1.0\n"
+        )
 
         plan, errors = read_test_plan(csv_path)
 

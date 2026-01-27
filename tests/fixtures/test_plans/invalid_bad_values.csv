@@ -1,3 +1,4 @@
+# instrument_type: power_supply
 duration,voltage,current,description
 abc,5.0,1.0,Bad duration value
 0.0,xyz,1.0,Bad voltage value

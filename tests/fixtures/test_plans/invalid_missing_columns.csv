@@ -1,3 +1,4 @@
+# instrument_type: power_supply
 duration,voltage
 0.0,5.0
 1.0,10.0

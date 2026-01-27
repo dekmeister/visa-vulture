@@ -1,6 +1,15 @@
-"""Test plan CSV reader with support for multiple plan types."""
+"""Test plan CSV reader with support for multiple plan types.
+
+CSV files use comment-line metadata at the top of the file to specify
+the instrument type. The metadata format is:
+
+    # instrument_type: power_supply
+
+Followed by the standard CSV header and data rows.
+"""
 
 import csv
+import io
 import logging
 from pathlib import Path
 
@@ -17,32 +26,37 @@ logger = logging.getLogger(__name__)
 # Column requirements by plan type
 POWER_SUPPLY_COLUMNS = {"duration", "voltage", "current"}
 SIGNAL_GENERATOR_COLUMNS = {"duration", "frequency", "power"}
-OPTIONAL_COLUMNS = {"description", "type"}
+OPTIONAL_COLUMNS = {"description"}
+
+# Valid instrument types for metadata
+_VALID_INSTRUMENT_TYPES = {PLAN_TYPE_POWER_SUPPLY, PLAN_TYPE_SIGNAL_GENERATOR}
 
 
 def read_test_plan(file_path: str | Path) -> tuple[TestPlan | None, list[str]]:
     """
     Read a test plan from a CSV file.
 
-    The plan type is determined by the 'type' column in the CSV.
-    If no type column, defaults to power_supply for backwards compatibility.
-    Step numbers are automatically calculated from row order (1-based).
+    The plan type is determined by required '# instrument_type' metadata
+    at the top of the CSV file. Step numbers are automatically calculated
+    from row order (1-based).
 
     Power Supply CSV format:
+        # instrument_type: power_supply
         duration,voltage,current,description
         5.0,5.0,1.0,Initial
         ...
 
     Signal Generator CSV format:
-        type,duration,frequency,power,description
-        signal_generator,5.0,1000000,0,Start
+        # instrument_type: signal_generator
+        duration,frequency,power,description
+        5.0,1000000,0,Start
         ...
 
     Args:
         file_path: Path to CSV file
 
     Returns:
-        Tuple of (TestPlan/SignalGeneratorTestPlan or None, list of error messages)
+        Tuple of (TestPlan or None, list of error messages)
     """
     errors: list[str] = []
     file_path = Path(file_path)
@@ -52,101 +66,114 @@ def read_test_plan(file_path: str | Path) -> tuple[TestPlan | None, list[str]]:
         errors.append(f"File not found: {file_path}")
         return None, errors
 
-    # Read CSV
+    # Read file and parse metadata
     try:
         with open(file_path, "r", encoding="utf-8", newline="") as f:
-            reader = csv.DictReader(f)
-
-            if reader.fieldnames is None:
-                errors.append("CSV file is empty or has no header row")
-                return None, errors
-
-            # Normalize column names to lowercase
-            columns = {name.lower().strip() for name in reader.fieldnames}
-            column_map = {name.lower().strip(): name for name in reader.fieldnames}
-
-            # Read all rows to determine type
-            rows = list(reader)
-
-            if not rows:
-                errors.append("CSV file has no data rows")
-                return None, errors
-
-            # Determine plan type from first row's 'type' column, or infer from columns
-            plan_type = _detect_plan_type(rows[0], column_map, columns)
-
-            if plan_type is None:
-                errors.append(
-                    "Cannot determine plan type. Include 'type' column with "
-                    f"'{PLAN_TYPE_POWER_SUPPLY}' or '{PLAN_TYPE_SIGNAL_GENERATOR}'"
-                )
-                return None, errors
-
-            # Validate columns for detected type
-            if plan_type == PLAN_TYPE_POWER_SUPPLY:
-                missing = POWER_SUPPLY_COLUMNS - columns
-                if missing:
-                    errors.append(
-                        f"Missing required columns for power supply: {', '.join(sorted(missing))}"
-                    )
-                    return None, errors
-                return _parse_power_supply_plan(file_path, rows, column_map, errors)
-
-            elif plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
-                missing = SIGNAL_GENERATOR_COLUMNS - columns
-                if missing:
-                    errors.append(
-                        f"Missing required columns for signal generator: {', '.join(sorted(missing))}"
-                    )
-                    return None, errors
-                return _parse_signal_generator_plan(file_path, rows, column_map, errors)
-
-            else:
-                errors.append(f"Unknown plan type: '{plan_type}'")
-                return None, errors
-
-    except csv.Error as e:
-        errors.append(f"CSV parsing error: {e}")
-        return None, errors
+            file_content = f.read()
     except OSError as e:
         errors.append(f"Error reading file: {e}")
         return None, errors
 
+    metadata, csv_content = _parse_metadata(file_content)
 
-def _detect_plan_type(
-    first_row: dict[str, str],
-    column_map: dict[str, str],
-    columns: set[str],
-) -> str | None:
+    # Validate instrument_type metadata
+    if not metadata:
+        errors.append(
+            "Missing required metadata. Add '# instrument_type: power_supply' "
+            "or '# instrument_type: signal_generator' at the top of the CSV file"
+        )
+        return None, errors
+
+    if "instrument_type" not in metadata:
+        errors.append("Missing required metadata field 'instrument_type'")
+        return None, errors
+
+    plan_type = metadata["instrument_type"]
+    if plan_type not in _VALID_INSTRUMENT_TYPES:
+        errors.append(
+            f"Invalid instrument_type '{plan_type}'. "
+            f"Must be '{PLAN_TYPE_POWER_SUPPLY}' or '{PLAN_TYPE_SIGNAL_GENERATOR}'"
+        )
+        return None, errors
+
+    # Parse CSV content
+    try:
+        reader = csv.DictReader(io.StringIO(csv_content))
+
+        if reader.fieldnames is None:
+            errors.append("CSV file is empty or has no header row")
+            return None, errors
+
+        # Normalize column names to lowercase
+        columns = {name.lower().strip() for name in reader.fieldnames}
+        column_map = {name.lower().strip(): name for name in reader.fieldnames}
+
+        # Read all rows
+        rows = list(reader)
+
+        if not rows:
+            errors.append("CSV file has no data rows")
+            return None, errors
+
+        # Validate columns for detected type
+        if plan_type == PLAN_TYPE_POWER_SUPPLY:
+            missing = POWER_SUPPLY_COLUMNS - columns
+            if missing:
+                errors.append(
+                    f"Missing required columns for power supply: {', '.join(sorted(missing))}"
+                )
+                return None, errors
+            return _parse_power_supply_plan(file_path, rows, column_map, errors)
+
+        elif plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
+            missing = SIGNAL_GENERATOR_COLUMNS - columns
+            if missing:
+                errors.append(
+                    f"Missing required columns for signal generator: {', '.join(sorted(missing))}"
+                )
+                return None, errors
+            return _parse_signal_generator_plan(file_path, rows, column_map, errors)
+
+        else:
+            errors.append(f"Unknown plan type: '{plan_type}'")
+            return None, errors
+
+    except csv.Error as e:
+        errors.append(f"CSV parsing error: {e}")
+        return None, errors
+
+
+def _parse_metadata(file_content: str) -> tuple[dict[str, str], str]:
     """
-    Detect plan type from the first row or column structure.
+    Parse comment-line metadata from the top of a CSV file.
+
+    Metadata lines start with '#' and use 'key: value' format.
+    Returns the metadata dict and the remaining CSV content.
 
     Args:
-        first_row: First data row
-        column_map: Mapping of normalized to actual column names
-        columns: Set of normalized column names
+        file_content: Full file content as string
 
     Returns:
-        Plan type string or None if cannot determine
+        Tuple of (metadata dict, remaining CSV content)
     """
-    # Check for explicit type column
-    if "type" in columns:
-        actual_col = column_map.get("type")
-        if actual_col:
-            type_value = first_row.get(actual_col, "").strip().lower()
-            if type_value in (PLAN_TYPE_POWER_SUPPLY, PLAN_TYPE_SIGNAL_GENERATOR):
-                return type_value
+    metadata: dict[str, str] = {}
+    lines = file_content.splitlines(keepends=True)
+    csv_start = 0
 
-    # Infer from columns
-    has_power_supply_cols = POWER_SUPPLY_COLUMNS.issubset(columns)
-    has_signal_gen_cols = SIGNAL_GENERATOR_COLUMNS.issubset(columns)
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            # Remove the '#' prefix and parse key: value
+            comment_body = stripped[1:].strip()
+            if ":" in comment_body:
+                key, _, value = comment_body.partition(":")
+                metadata[key.strip().lower()] = value.strip().lower()
+            csv_start = i + 1
+        else:
+            break
 
-    if has_power_supply_cols and not has_signal_gen_cols:
-        return PLAN_TYPE_POWER_SUPPLY
-    elif has_signal_gen_cols and not has_power_supply_cols:
-        return PLAN_TYPE_SIGNAL_GENERATOR
-
-    return None
+    csv_content = "".join(lines[csv_start:])
+    return metadata, csv_content
 
 
 def _parse_power_supply_plan(

@@ -93,9 +93,10 @@ UNKNOWN  ──►  IDLE  ──►  RUNNING  ──►  IDLE
 ### 5. Test Plans as CSV
 
 - Simple, editable format for test sequences
-- Format varies by instrument type:
+- Required `# instrument_type` metadata comment at the top of the file specifies the plan type
+- Data columns vary by instrument type:
   - Power supply: duration, voltage, current columns
-  - Signal generator: type, duration, frequency, power columns
+  - Signal generator: duration, frequency, power columns
 - Each step specifies a duration (how long it lasts); absolute times are computed automatically
 - Validated on load with clear error reporting
 
