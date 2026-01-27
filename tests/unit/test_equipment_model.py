@@ -706,3 +706,102 @@ class TestEquipmentModelScanResources:
 
         assert isinstance(resources, list)
         assert len(resources) == 2
+
+
+class TestRunTestFromStep:
+    """Tests for run_test_from_step method."""
+
+    def test_no_plan_raises(
+        self, equipment_model: EquipmentModel, mock_visa_connection: Mock
+    ) -> None:
+        """Running from step without plan raises RuntimeError."""
+        equipment_model.connect()
+        with pytest.raises(RuntimeError, match="No test plan loaded"):
+            equipment_model.run_test_from_step(2)
+
+    def test_invalid_step_raises(
+        self,
+        equipment_model: EquipmentModel,
+        mock_visa_connection: Mock,
+        sample_power_supply_plan: TestPlan,
+    ) -> None:
+        """Running from nonexistent step raises ValueError."""
+        equipment_model.connect()
+        equipment_model.load_test_plan(sample_power_supply_plan)
+        with pytest.raises(ValueError, match="Step 99 not found"):
+            equipment_model.run_test_from_step(99)
+
+    def test_wrong_state_raises(
+        self,
+        equipment_model: EquipmentModel,
+        sample_power_supply_plan: TestPlan,
+    ) -> None:
+        """Running from step in UNKNOWN state raises RuntimeError."""
+        # Don't connect - stays in UNKNOWN
+        equipment_model.load_test_plan(sample_power_supply_plan)
+        with pytest.raises(RuntimeError, match="Cannot run test"):
+            equipment_model.run_test_from_step(1)
+
+    def test_skips_earlier_steps(self, mock_visa_connection: Mock) -> None:
+        """_execute_power_supply_plan with start_step=2 skips step 1."""
+        from visa_vulture.instruments import PowerSupply
+
+        model = EquipmentModel(mock_visa_connection)
+        model._state_machine._state = EquipmentState.RUNNING
+        model._test_plan = TestPlan(
+            name="Test",
+            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            steps=[
+                PowerSupplyTestStep(
+                    step_number=1, duration_seconds=0.0, voltage=5.0, current=1.0
+                ),
+                PowerSupplyTestStep(
+                    step_number=2, duration_seconds=0.0, voltage=10.0, current=2.0
+                ),
+                PowerSupplyTestStep(
+                    step_number=3, duration_seconds=0.0, voltage=15.0, current=3.0
+                ),
+            ],
+        )
+
+        mock_ps = Mock(spec=PowerSupply)
+        mock_ps.is_connected = True
+        model._instruments = {"ps": mock_ps}
+
+        progress_steps: list[int] = []
+        model.register_progress_callback(
+            lambda current, total, step: progress_steps.append(step.step_number)
+        )
+
+        model._execute_power_supply_plan(start_step=2)
+
+        assert progress_steps == [2, 3]
+        mock_ps.enable_output.assert_called_once()
+
+    def test_enables_output_on_start_step(self, mock_visa_connection: Mock) -> None:
+        """Output is enabled on the start step, not step 1."""
+        from visa_vulture.instruments import PowerSupply
+
+        model = EquipmentModel(mock_visa_connection)
+        model._state_machine._state = EquipmentState.RUNNING
+        model._test_plan = TestPlan(
+            name="Test",
+            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            steps=[
+                PowerSupplyTestStep(
+                    step_number=1, duration_seconds=0.0, voltage=5.0, current=1.0
+                ),
+                PowerSupplyTestStep(
+                    step_number=2, duration_seconds=0.0, voltage=10.0, current=2.0
+                ),
+            ],
+        )
+
+        mock_ps = Mock(spec=PowerSupply)
+        mock_ps.is_connected = True
+        model._instruments = {"ps": mock_ps}
+
+        model._execute_power_supply_plan(start_step=2)
+
+        # enable_output should have been called exactly once (on step 2, not step 1)
+        mock_ps.enable_output.assert_called_once()

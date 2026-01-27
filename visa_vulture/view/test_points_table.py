@@ -2,7 +2,7 @@
 
 import tkinter as tk
 from tkinter import ttk
-from typing import Sequence, Union
+from typing import Callable, Sequence, Union
 from enum import Enum
 
 
@@ -172,6 +172,40 @@ class TestPointsTable(ttk.Frame):
             if item_id and self._tree.exists(item_id):
                 self._tree.item(item_id, tags=())
         self._current_step = None
+
+    def get_selected_step_number(self) -> int | None:
+        """
+        Get the step number of the currently user-selected row.
+
+        Returns:
+            1-based step number, or None if no row is selected
+        """
+        selection = self._tree.selection()
+        if not selection:
+            return None
+
+        item_id = selection[0]
+        for step_number, stored_item_id in self._step_to_item.items():
+            if stored_item_id == item_id:
+                return step_number
+
+        return None
+
+    def register_selection_callback(
+        self, callback: Callable[[int | None], None]
+    ) -> None:
+        """
+        Register callback for row selection changes.
+
+        Args:
+            callback: Called with step_number (int) or None when selection changes
+        """
+
+        def on_select(event) -> None:  # type: ignore[no-untyped-def]
+            step_number = self.get_selected_step_number()
+            callback(step_number)
+
+        self._tree.bind("<<TreeviewSelect>>", on_select)
 
     def clear(self) -> None:
         """Remove all rows from the table."""

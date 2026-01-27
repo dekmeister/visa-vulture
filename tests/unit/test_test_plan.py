@@ -324,3 +324,62 @@ class TestPlanTypeConstants:
     def test_signal_generator_constant(self) -> None:
         """PLAN_TYPE_SIGNAL_GENERATOR has correct value."""
         assert PLAN_TYPE_SIGNAL_GENERATOR == "signal_generator"
+
+
+class TestDurationFromStep:
+    """Tests for TestPlan.duration_from_step method."""
+
+    def test_from_first_step_equals_total(self, sample_power_supply_plan) -> None:
+        """Duration from step 1 equals total duration."""
+        assert (
+            sample_power_supply_plan.duration_from_step(1)
+            == sample_power_supply_plan.total_duration
+        )
+
+    def test_from_last_step(self) -> None:
+        """Duration from last step equals that step's duration."""
+        plan = TestPlan(
+            name="Test",
+            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            steps=[
+                PowerSupplyTestStep(
+                    step_number=1, duration_seconds=5.0, voltage=1.0, current=1.0
+                ),
+                PowerSupplyTestStep(
+                    step_number=2, duration_seconds=3.0, voltage=2.0, current=2.0
+                ),
+            ],
+        )
+        assert plan.duration_from_step(2) == 3.0
+
+    def test_from_middle_step(self) -> None:
+        """Duration from middle step sums remaining steps."""
+        plan = TestPlan(
+            name="Test",
+            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            steps=[
+                PowerSupplyTestStep(
+                    step_number=1, duration_seconds=5.0, voltage=1.0, current=1.0
+                ),
+                PowerSupplyTestStep(
+                    step_number=2, duration_seconds=3.0, voltage=2.0, current=2.0
+                ),
+                PowerSupplyTestStep(
+                    step_number=3, duration_seconds=7.0, voltage=3.0, current=3.0
+                ),
+            ],
+        )
+        assert plan.duration_from_step(2) == 10.0
+
+    def test_from_nonexistent_step(self) -> None:
+        """Duration from step beyond range returns 0."""
+        plan = TestPlan(
+            name="Test",
+            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            steps=[
+                PowerSupplyTestStep(
+                    step_number=1, duration_seconds=5.0, voltage=1.0, current=1.0
+                ),
+            ],
+        )
+        assert plan.duration_from_step(99) == 0.0

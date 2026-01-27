@@ -265,6 +265,56 @@ class EquipmentModel:
 
         self._notify_complete(success, message)
 
+    def run_test_from_step(self, start_step: int) -> None:
+        """
+        Execute the loaded test plan starting from a specific step.
+
+        Must be called from a background thread.
+        Transitions through RUNNING state and back to IDLE on completion.
+
+        Args:
+            start_step: 1-based step number to start execution from.
+                        Output is always enabled on the first executed step.
+        """
+        if self._test_plan is None:
+            raise RuntimeError("No test plan loaded")
+
+        if self._state_machine.state != EquipmentState.IDLE:
+            raise RuntimeError(
+                f"Cannot run test in {self._state_machine.state.name} state"
+            )
+
+        if self._test_plan.get_step(start_step) is None:
+            raise ValueError(f"Step {start_step} not found in test plan")
+
+        self._stop_requested = False
+        self._pause_requested = False
+        self._state_machine.to_running()
+
+        try:
+            if self._test_plan.plan_type == PLAN_TYPE_POWER_SUPPLY:
+                self._execute_power_supply_plan(start_step=start_step)
+            elif self._test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
+                self._execute_signal_generator_plan(start_step=start_step)
+            else:
+                raise RuntimeError(f"Unknown plan type: {self._test_plan.plan_type}")
+
+            success = not self._stop_requested
+            message = "Test completed" if success else "Test stopped by user"
+        except Exception as e:
+            logger.error("Test execution failed: %s", e)
+            self._state_machine.to_error(str(e))
+            self._notify_complete(False, str(e))
+            raise
+        finally:
+            if self._state_machine.state in (
+                EquipmentState.RUNNING,
+                EquipmentState.PAUSED,
+            ):
+                self._state_machine.to_idle()
+
+        self._notify_complete(success, message)
+
     def stop_test(self) -> None:
         """Request test execution to stop."""
         if self._state_machine.state in (
@@ -287,8 +337,12 @@ class EquipmentModel:
             logger.info("Resume requested")
             self._pause_requested = False
 
-    def _execute_power_supply_plan(self) -> None:
-        """Execute power supply test plan steps."""
+    def _execute_power_supply_plan(self, start_step: int = 1) -> None:
+        """Execute power supply test plan steps.
+
+        Args:
+            start_step: 1-based step number to start from (default: 1)
+        """
         if (
             self._test_plan is None
             or self._test_plan.plan_type != PLAN_TYPE_POWER_SUPPLY
@@ -309,6 +363,10 @@ class EquipmentModel:
         sorted_steps = sorted(self._test_plan.steps, key=lambda s: s.step_number)
 
         for step in sorted_steps:
+            # Skip steps before start_step
+            if step.step_number < start_step:
+                continue
+
             if self._stop_requested:
                 logger.info("Test stopped at step %d", step.step_number)
                 break
@@ -329,8 +387,8 @@ class EquipmentModel:
             power_supply.set_voltage(step.voltage)
             power_supply.set_current(step.current)
 
-            # Enable output on first step
-            if step.step_number == 1:
+            # Enable output on first executed step
+            if step.step_number == start_step:
                 power_supply.enable_output()
 
             # Notify progress
@@ -344,8 +402,12 @@ class EquipmentModel:
         if power_supply.is_connected:
             power_supply.disable_output()
 
-    def _execute_signal_generator_plan(self) -> None:
-        """Execute signal generator test plan steps."""
+    def _execute_signal_generator_plan(self, start_step: int = 1) -> None:
+        """Execute signal generator test plan steps.
+
+        Args:
+            start_step: 1-based step number to start from (default: 1)
+        """
         if (
             self._test_plan is None
             or self._test_plan.plan_type != PLAN_TYPE_SIGNAL_GENERATOR
@@ -366,6 +428,10 @@ class EquipmentModel:
         sorted_steps = sorted(self._test_plan.steps, key=lambda s: s.step_number)
 
         for step in sorted_steps:
+            # Skip steps before start_step
+            if step.step_number < start_step:
+                continue
+
             if self._stop_requested:
                 logger.info("Test stopped at step %d", step.step_number)
                 break
@@ -386,8 +452,8 @@ class EquipmentModel:
             signal_gen.set_frequency(step.frequency)
             signal_gen.set_power(step.power)
 
-            # Enable output on first step
-            if step.step_number == 1:
+            # Enable output on first executed step
+            if step.step_number == start_step:
                 signal_gen.enable_output()
 
             # Notify progress

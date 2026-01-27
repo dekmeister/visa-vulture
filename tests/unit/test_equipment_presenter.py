@@ -1031,3 +1031,99 @@ class TestShutdown:
 
         # Should not raise
         presenter.shutdown()
+
+
+class TestStartFromHandler:
+    """Tests for Start from / Resume from button handling."""
+
+    def test_wires_callback(
+        self, presenter: EquipmentPresenter, mock_view: Mock
+    ) -> None:
+        """Presenter registers start_from callback on view."""
+        assert mock_view._callbacks["on_start_from"] is not None
+
+    def test_no_selection_shows_error(
+        self,
+        presenter: EquipmentPresenter,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+    ) -> None:
+        """Start from with no selected step shows error."""
+        set_model_state(mock_model_for_presenter, EquipmentState.IDLE)
+        mock_view.get_active_table_selected_step.return_value = None
+        trigger_view_callback(mock_view, "on_start_from")
+        mock_view.show_error.assert_called()
+
+    def test_no_plan_shows_error(
+        self,
+        presenter: EquipmentPresenter,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+    ) -> None:
+        """Start from with no test plan shows error."""
+        set_model_state(mock_model_for_presenter, EquipmentState.IDLE)
+        mock_view.get_active_table_selected_step.return_value = 3
+        mock_model_for_presenter._test_plan = None
+        trigger_view_callback(mock_view, "on_start_from")
+        mock_view.show_error.assert_called()
+
+    def test_shows_confirmation(
+        self,
+        presenter: EquipmentPresenter,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        sample_power_supply_plan: TestPlan,
+    ) -> None:
+        """Start from shows confirmation dialog with step details."""
+        set_model_state(mock_model_for_presenter, EquipmentState.IDLE)
+        mock_view.get_active_table_selected_step.return_value = 2
+        mock_model_for_presenter._test_plan = sample_power_supply_plan
+        mock_view.show_confirmation.return_value = False
+        trigger_view_callback(mock_view, "on_start_from")
+        mock_view.show_confirmation.assert_called_once()
+
+    def test_cancelled_does_nothing(
+        self,
+        presenter: EquipmentPresenter,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        sample_power_supply_plan: TestPlan,
+    ) -> None:
+        """Cancelling confirmation does not start test."""
+        set_model_state(mock_model_for_presenter, EquipmentState.IDLE)
+        mock_view.get_active_table_selected_step.return_value = 2
+        mock_model_for_presenter._test_plan = sample_power_supply_plan
+        mock_view.show_confirmation.return_value = False
+        trigger_view_callback(mock_view, "on_start_from")
+        mock_model_for_presenter.run_test_from_step.assert_not_called()
+
+    def test_confirmed_runs_from_step(
+        self,
+        presenter: EquipmentPresenter,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        sample_power_supply_plan: TestPlan,
+    ) -> None:
+        """Confirming starts test from selected step."""
+        set_model_state(mock_model_for_presenter, EquipmentState.IDLE)
+        mock_view.get_active_table_selected_step.return_value = 2
+        mock_model_for_presenter._test_plan = sample_power_supply_plan
+        mock_view.show_confirmation.return_value = True
+        trigger_view_callback(mock_view, "on_start_from")
+        mock_model_for_presenter.run_test_from_step.assert_called_once_with(2)
+
+    def test_paused_stops_first(
+        self,
+        presenter: EquipmentPresenter,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        sample_power_supply_plan: TestPlan,
+    ) -> None:
+        """Resume from while paused calls stop_test first."""
+        set_model_state(mock_model_for_presenter, EquipmentState.PAUSED)
+        mock_view.get_active_table_selected_step.return_value = 2
+        mock_model_for_presenter._test_plan = sample_power_supply_plan
+        mock_view.show_confirmation.return_value = True
+        trigger_view_callback(mock_view, "on_start_from")
+        mock_model_for_presenter.stop_test.assert_called_once()
+        assert presenter._pending_start_from is not None

@@ -44,6 +44,7 @@ class MainWindow:
         self._on_run: Callable[[], None] | None = None
         self._on_stop: Callable[[], None] | None = None
         self._on_pause: Callable[[], None] | None = None
+        self._on_start_from: Callable[[], None] | None = None
 
         # Tooltip state
         self._tooltip: tk.Toplevel | None = None
@@ -122,6 +123,14 @@ class MainWindow:
             run_frame, text="Pause", command=self._handle_pause, state=tk.DISABLED
         )
         self._pause_btn.pack(side=tk.LEFT, padx=2)
+
+        self._start_from_btn = ttk.Button(
+            run_frame,
+            text="Start from...",
+            command=self._handle_start_from,
+            state=tk.DISABLED,
+        )
+        self._start_from_btn.pack(side=tk.LEFT, padx=2)
 
         # State and runtime display (vertical layout)
         status_frame = ttk.Frame(panel)
@@ -241,6 +250,11 @@ class MainWindow:
         if self._on_pause:
             self._on_pause()
 
+    def _handle_start_from(self) -> None:
+        """Handle start from button click."""
+        if self._on_start_from:
+            self._on_start_from()
+
     # Callback setters
 
     def set_on_connect(self, callback: Callable[[], None]) -> None:
@@ -266,6 +280,10 @@ class MainWindow:
     def set_on_pause(self, callback: Callable[[], None]) -> None:
         """Set callback for pause button."""
         self._on_pause = callback
+
+    def set_on_start_from(self, callback: Callable[[], None]) -> None:
+        """Set callback for start from button."""
+        self._on_start_from = callback
 
     # View update methods
 
@@ -341,7 +359,9 @@ class MainWindow:
             self._run_btn.config(state=tk.DISABLED)
             self._stop_btn.config(state=tk.DISABLED)
             self._pause_btn.config(state=tk.DISABLED)
+            self._start_from_btn.config(state=tk.DISABLED)
             self.set_run_button_text("Run")
+            self.set_start_from_button_text("Start from...")
         elif state == "IDLE":
             self._connect_btn.config(state=tk.DISABLED)
             self._disconnect_btn.config(state=tk.NORMAL)
@@ -349,7 +369,9 @@ class MainWindow:
             self._run_btn.config(state=tk.NORMAL)
             self._stop_btn.config(state=tk.DISABLED)
             self._pause_btn.config(state=tk.DISABLED)
+            self._start_from_btn.config(state=tk.DISABLED)  # Presenter enables if selected
             self.set_run_button_text("Run")
+            self.set_start_from_button_text("Start from...")
         elif state == "RUNNING":
             self._connect_btn.config(state=tk.DISABLED)
             self._disconnect_btn.config(state=tk.DISABLED)
@@ -357,6 +379,7 @@ class MainWindow:
             self._run_btn.config(state=tk.DISABLED)
             self._stop_btn.config(state=tk.NORMAL)
             self._pause_btn.config(state=tk.NORMAL)
+            self._start_from_btn.config(state=tk.DISABLED)
             self.set_run_button_text("Run")
         elif state == "PAUSED":
             self._connect_btn.config(state=tk.DISABLED)
@@ -365,7 +388,9 @@ class MainWindow:
             self._run_btn.config(state=tk.NORMAL)
             self._stop_btn.config(state=tk.NORMAL)
             self._pause_btn.config(state=tk.DISABLED)
+            self._start_from_btn.config(state=tk.DISABLED)  # Presenter enables if selected
             self.set_run_button_text("Resume")
+            self.set_start_from_button_text("Resume from...")
         elif state == "ERROR":
             self._connect_btn.config(state=tk.NORMAL)
             self._disconnect_btn.config(state=tk.NORMAL)
@@ -373,7 +398,9 @@ class MainWindow:
             self._run_btn.config(state=tk.DISABLED)
             self._stop_btn.config(state=tk.DISABLED)
             self._pause_btn.config(state=tk.DISABLED)
+            self._start_from_btn.config(state=tk.DISABLED)
             self.set_run_button_text("Run")
+            self.set_start_from_button_text("Start from...")
 
     def set_run_button_text(self, text: str) -> None:
         """
@@ -483,6 +510,40 @@ class MainWindow:
             message: Info message
         """
         messagebox.showinfo(title, message)
+
+    def show_confirmation(self, title: str, message: str) -> bool:
+        """
+        Show yes/no confirmation dialog.
+
+        Args:
+            title: Dialog title
+            message: Confirmation message
+
+        Returns:
+            True if user confirmed, False otherwise
+        """
+        return messagebox.askyesno(title, message)
+
+    def get_active_table_selected_step(self) -> int | None:
+        """
+        Get the selected step number from the currently active table tab.
+
+        Returns:
+            1-based step number, or None if no selection
+        """
+        tab_index = self.get_selected_tab_index()
+        if tab_index == 0:
+            return self._ps_table.get_selected_step_number()
+        else:
+            return self._sg_table.get_selected_step_number()
+
+    def set_start_from_button_text(self, text: str) -> None:
+        """Update Start from button text."""
+        self._start_from_btn.config(text=text)
+
+    def set_start_from_enabled(self, enabled: bool) -> None:
+        """Enable or disable the Start from button."""
+        self._start_from_btn.config(state=tk.NORMAL if enabled else tk.DISABLED)
 
     # Component access
 

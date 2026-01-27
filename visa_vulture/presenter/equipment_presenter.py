@@ -50,6 +50,10 @@ class EquipmentPresenter:
         self._runtime_timer_id: str | None = None
         self._run_start_time: float | None = None
         self._elapsed_at_pause: float | None = None
+        self._partial_total_duration: float | None = None
+
+        # Pending "start from" state (step, remaining_duration)
+        self._pending_start_from: tuple[int, float] | None = None
 
         # Wire everything up
         self._wire_callbacks()
@@ -69,6 +73,15 @@ class EquipmentPresenter:
         self._view.set_on_run(self._handle_run)
         self._view.set_on_stop(self._handle_stop)
         self._view.set_on_pause(self._handle_pause)
+        self._view.set_on_start_from(self._handle_start_from)
+
+        # Table selection callbacks
+        self._view.ps_table.register_selection_callback(
+            self._on_table_selection_changed
+        )
+        self._view.sg_table.register_selection_callback(
+            self._on_table_selection_changed
+        )
 
         # Model callbacks
         self._model.register_state_callback(self._on_state_changed)
@@ -211,6 +224,7 @@ class EquipmentPresenter:
         self._view.set_status("Running test...")
 
         # Start runtime timer
+        self._partial_total_duration = None
         self._run_start_time = time.time()
         self._start_runtime_timer()
 
@@ -243,6 +257,103 @@ class EquipmentPresenter:
         self._model.pause_test()
         self._view.set_status("Pausing...")
 
+    def _on_table_selection_changed(self, step_number: int | None) -> None:
+        """Handle table row selection change to enable/disable Start from button."""
+        state = self._model.state
+        has_plan = self._model.test_plan is not None
+        if (
+            state in (EquipmentState.IDLE, EquipmentState.PAUSED)
+            and step_number is not None
+            and has_plan
+        ):
+            self._view.set_start_from_enabled(True)
+        else:
+            self._view.set_start_from_enabled(False)
+
+    def _handle_start_from(self) -> None:
+        """Handle Start from / Resume from button click."""
+        selected_step = self._view.get_active_table_selected_step()
+        if selected_step is None:
+            self._view.show_error("Error", "No test step selected")
+            return
+
+        if self._model.test_plan is None:
+            self._view.show_error("Error", "No test plan loaded")
+            return
+
+        step = self._model.test_plan.get_step(selected_step)
+        if step is None:
+            self._view.show_error("Error", f"Step {selected_step} not found")
+            return
+
+        # Build confirmation message
+        remaining_duration = self._model.test_plan.duration_from_step(selected_step)
+        total_steps = self._model.test_plan.step_count
+        steps_to_run = total_steps - selected_step + 1
+
+        if isinstance(step, PowerSupplyTestStep):
+            step_details = f"V={step.voltage:.2f}V, I={step.current:.2f}A"
+        elif isinstance(step, SignalGeneratorTestStep):
+            step_details = f"F={step.frequency:.1f} Hz, P={step.power:.1f} dBm"
+        else:
+            step_details = f"Duration={step.duration_seconds}s"
+
+        is_paused = self._model.state == EquipmentState.PAUSED
+        action = "Resume from" if is_paused else "Start from"
+
+        remaining_int = max(0, int(remaining_duration))
+        minutes = remaining_int // 60
+        seconds = remaining_int % 60
+        duration_str = f"{minutes:02d}:{seconds:02d}"
+
+        message = (
+            f"{action} step {selected_step}/{total_steps}?\n\n"
+            f"Step details: {step_details}\n"
+            f"Description: {step.description}\n"
+            f"Steps remaining: {steps_to_run}\n"
+            f"Estimated duration: {duration_str}"
+        )
+
+        if not self._view.show_confirmation(
+            f"{action} Step {selected_step}", message
+        ):
+            return
+
+        if is_paused:
+            self._pending_start_from = (selected_step, remaining_duration)
+            self._model.stop_test()
+            self._elapsed_at_pause = None
+            self._view.set_status(f"Restarting from step {selected_step}...")
+            return
+
+        # IDLE state - start directly
+        self._execute_start_from(selected_step, remaining_duration)
+
+    def _execute_start_from(self, start_step: int, remaining_duration: float) -> None:
+        """Execute test from a specific step with adjusted timer."""
+        logger.info("Starting test from step %d", start_step)
+        self._view.set_status(f"Running from step {start_step}...")
+
+        self._partial_total_duration = remaining_duration
+        self._run_start_time = time.time()
+        self._start_runtime_timer()
+
+        if (
+            self._model.test_plan is not None
+            and self._model.test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR
+        ):
+            self._view.signal_gen_plot_panel.clear_position()
+        else:
+            self._view.power_supply_plot_panel.clear_position()
+
+        def task():
+            self._model.run_test_from_step(start_step)
+
+        def on_complete(result):
+            pass
+
+        self._task_runner.run_task(task, on_complete)
+
     # Model callback handlers
 
     def _on_state_changed(
@@ -266,6 +377,17 @@ class EquipmentPresenter:
         # Clear pause state when transitioning from PAUSED to IDLE (stop while paused)
         if old_state == EquipmentState.PAUSED and new_state == EquipmentState.IDLE:
             self._elapsed_at_pause = None
+
+        # Handle pending "start from" operation (after stopping a paused run)
+        if new_state == EquipmentState.IDLE and self._pending_start_from is not None:
+            start_step, remaining_duration = self._pending_start_from
+            self._pending_start_from = None
+            self._view.schedule(
+                50,
+                lambda s=start_step, d=remaining_duration: self._execute_start_from(
+                    s, d
+                ),
+            )
 
         # Schedule view update on main thread
         self._view.schedule(0, lambda: self._update_view_for_state(new_state))
@@ -372,6 +494,12 @@ class EquipmentPresenter:
             # Can't run without a test plan, but leave button state for visual feedback
             pass
 
+        # Update "Start from" button based on selection and state
+        if state in (EquipmentState.IDLE, EquipmentState.PAUSED):
+            selected = self._view.get_active_table_selected_step()
+            has_plan = self._model.test_plan is not None
+            self._view.set_start_from_enabled(selected is not None and has_plan)
+
     # Runtime timer methods
 
     def _start_runtime_timer(self) -> None:
@@ -382,7 +510,11 @@ class EquipmentPresenter:
         """Update runtime display and schedule next update."""
         if self._run_start_time is not None and self._model.test_plan is not None:
             elapsed = time.time() - self._run_start_time
-            remaining = max(0.0, self._model.test_plan.total_duration - elapsed)
+            total = (
+                self._partial_total_duration
+                or self._model.test_plan.total_duration
+            )
+            remaining = max(0.0, total - elapsed)
             self._view.set_runtime_display(int(elapsed))
             self._view.set_remaining_time_display(remaining)
             self._runtime_timer_id = self._view.schedule(1000, self._update_runtime)
@@ -393,6 +525,7 @@ class EquipmentPresenter:
             self._view.cancel_schedule(self._runtime_timer_id)
             self._runtime_timer_id = None
         self._run_start_time = None
+        self._partial_total_duration = None
         self._view.set_runtime_display(None)
         # Show total duration if a plan is loaded, otherwise --:--
         if self._model.test_plan is not None:

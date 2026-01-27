@@ -221,6 +221,7 @@ def mock_view() -> Mock:
         "on_run": None,
         "on_stop": None,
         "on_pause": None,
+        "on_start_from": None,
     }
 
     # Capture callbacks when set
@@ -236,6 +237,7 @@ def mock_view() -> Mock:
     view.set_on_run.side_effect = make_callback_setter("on_run")
     view.set_on_stop.side_effect = make_callback_setter("on_stop")
     view.set_on_pause.side_effect = make_callback_setter("on_pause")
+    view.set_on_start_from.side_effect = make_callback_setter("on_start_from")
 
     # Timer tracking for schedule/cancel_schedule
     view._timer_counter = 0
@@ -262,6 +264,12 @@ def mock_view() -> Mock:
 
     # Default tab index (0 = Power Supply)
     view.get_selected_tab_index.return_value = 0
+
+    # Defaults for start-from feature
+    view.get_active_table_selected_step.return_value = None
+    view.show_confirmation.return_value = True
+    view.set_start_from_enabled = Mock()
+    view.set_start_from_button_text = Mock()
 
     return view
 

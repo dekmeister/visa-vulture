@@ -101,6 +101,22 @@ class TestPlan:
         """Get number of steps in the plan."""
         return len(self.steps)
 
+    def duration_from_step(self, step_number: int) -> float:
+        """
+        Get total duration from a given step number to the end of the plan.
+
+        Args:
+            step_number: 1-based step number to start from
+
+        Returns:
+            Total duration in seconds from step_number onward (inclusive)
+        """
+        return sum(
+            step.duration_seconds
+            for step in self.steps
+            if step.step_number >= step_number
+        )
+
     def get_step(self, step_number: int) -> TestStep | None:
         """
         Get a step by number.
