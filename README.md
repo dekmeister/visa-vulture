@@ -11,6 +11,8 @@ A Python GUI application for controlling test equipment over VISA. Load test pla
 - **Comprehensive Logging**: Filterable log panel with file output
 - **Simulation Mode**: Develop and test without hardware using PyVISA-sim
 
+![screenshot of visa-vulture program](https://github.com/dekmeister/visa-vulture/blob/main/screenshot.jpg?raw=true)
+
 ## Requirements
 
 - Python 3.10+
