@@ -69,7 +69,7 @@ python -m visa_vulture
 
 ### Test Plan Format
 
-Test plans are CSV files. The format depends on the instrument type. Step numbers are assigned automatically based on row order.
+Test plans are CSV files. The format depends on the instrument type. Step numbers are assigned automatically based on row order. The instrument type of the test plan is defined in a header row (indicated by lines starting with #).
 
 #### Power Supply Test Plans
 
@@ -82,6 +82,7 @@ Test plans are CSV files. The format depends on the instrument type. Step number
 
 Example (`./plans/sample_power_supply_test_plan.csv`):
 ```csv
+# instrument_type: power_supply
 duration,voltage,current,description
 5.0,5.0,1.0,Initial voltage
 5.0,10.0,1.5,Ramp to 10V
@@ -93,7 +94,6 @@ duration,voltage,current,description
 
 | Column | Required | Description |
 |--------|----------|-------------|
-| type | Yes | Must be "signal_generator" |
 | duration | Yes | Duration of this step in seconds |
 | frequency | Yes | Frequency in Hz |
 | power | Yes | Power level in dBm |
@@ -101,10 +101,11 @@ duration,voltage,current,description
 
 Example (`./plans/sample_signal_generator_test_plan.csv`):
 ```csv
-type,duration,frequency,power,description
-signal_generator,5.0,1000000,0,Start at 1 MHz
-signal_generator,5.0,5000000,-5,Sweep to 5 MHz
-signal_generator,5.0,10000000,-10,Peak at 10 MHz
+# instrument_type: signal_generator
+duration,frequency,power,description
+5.0,1000000,0,Start at 1 MHz
+5.0,5000000,-5,Sweep to 5 MHz
+5.0,10000000,-10,Peak at 10 MHz
 ```
 
 ### Configuration
@@ -114,21 +115,7 @@ Configuration is stored in JSON format. Key settings:
 ```json
 {
     "simulation_mode": true,
-    "log_level": "INFO",
-    "instruments": [
-        {
-            "name": "Power Supply",
-            "resource_address": "TCPIP::192.168.1.100::INSTR",
-            "type": "power_supply",
-            "timeout_ms": 5000
-        },
-        {
-            "name": "Signal Generator",
-            "resource_address": "TCPIP::192.168.1.101::INSTR",
-            "type": "signal_generator",
-            "timeout_ms": 5000
-        }
-    ]
+    "log_level": "INFO"
 }
 ```
 
