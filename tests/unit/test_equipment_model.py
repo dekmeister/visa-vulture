@@ -24,11 +24,17 @@ class TestEquipmentModelInitialization:
         """Initial state should be UNKNOWN."""
         assert equipment_model.state == EquipmentState.UNKNOWN
 
-    def test_no_instruments_initially(
+    def test_no_instrument_initially(
         self, equipment_model: EquipmentModel
     ) -> None:
-        """No instruments are configured initially."""
-        assert equipment_model.instruments == {}
+        """No instrument is connected initially."""
+        assert equipment_model.instrument is None
+
+    def test_no_instrument_type_initially(
+        self, equipment_model: EquipmentModel
+    ) -> None:
+        """No instrument type is set initially."""
+        assert equipment_model.instrument_type is None
 
     def test_no_test_plan_initially(
         self, equipment_model: EquipmentModel
@@ -50,7 +56,9 @@ class TestEquipmentModelCallbacks:
             callback_calls.append((old, new))
 
         equipment_model.register_state_callback(callback)
-        equipment_model.connect()  # Triggers UNKNOWN -> IDLE
+        equipment_model.connect_instrument(
+            "TCPIP::192.168.1.100::INSTR", "power_supply"
+        )
 
         assert len(callback_calls) == 1
         assert callback_calls[0] == (EquipmentState.UNKNOWN, EquipmentState.IDLE)
@@ -73,66 +81,6 @@ class TestEquipmentModelCallbacks:
         equipment_model.register_complete_callback(callback)
 
         assert callback in equipment_model._complete_callbacks
-
-
-class TestEquipmentModelInstruments:
-    """Tests for instrument management."""
-
-    def test_add_power_supply_instrument(
-        self, equipment_model: EquipmentModel
-    ) -> None:
-        """Power supply instrument can be added."""
-        equipment_model.add_instrument(
-            name="PS1",
-            resource_address="TCPIP::192.168.1.100::INSTR",
-            instrument_type="power_supply",
-        )
-
-        assert "PS1" in equipment_model.instruments
-        assert equipment_model.instruments["PS1"].name == "PS1"
-
-    def test_add_signal_generator_instrument(
-        self, equipment_model: EquipmentModel
-    ) -> None:
-        """Signal generator instrument can be added."""
-        equipment_model.add_instrument(
-            name="SG1",
-            resource_address="TCPIP::192.168.1.101::INSTR",
-            instrument_type="signal_generator",
-        )
-
-        assert "SG1" in equipment_model.instruments
-
-    def test_add_unknown_instrument_type_raises(
-        self, equipment_model: EquipmentModel
-    ) -> None:
-        """Unknown instrument type raises ValueError."""
-        with pytest.raises(ValueError, match="Unknown instrument type"):
-            equipment_model.add_instrument(
-                name="Scope",
-                resource_address="TCPIP::192.168.1.102::INSTR",
-                instrument_type="oscilloscope",
-            )
-
-    def test_instruments_property(
-        self, equipment_model: EquipmentModel
-    ) -> None:
-        """instruments property returns all added instruments."""
-        equipment_model.add_instrument(
-            name="PS1",
-            resource_address="TCPIP::192.168.1.100::INSTR",
-            instrument_type="power_supply",
-        )
-        equipment_model.add_instrument(
-            name="SG1",
-            resource_address="TCPIP::192.168.1.101::INSTR",
-            instrument_type="signal_generator",
-        )
-
-        instruments = equipment_model.instruments
-        assert len(instruments) == 2
-        assert "PS1" in instruments
-        assert "SG1" in instruments
 
 
 class TestEquipmentModelTestPlan:
@@ -167,15 +115,17 @@ class TestEquipmentModelTestPlan:
         assert equipment_model.test_plan is sample_power_supply_plan
 
 
-class TestEquipmentModelConnect:
-    """Tests for connect method."""
+class TestEquipmentModelConnectInstrument:
+    """Tests for connect_instrument method."""
 
     def test_connect_opens_visa_if_needed(
         self, equipment_model: EquipmentModel, mock_visa_connection: Mock
     ) -> None:
-        """connect opens VISA connection if not already open."""
+        """connect_instrument opens VISA connection if not already open."""
         mock_visa_connection.is_open = False
-        equipment_model.connect()
+        equipment_model.connect_instrument(
+            "TCPIP::192.168.1.100::INSTR", "power_supply"
+        )
 
         mock_visa_connection.open.assert_called_once()
 
@@ -183,9 +133,31 @@ class TestEquipmentModelConnect:
         self, equipment_model: EquipmentModel, mock_visa_connection: Mock
     ) -> None:
         """Successful connect transitions to IDLE state."""
-        equipment_model.connect()
+        equipment_model.connect_instrument(
+            "TCPIP::192.168.1.100::INSTR", "power_supply"
+        )
 
         assert equipment_model.state == EquipmentState.IDLE
+
+    def test_connect_sets_instrument_type(
+        self, equipment_model: EquipmentModel, mock_visa_connection: Mock
+    ) -> None:
+        """connect_instrument sets the instrument_type property."""
+        equipment_model.connect_instrument(
+            "TCPIP::192.168.1.100::INSTR", "signal_generator"
+        )
+
+        assert equipment_model.instrument_type == "signal_generator"
+
+    def test_connect_creates_instrument(
+        self, equipment_model: EquipmentModel, mock_visa_connection: Mock
+    ) -> None:
+        """connect_instrument creates the instrument instance."""
+        equipment_model.connect_instrument(
+            "TCPIP::192.168.1.100::INSTR", "power_supply"
+        )
+
+        assert equipment_model.instrument is not None
 
     def test_connect_from_error_state_allowed(
         self, mock_visa_connection: Mock
@@ -195,7 +167,7 @@ class TestEquipmentModelConnect:
         # Manually set to ERROR state
         model._state_machine._state = EquipmentState.ERROR
 
-        model.connect()
+        model.connect_instrument("TCPIP::192.168.1.100::INSTR", "power_supply")
 
         assert model.state == EquipmentState.IDLE
 
@@ -203,10 +175,14 @@ class TestEquipmentModelConnect:
         self, equipment_model: EquipmentModel, mock_visa_connection: Mock
     ) -> None:
         """Connect from IDLE state raises RuntimeError."""
-        equipment_model.connect()  # Now in IDLE
+        equipment_model.connect_instrument(
+            "TCPIP::192.168.1.100::INSTR", "power_supply"
+        )
 
         with pytest.raises(RuntimeError, match="Cannot connect"):
-            equipment_model.connect()
+            equipment_model.connect_instrument(
+                "TCPIP::192.168.1.101::INSTR", "signal_generator"
+            )
 
     def test_connect_from_running_state_raises(
         self, mock_visa_connection: Mock
@@ -216,7 +192,7 @@ class TestEquipmentModelConnect:
         model._state_machine._state = EquipmentState.RUNNING
 
         with pytest.raises(RuntimeError, match="Cannot connect"):
-            model.connect()
+            model.connect_instrument("TCPIP::192.168.1.100::INSTR", "power_supply")
 
     def test_connect_failure_transitions_to_error(
         self, equipment_model: EquipmentModel, mock_visa_connection: Mock
@@ -225,24 +201,20 @@ class TestEquipmentModelConnect:
         mock_visa_connection.open.side_effect = Exception("Connection failed")
 
         with pytest.raises(Exception, match="Connection failed"):
-            equipment_model.connect()
+            equipment_model.connect_instrument(
+                "TCPIP::192.168.1.100::INSTR", "power_supply"
+            )
 
         assert equipment_model.state == EquipmentState.ERROR
 
-    def test_connect_connects_all_instruments(
+    def test_connect_unknown_type_raises(
         self, equipment_model: EquipmentModel, mock_visa_connection: Mock
     ) -> None:
-        """connect calls connect on all instruments."""
-        equipment_model.add_instrument(
-            name="PS1",
-            resource_address="TCPIP::192.168.1.100::INSTR",
-            instrument_type="power_supply",
-        )
-
-        equipment_model.connect()
-
-        # Instrument should have connect called (via open_resource)
-        mock_visa_connection.open_resource.assert_called()
+        """Unknown instrument type raises ValueError."""
+        with pytest.raises(ValueError, match="Unknown instrument type"):
+            equipment_model.connect_instrument(
+                "TCPIP::192.168.1.100::INSTR", "oscilloscope"
+            )
 
 
 class TestEquipmentModelDisconnect:
@@ -252,7 +224,9 @@ class TestEquipmentModelDisconnect:
         self, equipment_model: EquipmentModel, mock_visa_connection: Mock
     ) -> None:
         """Disconnect resets state to UNKNOWN."""
-        equipment_model.connect()
+        equipment_model.connect_instrument(
+            "TCPIP::192.168.1.100::INSTR", "power_supply"
+        )
         assert equipment_model.state == EquipmentState.IDLE
 
         equipment_model.disconnect()
@@ -263,10 +237,26 @@ class TestEquipmentModelDisconnect:
         self, equipment_model: EquipmentModel, mock_visa_connection: Mock
     ) -> None:
         """Disconnect closes VISA connection."""
-        equipment_model.connect()
+        equipment_model.connect_instrument(
+            "TCPIP::192.168.1.100::INSTR", "power_supply"
+        )
         equipment_model.disconnect()
 
         mock_visa_connection.close.assert_called()
+
+    def test_disconnect_clears_instrument(
+        self, equipment_model: EquipmentModel, mock_visa_connection: Mock
+    ) -> None:
+        """Disconnect clears the instrument reference."""
+        equipment_model.connect_instrument(
+            "TCPIP::192.168.1.100::INSTR", "power_supply"
+        )
+        assert equipment_model.instrument is not None
+
+        equipment_model.disconnect()
+
+        assert equipment_model.instrument is None
+        assert equipment_model.instrument_type is None
 
 
 class TestEquipmentModelRunTest:
@@ -276,7 +266,9 @@ class TestEquipmentModelRunTest:
         self, equipment_model: EquipmentModel, mock_visa_connection: Mock
     ) -> None:
         """Running without loaded plan raises RuntimeError."""
-        equipment_model.connect()
+        equipment_model.connect_instrument(
+            "TCPIP::192.168.1.100::INSTR", "power_supply"
+        )
 
         with pytest.raises(RuntimeError, match="No test plan loaded"):
             equipment_model.run_test()
@@ -346,9 +338,16 @@ class TestEquipmentModelStopTest:
         is requested, the finally block must transition to IDLE.
         Previously, it only checked for RUNNING state and missed PAUSED.
         """
+        from visa_vulture.instruments import PowerSupply
+
         model = EquipmentModel(mock_visa_connection)
         model._state_machine._state = EquipmentState.IDLE
         model._test_plan = sample_power_supply_plan
+        # Set up mock power supply instrument
+        mock_ps = Mock(spec=PowerSupply)
+        mock_ps.is_connected = True
+        model._instrument = mock_ps
+        model._instrument_type = "power_supply"
 
         # Track state transitions
         state_changes: list[tuple[EquipmentState, EquipmentState]] = []
@@ -359,7 +358,7 @@ class TestEquipmentModelStopTest:
         model.register_state_callback(track_state)
 
         # Mock _execute_power_supply_plan to simulate pause then stop
-        def mock_execute() -> None:
+        def mock_execute(start_step: int = 1) -> None:
             # Simulate: start running, pause, then stop
             model._pause_requested = True
             model._state_machine.to_paused()
@@ -456,9 +455,16 @@ class TestEquipmentModelRunTestExecution:
         self, mock_visa_connection: Mock, sample_power_supply_plan: TestPlan
     ) -> EquipmentModel:
         """Create a model in IDLE state with a loaded test plan."""
+        from visa_vulture.instruments import PowerSupply
+
         model = EquipmentModel(mock_visa_connection)
         model._state_machine._state = EquipmentState.IDLE
         model._test_plan = sample_power_supply_plan
+        # Set up mock power supply instrument
+        mock_ps = Mock(spec=PowerSupply)
+        mock_ps.is_connected = True
+        model._instrument = mock_ps
+        model._instrument_type = "power_supply"
         return model
 
     def _track_state_changes(
@@ -476,7 +482,7 @@ class TestEquipmentModelRunTestExecution:
     def test_successful_execution_transitions(
         self, mock_visa_connection: Mock, sample_power_supply_plan: TestPlan
     ) -> None:
-        """Successful test run transitions IDLE → RUNNING → IDLE."""
+        """Successful test run transitions IDLE -> RUNNING -> IDLE."""
         model = self._make_model_at_idle(
             mock_visa_connection, sample_power_supply_plan
         )
@@ -487,7 +493,7 @@ class TestEquipmentModelRunTestExecution:
             lambda success, msg: complete_results.append((success, msg))
         )
 
-        def mock_execute() -> None:
+        def mock_execute(start_step: int = 1) -> None:
             # Simulate successful execution (no exceptions, no stop)
             pass
 
@@ -503,7 +509,7 @@ class TestEquipmentModelRunTestExecution:
     def test_exception_during_execution_transitions_to_error(
         self, mock_visa_connection: Mock, sample_power_supply_plan: TestPlan
     ) -> None:
-        """Exception during execution transitions IDLE → RUNNING → ERROR."""
+        """Exception during execution transitions IDLE -> RUNNING -> ERROR."""
         model = self._make_model_at_idle(
             mock_visa_connection, sample_power_supply_plan
         )
@@ -514,7 +520,7 @@ class TestEquipmentModelRunTestExecution:
             lambda success, msg: complete_results.append((success, msg))
         )
 
-        def mock_execute() -> None:
+        def mock_execute(start_step: int = 1) -> None:
             raise RuntimeError("Instrument communication error")
 
         with patch.object(model, "_execute_power_supply_plan", mock_execute):
@@ -532,7 +538,7 @@ class TestEquipmentModelRunTestExecution:
     def test_stop_while_running_transitions_to_idle(
         self, mock_visa_connection: Mock, sample_power_supply_plan: TestPlan
     ) -> None:
-        """Stop during execution transitions IDLE → RUNNING → IDLE."""
+        """Stop during execution transitions IDLE -> RUNNING -> IDLE."""
         model = self._make_model_at_idle(
             mock_visa_connection, sample_power_supply_plan
         )
@@ -543,7 +549,7 @@ class TestEquipmentModelRunTestExecution:
             lambda success, msg: complete_results.append((success, msg))
         )
 
-        def mock_execute() -> None:
+        def mock_execute(start_step: int = 1) -> None:
             # Simulate stop requested during execution
             model._stop_requested = True
 
@@ -559,13 +565,13 @@ class TestEquipmentModelRunTestExecution:
     def test_pause_transitions_to_paused(
         self, mock_visa_connection: Mock, sample_power_supply_plan: TestPlan
     ) -> None:
-        """Pause during execution transitions RUNNING → PAUSED, then stop resumes to IDLE."""
+        """Pause during execution transitions RUNNING -> PAUSED, then stop resumes to IDLE."""
         model = self._make_model_at_idle(
             mock_visa_connection, sample_power_supply_plan
         )
         state_changes = self._track_state_changes(model)
 
-        def mock_execute() -> None:
+        def mock_execute(start_step: int = 1) -> None:
             # Simulate: pause, then stop (to exit)
             model._pause_requested = True
             model._state_machine.to_paused()
@@ -584,7 +590,7 @@ class TestEquipmentModelRunTestExecution:
     def test_resume_from_paused_continues_execution(
         self, mock_visa_connection: Mock, sample_power_supply_plan: TestPlan
     ) -> None:
-        """Resume after pause transitions PAUSED → RUNNING → IDLE."""
+        """Resume after pause transitions PAUSED -> RUNNING -> IDLE."""
         model = self._make_model_at_idle(
             mock_visa_connection, sample_power_supply_plan
         )
@@ -595,7 +601,7 @@ class TestEquipmentModelRunTestExecution:
             lambda success, msg: complete_results.append((success, msg))
         )
 
-        def mock_execute() -> None:
+        def mock_execute(start_step: int = 1) -> None:
             # Simulate: pause, then resume, then complete
             model._pause_requested = True
             model._state_machine.to_paused()
@@ -618,7 +624,7 @@ class TestEquipmentModelRunTestExecution:
     def test_exception_while_paused_transitions_to_error(
         self, mock_visa_connection: Mock, sample_power_supply_plan: TestPlan
     ) -> None:
-        """Exception while paused transitions PAUSED → ERROR."""
+        """Exception while paused transitions PAUSED -> ERROR."""
         model = self._make_model_at_idle(
             mock_visa_connection, sample_power_supply_plan
         )
@@ -629,7 +635,7 @@ class TestEquipmentModelRunTestExecution:
             lambda success, msg: complete_results.append((success, msg))
         )
 
-        def mock_execute() -> None:
+        def mock_execute(start_step: int = 1) -> None:
             # Simulate: pause, then error
             model._pause_requested = True
             model._state_machine.to_paused()
@@ -651,33 +657,65 @@ class TestEquipmentModelRunTestExecution:
 class TestEquipmentModelIdentification:
     """Tests for get_instrument_identification method."""
 
-    def test_get_instrument_identification_not_found(
-        self, equipment_model: EquipmentModel
-    ) -> None:
-        """Returns (None, None) when no matching instrument."""
-        model_name, formatted_id = equipment_model.get_instrument_identification(
-            "power_supply"
-        )
-
-        assert model_name is None
-        assert formatted_id is None
-
     def test_get_instrument_identification_not_connected(
         self, equipment_model: EquipmentModel
     ) -> None:
-        """Returns (None, None) when instrument not connected."""
-        equipment_model.add_instrument(
-            name="PS1",
-            resource_address="TCPIP::192.168.1.100::INSTR",
-            instrument_type="power_supply",
-        )
-
-        model_name, formatted_id = equipment_model.get_instrument_identification(
-            "power_supply"
-        )
+        """Returns (None, None) when no instrument is connected."""
+        model_name, formatted_id = equipment_model.get_instrument_identification()
 
         assert model_name is None
         assert formatted_id is None
+
+
+class TestEquipmentModelIdentifyResource:
+    """Tests for identify_resource method."""
+
+    def test_identify_resource_opens_visa_if_needed(
+        self, equipment_model: EquipmentModel, mock_visa_connection: Mock
+    ) -> None:
+        """identify_resource opens VISA if not already open."""
+        mock_visa_connection.is_open = False
+        mock_resource = Mock()
+        mock_resource.query.return_value = "Keysight,E36312A,MY12345,1.0.0"
+        mock_visa_connection.open_resource.return_value = mock_resource
+
+        equipment_model.identify_resource("TCPIP::192.168.1.100::INSTR")
+
+        mock_visa_connection.open.assert_called_once()
+
+    def test_identify_resource_returns_idn(
+        self, equipment_model: EquipmentModel, mock_visa_connection: Mock
+    ) -> None:
+        """identify_resource returns *IDN? response."""
+        mock_resource = Mock()
+        mock_resource.query.return_value = "Keysight,E36312A,MY12345,1.0.0\n"
+        mock_visa_connection.open_resource.return_value = mock_resource
+
+        result = equipment_model.identify_resource("TCPIP::192.168.1.100::INSTR")
+
+        assert result == "Keysight,E36312A,MY12345,1.0.0"
+
+    def test_identify_resource_closes_resource(
+        self, equipment_model: EquipmentModel, mock_visa_connection: Mock
+    ) -> None:
+        """identify_resource closes the resource after querying."""
+        mock_resource = Mock()
+        mock_resource.query.return_value = "Keysight,E36312A,MY12345,1.0.0"
+        mock_visa_connection.open_resource.return_value = mock_resource
+
+        equipment_model.identify_resource("TCPIP::192.168.1.100::INSTR")
+
+        mock_resource.close.assert_called_once()
+
+    def test_identify_resource_returns_none_on_error(
+        self, equipment_model: EquipmentModel, mock_visa_connection: Mock
+    ) -> None:
+        """identify_resource returns None if query fails."""
+        mock_visa_connection.open_resource.side_effect = Exception("Connection failed")
+
+        result = equipment_model.identify_resource("TCPIP::192.168.1.100::INSTR")
+
+        assert result is None
 
 
 class TestEquipmentModelScanResources:
@@ -715,7 +753,9 @@ class TestRunTestFromStep:
         self, equipment_model: EquipmentModel, mock_visa_connection: Mock
     ) -> None:
         """Running from step without plan raises RuntimeError."""
-        equipment_model.connect()
+        equipment_model.connect_instrument(
+            "TCPIP::192.168.1.100::INSTR", "power_supply"
+        )
         with pytest.raises(RuntimeError, match="No test plan loaded"):
             equipment_model.run_test_from_step(2)
 
@@ -726,7 +766,9 @@ class TestRunTestFromStep:
         sample_power_supply_plan: TestPlan,
     ) -> None:
         """Running from nonexistent step raises ValueError."""
-        equipment_model.connect()
+        equipment_model.connect_instrument(
+            "TCPIP::192.168.1.100::INSTR", "power_supply"
+        )
         equipment_model.load_test_plan(sample_power_supply_plan)
         with pytest.raises(ValueError, match="Step 99 not found"):
             equipment_model.run_test_from_step(99)
@@ -766,7 +808,8 @@ class TestRunTestFromStep:
 
         mock_ps = Mock(spec=PowerSupply)
         mock_ps.is_connected = True
-        model._instruments = {"ps": mock_ps}
+        model._instrument = mock_ps
+        model._instrument_type = "power_supply"
 
         progress_steps: list[int] = []
         model.register_progress_callback(
@@ -799,7 +842,8 @@ class TestRunTestFromStep:
 
         mock_ps = Mock(spec=PowerSupply)
         mock_ps.is_connected = True
-        model._instruments = {"ps": mock_ps}
+        model._instrument = mock_ps
+        model._instrument_type = "power_supply"
 
         model._execute_power_supply_plan(start_step=2)
 

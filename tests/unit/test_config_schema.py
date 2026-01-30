@@ -5,41 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from visa_vulture.config.schema import AppConfig, InstrumentConfig, validate_config
-
-
-class TestInstrumentConfig:
-    """Tests for InstrumentConfig dataclass."""
-
-    def test_creation_with_required_fields(self) -> None:
-        """InstrumentConfig can be created with required fields."""
-        config = InstrumentConfig(
-            name="Power Supply",
-            resource_address="TCPIP::192.168.1.100::INSTR",
-            type="power_supply",
-        )
-        assert config.name == "Power Supply"
-        assert config.resource_address == "TCPIP::192.168.1.100::INSTR"
-        assert config.type == "power_supply"
-
-    def test_default_timeout_is_5000(self) -> None:
-        """Default timeout_ms is 5000."""
-        config = InstrumentConfig(
-            name="PS",
-            resource_address="TCPIP::1.2.3.4::INSTR",
-            type="power_supply",
-        )
-        assert config.timeout_ms == 5000
-
-    def test_custom_timeout(self) -> None:
-        """Custom timeout_ms can be set."""
-        config = InstrumentConfig(
-            name="PS",
-            resource_address="TCPIP::1.2.3.4::INSTR",
-            type="power_supply",
-            timeout_ms=10000,
-        )
-        assert config.timeout_ms == 10000
+from visa_vulture.config.schema import AppConfig, validate_config
 
 
 class TestAppConfig:
@@ -56,7 +22,6 @@ class TestAppConfig:
         assert config.window_width == 1200
         assert config.window_height == 800
         assert config.poll_interval_ms == 100
-        assert config.instruments == []
 
     def test_custom_values(self) -> None:
         """AppConfig can be created with custom values."""
@@ -84,7 +49,6 @@ class TestValidateConfigHappyPath:
         assert config is not None
         assert config.simulation_mode is True
         assert config.log_level == "DEBUG"
-        assert len(config.instruments) == 2
 
     def test_valid_minimal_config_uses_defaults(
         self, config_fixtures_path: Path
@@ -100,7 +64,6 @@ class TestValidateConfigHappyPath:
         assert config.simulation_mode is False
         assert config.log_level == "INFO"
         assert config.window_width == 1200
-        assert config.instruments == []
 
 
 class TestValidateConfigSimulationMode:
@@ -247,145 +210,6 @@ class TestValidateConfigPollInterval:
         assert config.poll_interval_ms == 10
 
 
-class TestValidateConfigInstruments:
-    """Tests for instruments list validation."""
-
-    def test_instruments_not_list_returns_error(self) -> None:
-        """Non-list instruments returns error."""
-        config, errors = validate_config({"instruments": "power_supply"})
-        assert config is None
-        assert any("instruments must be a list" in e for e in errors)
-
-    def test_instrument_not_dict_returns_error(self) -> None:
-        """Non-dict instrument returns error."""
-        config, errors = validate_config({"instruments": ["not_a_dict"]})
-        assert config is None
-        assert any("instruments[0] must be a dict" in e for e in errors)
-
-    def test_instrument_missing_name_returns_error(self) -> None:
-        """Missing name field returns error."""
-        config, errors = validate_config(
-            {
-                "instruments": [
-                    {
-                        "resource_address": "TCPIP::1.2.3.4::INSTR",
-                        "type": "power_supply",
-                    }
-                ]
-            }
-        )
-        assert config is None
-        assert any("name is required" in e for e in errors)
-
-    def test_instrument_missing_resource_address_returns_error(self) -> None:
-        """Missing resource_address field returns error."""
-        config, errors = validate_config(
-            {"instruments": [{"name": "PS", "type": "power_supply"}]}
-        )
-        assert config is None
-        assert any("resource_address is required" in e for e in errors)
-
-    def test_instrument_missing_type_returns_error(self) -> None:
-        """Missing type field returns error."""
-        config, errors = validate_config(
-            {
-                "instruments": [
-                    {"name": "PS", "resource_address": "TCPIP::1.2.3.4::INSTR"}
-                ]
-            }
-        )
-        assert config is None
-        assert any("type is required" in e for e in errors)
-
-    def test_instrument_invalid_type_returns_error(
-        self, config_fixtures_path: Path
-    ) -> None:
-        """Invalid instrument type returns error."""
-        config, errors = validate_config(
-            {
-                "instruments": [
-                    {
-                        "name": "Scope",
-                        "resource_address": "TCPIP::1.2.3.4::INSTR",
-                        "type": "oscilloscope",
-                    }
-                ]
-            }
-        )
-        assert config is None
-        assert any("type must be one of" in e for e in errors)
-
-    def test_instrument_timeout_below_minimum_returns_error(self) -> None:
-        """timeout_ms below 100 returns error."""
-        config, errors = validate_config(
-            {
-                "instruments": [
-                    {
-                        "name": "PS",
-                        "resource_address": "TCPIP::1.2.3.4::INSTR",
-                        "type": "power_supply",
-                        "timeout_ms": 50,
-                    }
-                ]
-            }
-        )
-        assert config is None
-        assert any("timeout_ms must be integer >= 100" in e for e in errors)
-
-    def test_instrument_timeout_non_integer_returns_error(self) -> None:
-        """Non-integer timeout_ms returns error."""
-        config, errors = validate_config(
-            {
-                "instruments": [
-                    {
-                        "name": "PS",
-                        "resource_address": "TCPIP::1.2.3.4::INSTR",
-                        "type": "power_supply",
-                        "timeout_ms": "fast",
-                    }
-                ]
-            }
-        )
-        assert config is None
-        assert any("timeout_ms must be integer >= 100" in e for e in errors)
-
-    def test_valid_power_supply_instrument(self) -> None:
-        """Valid power_supply instrument is accepted."""
-        config, errors = validate_config(
-            {
-                "instruments": [
-                    {
-                        "name": "Power Supply",
-                        "resource_address": "TCPIP::192.168.1.100::INSTR",
-                        "type": "power_supply",
-                    }
-                ]
-            }
-        )
-        assert errors == []
-        assert config is not None
-        assert len(config.instruments) == 1
-        assert config.instruments[0].type == "power_supply"
-
-    def test_valid_signal_generator_instrument(self) -> None:
-        """Valid signal_generator instrument is accepted."""
-        config, errors = validate_config(
-            {
-                "instruments": [
-                    {
-                        "name": "Signal Generator",
-                        "resource_address": "TCPIP::192.168.1.101::INSTR",
-                        "type": "signal_generator",
-                    }
-                ]
-            }
-        )
-        assert errors == []
-        assert config is not None
-        assert len(config.instruments) == 1
-        assert config.instruments[0].type == "signal_generator"
-
-
 class TestValidateConfigErrorAccumulation:
     """Tests for error accumulation behavior."""
 
@@ -400,18 +224,3 @@ class TestValidateConfigErrorAccumulation:
         # Should have errors for simulation_mode, log_level, window_width,
         # window_height, poll_interval_ms
         assert len(errors) >= 4
-
-    def test_multiple_instrument_errors_accumulated(
-        self, config_fixtures_path: Path
-    ) -> None:
-        """Multiple instrument errors are accumulated."""
-        with open(
-            config_fixtures_path / "invalid_config_missing_instrument_fields.json"
-        ) as f:
-            config_dict = json.load(f)
-
-        config, errors = validate_config(config_dict)
-
-        assert config is None
-        # Should have errors for each invalid instrument
-        assert len(errors) >= 3

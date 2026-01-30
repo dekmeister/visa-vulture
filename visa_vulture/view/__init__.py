@@ -7,6 +7,7 @@ from .plot_panel import (
     PowerSupplyPlotPanel,
     SignalGeneratorPlotPanel,
 )
+from .resource_manager_dialog import ResourceManagerDialog
 from .test_points_table import TestPointsTable, InstrumentType
 
 __all__ = [
@@ -15,6 +16,7 @@ __all__ = [
     "MainWindow",
     "PlotPanel",
     "PowerSupplyPlotPanel",
+    "ResourceManagerDialog",
     "SignalGeneratorPlotPanel",
     "TestPointsTable",
 ]

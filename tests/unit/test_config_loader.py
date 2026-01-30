@@ -19,7 +19,6 @@ class TestLoadConfigFile:
         assert errors == []
         assert config is not None
         assert config.simulation_mode is True
-        assert len(config.instruments) == 2
 
     def test_file_not_found_returns_error(self, tmp_path: Path) -> None:
         """Non-existent file returns error."""

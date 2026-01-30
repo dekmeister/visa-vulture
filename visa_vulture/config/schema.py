@@ -1,17 +1,7 @@
 """Configuration schema and validation."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
-
-
-@dataclass
-class InstrumentConfig:
-    """Configuration for a single instrument."""
-
-    name: str
-    resource_address: str
-    type: str
-    timeout_ms: int = 5000
 
 
 @dataclass
@@ -26,7 +16,6 @@ class AppConfig:
     window_width: int = 1200
     window_height: int = 800
     poll_interval_ms: int = 100
-    instruments: list[InstrumentConfig] = field(default_factory=list)
 
 
 def validate_config(config_dict: dict[str, Any]) -> tuple[AppConfig | None, list[str]]:
@@ -94,63 +83,6 @@ def validate_config(config_dict: dict[str, Any]) -> tuple[AppConfig | None, list
         errors.append(f"poll_interval_ms must be integer >= 10, got {poll_interval_ms}")
         poll_interval_ms = 100
 
-    # Validate instruments
-    instruments_raw = config_dict.get("instruments", [])
-    instruments: list[InstrumentConfig] = []
-
-    if not isinstance(instruments_raw, list):
-        errors.append(
-            f"instruments must be a list, got {type(instruments_raw).__name__}"
-        )
-    else:
-        for i, instr in enumerate(instruments_raw):
-            if not isinstance(instr, dict):
-                errors.append(
-                    f"instruments[{i}] must be a dict, got {type(instr).__name__}"
-                )
-                continue
-
-            # Required fields
-            name = instr.get("name")
-            if not name or not isinstance(name, str):
-                errors.append(f"instruments[{i}].name is required and must be a string")
-                continue
-
-            resource_address = instr.get("resource_address")
-            if not resource_address or not isinstance(resource_address, str):
-                errors.append(
-                    f"instruments[{i}].resource_address is required and must be a string"
-                )
-                continue
-
-            instr_type = instr.get("type")
-            valid_types = ["power_supply", "signal_generator"]
-            if not instr_type or not isinstance(instr_type, str):
-                errors.append(f"instruments[{i}].type is required and must be a string")
-                continue
-            if instr_type not in valid_types:
-                errors.append(
-                    f"instruments[{i}].type must be one of {valid_types}, got '{instr_type}'"
-                )
-                continue
-
-            # Optional fields
-            timeout_ms = instr.get("timeout_ms", 5000)
-            if not isinstance(timeout_ms, int) or timeout_ms < 100:
-                errors.append(
-                    f"instruments[{i}].timeout_ms must be integer >= 100, got {timeout_ms}"
-                )
-                timeout_ms = 5000
-
-            instruments.append(
-                InstrumentConfig(
-                    name=name,
-                    resource_address=resource_address,
-                    type=instr_type,
-                    timeout_ms=timeout_ms,
-                )
-            )
-
     if errors:
         return None, errors
 
@@ -164,7 +96,6 @@ def validate_config(config_dict: dict[str, Any]) -> tuple[AppConfig | None, list
             window_width=window_width,
             window_height=window_height,
             poll_interval_ms=poll_interval_ms,
-            instruments=instruments,
         ),
         [],
     )

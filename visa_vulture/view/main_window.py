@@ -180,24 +180,28 @@ class MainWindow:
         paned.add(self._plot_notebook, weight=2)
 
         # Power supply tab: horizontal paned window with plot and table
-        ps_container = ttk.PanedWindow(self._plot_notebook, orient=tk.HORIZONTAL)
-        self._plot_notebook.add(ps_container, text="Power Supply")
+        self._ps_container = ttk.PanedWindow(self._plot_notebook, orient=tk.HORIZONTAL)
+        self._plot_notebook.add(self._ps_container, text="Power Supply")
 
-        self._power_supply_plot_panel = PowerSupplyPlotPanel(ps_container)
-        ps_container.add(self._power_supply_plot_panel, weight=3)
+        self._power_supply_plot_panel = PowerSupplyPlotPanel(self._ps_container)
+        self._ps_container.add(self._power_supply_plot_panel, weight=3)
 
-        self._ps_table = TestPointsTable(ps_container, InstrumentType.POWER_SUPPLY)
-        ps_container.add(self._ps_table, weight=1)
+        self._ps_table = TestPointsTable(self._ps_container, InstrumentType.POWER_SUPPLY)
+        self._ps_container.add(self._ps_table, weight=1)
 
         # Signal generator tab: horizontal paned window with plot and table
-        sg_container = ttk.PanedWindow(self._plot_notebook, orient=tk.HORIZONTAL)
-        self._plot_notebook.add(sg_container, text="Signal Generator")
+        self._sg_container = ttk.PanedWindow(self._plot_notebook, orient=tk.HORIZONTAL)
+        self._plot_notebook.add(self._sg_container, text="Signal Generator")
 
-        self._signal_gen_plot_panel = SignalGeneratorPlotPanel(sg_container)
-        sg_container.add(self._signal_gen_plot_panel, weight=3)
+        self._signal_gen_plot_panel = SignalGeneratorPlotPanel(self._sg_container)
+        self._sg_container.add(self._signal_gen_plot_panel, weight=3)
 
-        self._sg_table = TestPointsTable(sg_container, InstrumentType.SIGNAL_GENERATOR)
-        sg_container.add(self._sg_table, weight=1)
+        self._sg_table = TestPointsTable(self._sg_container, InstrumentType.SIGNAL_GENERATOR)
+        self._sg_container.add(self._sg_table, weight=1)
+
+        # Track which tabs are currently visible
+        self._ps_tab_visible = True
+        self._sg_tab_visible = True
 
         # Log panel (bottom)
         self._log_panel = LogPanel(paned)
@@ -583,11 +587,58 @@ class MainWindow:
 
     def show_power_supply_plot(self) -> None:
         """Switch to power supply plot tab."""
-        self._plot_notebook.select(0)
+        if self._ps_tab_visible:
+            self._plot_notebook.select(self._ps_container)
 
     def show_signal_generator_plot(self) -> None:
         """Switch to signal generator plot tab."""
-        self._plot_notebook.select(1)
+        if self._sg_tab_visible:
+            self._plot_notebook.select(self._sg_container)
+
+    def show_power_supply_tab_only(self) -> None:
+        """Show only power supply tab, hide signal generator tab."""
+        # Ensure power supply tab is visible
+        if not self._ps_tab_visible:
+            self._plot_notebook.add(self._ps_container, text="Power Supply")
+            self._ps_tab_visible = True
+
+        # Hide signal generator tab if visible
+        if self._sg_tab_visible:
+            self._plot_notebook.hide(self._sg_container)
+            self._sg_tab_visible = False
+
+        # Select power supply tab
+        self._plot_notebook.select(self._ps_container)
+
+    def show_signal_generator_tab_only(self) -> None:
+        """Show only signal generator tab, hide power supply tab."""
+        # Ensure signal generator tab is visible
+        if not self._sg_tab_visible:
+            self._plot_notebook.add(self._sg_container, text="Signal Generator")
+            self._sg_tab_visible = True
+
+        # Hide power supply tab if visible
+        if self._ps_tab_visible:
+            self._plot_notebook.hide(self._ps_container)
+            self._ps_tab_visible = False
+
+        # Select signal generator tab
+        self._plot_notebook.select(self._sg_container)
+
+    def show_all_tabs(self) -> None:
+        """Show both tabs (for disconnected state)."""
+        # Re-add power supply tab if hidden
+        if not self._ps_tab_visible:
+            self._plot_notebook.add(self._ps_container, text="Power Supply")
+            self._ps_tab_visible = True
+
+        # Re-add signal generator tab if hidden
+        if not self._sg_tab_visible:
+            self._plot_notebook.add(self._sg_container, text="Signal Generator")
+            self._sg_tab_visible = True
+
+        # Select power supply tab by default
+        self._plot_notebook.select(self._ps_container)
 
     def schedule(self, delay_ms: int, callback: Callable[[], None]) -> str:
         """

@@ -75,15 +75,6 @@ def main() -> int:
     # Create model
     model = EquipmentModel(visa_connection)
 
-    # Add configured instruments
-    for instr_config in config.instruments:
-        model.add_instrument(
-            name=instr_config.name,
-            resource_address=instr_config.resource_address,
-            instrument_type=instr_config.type,
-            timeout_ms=instr_config.timeout_ms,
-        )
-
     # Create GUI
     root = tk.Tk()
 

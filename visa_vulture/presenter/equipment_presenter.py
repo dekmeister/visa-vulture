@@ -88,30 +88,98 @@ class EquipmentPresenter:
         self._model.register_progress_callback(self._on_test_progress)
         self._model.register_complete_callback(self._on_test_complete)
 
-        # Tab change callback
-        self._view.plot_notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
-
     # View callback handlers
 
     def _handle_connect(self) -> None:
-        """Handle connect button."""
-        logger.info("Connect requested")
-        self._view.set_status("Connecting...")
+        """Handle connect button - opens resource manager dialog."""
+        from ..view import ResourceManagerDialog
+
+        logger.info("Connect requested - opening resource manager")
+
+        # Create and configure dialog
+        dialog = ResourceManagerDialog(self._view._root)
+        dialog.set_on_scan(lambda: self._handle_dialog_scan(dialog))
+        dialog.set_on_identify(lambda: self._handle_dialog_identify(dialog))
+
+        # Show dialog and wait for result
+        result = dialog.show()
+
+        if result is None:
+            logger.info("Connection cancelled")
+            return
+
+        resource_address, instrument_type = result
+        self._connect_to_resource(resource_address, instrument_type)
+
+    def _handle_dialog_scan(self, dialog) -> None:
+        """Handle Scan button in resource manager dialog."""
+        dialog.set_status("Scanning...")
+        dialog.set_buttons_enabled(False, False, False)
 
         def task():
-            self._model.connect()
+            return self._model.scan_resources()
 
         def on_complete(result):
-            if isinstance(result, Exception) or (
-                hasattr(result, "success") and not result.success
-            ):
-                error = result.error if hasattr(result, "error") else result
-                self._view.show_error("Connection Error", str(error))
+            if isinstance(result, Exception):
+                dialog.set_status(f"Scan failed: {result}")
+                dialog.set_resources([])
+                dialog.set_buttons_enabled(True, False, False)
+            else:
+                dialog.set_resources(result)
+                has_resources = len(result) > 0
+                dialog.set_status(f"Found {len(result)} resource(s)")
+                dialog.set_buttons_enabled(True, has_resources, has_resources)
+
+        self._task_runner.run_task(task, on_complete)
+
+    def _handle_dialog_identify(self, dialog) -> None:
+        """Handle Identify button - query *IDN? on each resource."""
+        resources = dialog.get_resources()
+        if not resources:
+            dialog.set_status("No resources to identify")
+            return
+
+        dialog.set_status("Identifying resources...")
+        dialog.set_buttons_enabled(False, False, False)
+
+        def task():
+            results = {}
+            for resource in resources:
+                results[resource] = self._model.identify_resource(resource)
+            return results
+
+        def on_complete(result):
+            if isinstance(result, Exception):
+                dialog.set_status(f"Identify failed: {result}")
+            else:
+                for resource, idn in result.items():
+                    dialog.set_resource_identification(resource, idn)
+                dialog.set_status("Identification complete")
+            dialog.set_buttons_enabled(True, True, True)
+
+        self._task_runner.run_task(task, on_complete)
+
+    def _connect_to_resource(self, resource_address: str, instrument_type: str) -> None:
+        """Connect to selected resource."""
+        logger.info("Connecting to %s as %s", resource_address, instrument_type)
+        self._view.set_status(f"Connecting to {resource_address}...")
+
+        def task():
+            self._model.connect_instrument(resource_address, instrument_type)
+
+        def on_complete(result):
+            if isinstance(result, Exception):
+                self._view.show_error("Connection Error", str(result))
                 self._view.set_status("Connection failed")
             else:
                 self._view.set_connection_status(True)
                 self._view.set_status("Connected")
                 self._update_instrument_display()
+                # Show only relevant tab
+                if instrument_type == "power_supply":
+                    self._view.show_power_supply_tab_only()
+                else:
+                    self._view.show_signal_generator_tab_only()
 
         self._task_runner.run_task(task, on_complete)
 
@@ -127,6 +195,8 @@ class EquipmentPresenter:
             self._view.set_connection_status(False)
             self._view.set_status("Disconnected")
             self._view.set_instrument_display(None, None)
+            # Show both tabs when disconnected
+            self._view.show_all_tabs()
 
         self._task_runner.run_task(task, on_complete)
 
@@ -219,6 +289,25 @@ class EquipmentPresenter:
 
         if self._model.test_plan is None:
             self._view.show_error("Error", "No test plan loaded")
+            return
+
+        # Verify instrument type matches plan type
+        plan_type = self._model.test_plan.plan_type
+        instrument_type = self._model.instrument_type
+        if plan_type == PLAN_TYPE_POWER_SUPPLY and instrument_type != "power_supply":
+            self._view.show_error(
+                "Instrument Mismatch",
+                "Power supply test plan requires a power supply instrument",
+            )
+            return
+        elif (
+            plan_type == PLAN_TYPE_SIGNAL_GENERATOR
+            and instrument_type != "signal_generator"
+        ):
+            self._view.show_error(
+                "Instrument Mismatch",
+                "Signal generator test plan requires a signal generator instrument",
+            )
             return
 
         self._view.set_status("Running test...")
@@ -446,12 +535,8 @@ class EquipmentPresenter:
 
         self._view.schedule(0, update)
 
-    def _on_tab_changed(self, event) -> None:
-        """Handle plot tab selection change."""
-        self._update_instrument_display()
-
     def _update_instrument_display(self) -> None:
-        """Update instrument identification based on selected tab."""
+        """Update instrument identification display."""
         if self._model.state not in (
             EquipmentState.IDLE,
             EquipmentState.RUNNING,
@@ -460,18 +545,8 @@ class EquipmentPresenter:
             self._view.set_instrument_display(None, None)
             return
 
-        tab_index = self._view.get_selected_tab_index()
-        if tab_index == 0:
-            # Power Supply tab
-            model_name, tooltip = self._model.get_instrument_identification(
-                "power_supply"
-            )
-        else:
-            # Signal Generator tab
-            model_name, tooltip = self._model.get_instrument_identification(
-                "signal_generator"
-            )
-
+        # Single instrument - no need to check tab
+        model_name, tooltip = self._model.get_instrument_identification()
         self._view.set_instrument_display(model_name, tooltip)
 
     def _update_view_for_state(self, state: EquipmentState) -> None:

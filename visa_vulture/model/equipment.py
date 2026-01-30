@@ -39,7 +39,8 @@ class EquipmentModel:
         """
         self._visa = visa_connection
         self._state_machine = StateMachine()
-        self._instruments: dict[str, BaseInstrument] = {}
+        self._instrument: BaseInstrument | None = None
+        self._instrument_type: str | None = None
         self._test_plan: TestPlan | None = None
         self._stop_requested = False
         self._pause_requested = False
@@ -60,9 +61,14 @@ class EquipmentModel:
         return self._test_plan
 
     @property
-    def instruments(self) -> dict[str, BaseInstrument]:
-        """Get dictionary of instruments by name."""
-        return self._instruments
+    def instrument(self) -> BaseInstrument | None:
+        """Get the connected instrument."""
+        return self._instrument
+
+    @property
+    def instrument_type(self) -> str | None:
+        """Get the type of connected instrument."""
+        return self._instrument_type
 
     def register_state_callback(
         self, callback: Callable[[EquipmentState, EquipmentState], None]
@@ -89,73 +95,68 @@ class EquipmentModel:
             self._visa.open()
         return list(self._visa.list_resources())
 
-    def get_instrument_identification(
-        self, instrument_type: str
-    ) -> tuple[str | None, str | None]:
+    def get_instrument_identification(self) -> tuple[str | None, str | None]:
         """
-        Get model name and formatted identification for an instrument type.
-
-        Args:
-            instrument_type: Type of instrument ("power_supply" or "signal_generator")
+        Get model name and formatted identification for the connected instrument.
 
         Returns:
-            Tuple of (model_name, formatted_identification) or (None, None) if not found
+            Tuple of (model_name, formatted_identification) or (None, None) if not connected
         """
-        for instrument in self._instruments.values():
-            if instrument_type == "power_supply" and isinstance(
-                instrument, PowerSupply
-            ):
-                if instrument.is_connected and instrument.identification:
-                    return instrument.model(), instrument.formatted_identification()
-            elif instrument_type == "signal_generator" and isinstance(
-                instrument, SignalGenerator
-            ):
-                if instrument.is_connected and instrument.identification:
-                    return instrument.model(), instrument.formatted_identification()
+        if (
+            self._instrument
+            and self._instrument.is_connected
+            and self._instrument.identification
+        ):
+            return self._instrument.model(), self._instrument.formatted_identification()
         return None, None
 
-    def add_instrument(
+    def identify_resource(
+        self, resource_address: str, timeout_ms: int = 2000
+    ) -> str | None:
+        """
+        Temporarily open a resource, query *IDN?, and close it.
+
+        Used by Resource Manager dialog to identify instruments before connecting.
+
+        Args:
+            resource_address: VISA resource address string
+            timeout_ms: Timeout for identification query
+
+        Returns:
+            Identification string, or None if query failed
+        """
+        if not self._visa.is_open:
+            self._visa.open()
+
+        try:
+            resource = self._visa.open_resource(resource_address, timeout_ms)
+            try:
+                return resource.query("*IDN?").strip()
+            finally:
+                resource.close()
+        except Exception as e:
+            logger.warning("Failed to identify %s: %s", resource_address, e)
+            return None
+
+    def connect_instrument(
         self,
-        name: str,
         resource_address: str,
         instrument_type: str,
         timeout_ms: int = 5000,
-        read_termination: str | None = "\n",
-        write_termination: str | None = "\n",
     ) -> None:
         """
-        Add an instrument to the model.
+        Connect to a single instrument.
+
+        Creates the appropriate instrument class and connects it.
 
         Args:
-            name: Human-readable name
-            resource_address: VISA address
-            instrument_type: Type string (e.g., "power_supply", "signal_generator")
-            timeout_ms: Communication timeout
-            read_termination: Character(s) appended to reads, or None for no termination
-            write_termination: Character(s) appended to writes, or None for no termination
-        """
-        instrument: BaseInstrument
-        if instrument_type == "power_supply":
-            instrument = PowerSupply(
-                name, resource_address, timeout_ms, read_termination, write_termination
-            )
-        elif instrument_type == "signal_generator":
-            instrument = SignalGenerator(
-                name, resource_address, timeout_ms, read_termination, write_termination
-            )
-        else:
-            raise ValueError(f"Unknown instrument type: {instrument_type}")
+            resource_address: VISA resource address string
+            instrument_type: Type string ("power_supply" or "signal_generator")
+            timeout_ms: Communication timeout in milliseconds
 
-        self._instruments[name] = instrument
-        logger.info(
-            "Added instrument: %s (%s) at %s", name, instrument_type, resource_address
-        )
-
-    def connect(self) -> None:
-        """
-        Connect to all configured instruments.
-
-        Transitions to IDLE state on success, ERROR on failure.
+        Raises:
+            RuntimeError: If not in valid state for connection
+            ValueError: If instrument_type is unknown
         """
         if self._state_machine.state not in (
             EquipmentState.UNKNOWN,
@@ -169,39 +170,52 @@ class EquipmentModel:
             if not self._visa.is_open:
                 self._visa.open()
 
-            for name, instrument in self._instruments.items():
-                if not instrument.is_connected:
-                    resource = self._visa.open_resource(
-                        instrument.resource_address,
-                        instrument._timeout_ms,
-                        instrument._read_termination,
-                        instrument._write_termination,
-                    )
-                    instrument.connect(resource)
+            # Create appropriate instrument class
+            if instrument_type == "power_supply":
+                self._instrument = PowerSupply(
+                    "Power Supply", resource_address, timeout_ms
+                )
+            elif instrument_type == "signal_generator":
+                self._instrument = SignalGenerator(
+                    "Signal Generator", resource_address, timeout_ms
+                )
+            else:
+                raise ValueError(f"Unknown instrument type: {instrument_type}")
+
+            self._instrument_type = instrument_type
+
+            # Connect to the instrument
+            resource = self._visa.open_resource(
+                resource_address,
+                timeout_ms,
+                self._instrument._read_termination,
+                self._instrument._write_termination,
+            )
+            self._instrument.connect(resource)
 
             self._state_machine.to_idle()
-            logger.info("All instruments connected")
+            logger.info(
+                "Connected to %s at %s", instrument_type, resource_address
+            )
 
         except Exception as e:
             logger.error("Connection failed: %s", e)
+            self._instrument = None
+            self._instrument_type = None
             self._state_machine.to_error(str(e))
             raise
 
     def disconnect(self) -> None:
-        """Disconnect from all instruments."""
-        if self._instruments.items() is None:
-            logger.info("Attempted disconnect with no connected instruments")
+        """Disconnect from the instrument."""
+        if self._instrument is not None and self._instrument.is_connected:
+            self._instrument.disconnect()
+            logger.info("Instrument disconnected")
         else:
-            for name, instrument in self._instruments.items():
-                if instrument.is_connected:
-                    instrument.disconnect()
-                else:
-                    logger.info("%s is not connected. Unable to disconnect.", name)
+            logger.info("No connected instrument to disconnect")
 
-            self._state_machine.reset()
-            logger.info("All instruments disconnected")
-
-        # TODO - review if this is necessary
+        self._instrument = None
+        self._instrument_type = None
+        self._state_machine.reset()
         self._visa.close()
 
     def load_test_plan(self, test_plan: TestPlan) -> None:
@@ -350,14 +364,9 @@ class EquipmentModel:
             return
 
         # Get the power supply
-        power_supply: PowerSupply | None = None
-        for instrument in self._instruments.values():
-            if isinstance(instrument, PowerSupply):
-                power_supply = instrument
-                break
-
-        if power_supply is None:
-            raise RuntimeError("No power supply connected")
+        if not isinstance(self._instrument, PowerSupply):
+            raise RuntimeError("Connected instrument is not a power supply")
+        power_supply = self._instrument
 
         total_steps = self._test_plan.step_count
         sorted_steps = sorted(self._test_plan.steps, key=lambda s: s.step_number)
@@ -415,14 +424,9 @@ class EquipmentModel:
             return
 
         # Get the signal generator
-        signal_gen: SignalGenerator | None = None
-        for instrument in self._instruments.values():
-            if isinstance(instrument, SignalGenerator):
-                signal_gen = instrument
-                break
-
-        if signal_gen is None:
-            raise RuntimeError("No signal generator connected")
+        if not isinstance(self._instrument, SignalGenerator):
+            raise RuntimeError("Connected instrument is not a signal generator")
+        signal_gen = self._instrument
 
         total_steps = self._test_plan.step_count
         sorted_steps = sorted(self._test_plan.steps, key=lambda s: s.step_number)
