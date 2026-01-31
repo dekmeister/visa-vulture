@@ -194,9 +194,7 @@ class EquipmentModel:
             self._instrument.connect(resource)
 
             self._state_machine.to_idle()
-            logger.info(
-                "Connected to %s at %s", instrument_type, resource_address
-            )
+            logger.info("Connected to %s at %s", instrument_type, resource_address)
 
         except Exception as e:
             logger.error("Connection failed: %s", e)

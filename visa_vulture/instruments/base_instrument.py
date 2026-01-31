@@ -170,7 +170,9 @@ class BaseInstrument(ABC):
             command: SCPI command string
         """
         self._check_connected()
-        assert self._resource is not None  # Type narrowing: _check_connected ensures this
+        assert (
+            self._resource is not None
+        )  # Type narrowing: _check_connected ensures this
         logger.debug("%s: Write: %s", self._name, command)
         self._resource.write(command)
 
@@ -182,7 +184,9 @@ class BaseInstrument(ABC):
             Response string
         """
         self._check_connected()
-        assert self._resource is not None  # Type narrowing: _check_connected ensures this
+        assert (
+            self._resource is not None
+        )  # Type narrowing: _check_connected ensures this
         response = self._resource.read().strip()
         logger.debug("%s: Read: %s", self._name, response)
         return response
@@ -198,7 +202,9 @@ class BaseInstrument(ABC):
             Response string
         """
         self._check_connected()
-        assert self._resource is not None  # Type narrowing: _check_connected ensures this
+        assert (
+            self._resource is not None
+        )  # Type narrowing: _check_connected ensures this
         logger.debug("%s: Query: %s", self._name, command)
         response = self._resource.query(command).strip()
         logger.debug("%s: Response: %s", self._name, response)

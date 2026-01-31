@@ -144,9 +144,7 @@ class LogPanel(ttk.Frame):
 
     def _schedule_flush(self) -> None:
         """Schedule the next flush."""
-        self._flush_timer_id = self.after(
-            self._FLUSH_INTERVAL_MS, self._flush_pending
-        )
+        self._flush_timer_id = self.after(self._FLUSH_INTERVAL_MS, self._flush_pending)
 
     def _flush_pending(self) -> None:
         """Flush all pending log records to the display in a single batch."""

@@ -93,8 +93,12 @@ class ResourceManagerDialog:
         self._tree.column("identification", width=250, minwidth=150)
 
         # Scrollbars
-        y_scroll = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self._tree.yview)
-        x_scroll = ttk.Scrollbar(list_frame, orient=tk.HORIZONTAL, command=self._tree.xview)
+        y_scroll = ttk.Scrollbar(
+            list_frame, orient=tk.VERTICAL, command=self._tree.yview
+        )
+        x_scroll = ttk.Scrollbar(
+            list_frame, orient=tk.HORIZONTAL, command=self._tree.xview
+        )
         self._tree.configure(yscrollcommand=y_scroll.set, xscrollcommand=x_scroll.set)
 
         # Grid layout
@@ -268,9 +272,7 @@ class ResourceManagerDialog:
         """Update status bar message."""
         self._status_label.config(text=message)
 
-    def set_buttons_enabled(
-        self, scan: bool, identify: bool, connect: bool
-    ) -> None:
+    def set_buttons_enabled(self, scan: bool, identify: bool, connect: bool) -> None:
         """
         Enable/disable buttons.
 

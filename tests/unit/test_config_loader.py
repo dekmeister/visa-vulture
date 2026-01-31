@@ -133,9 +133,7 @@ class TestLoadConfigPathTypes:
 class TestLoadConfigMinimalConfig:
     """Tests for load_config with minimal configuration."""
 
-    def test_minimal_config_uses_defaults(
-        self, config_fixtures_path: Path
-    ) -> None:
+    def test_minimal_config_uses_defaults(self, config_fixtures_path: Path) -> None:
         """Minimal config (empty object) uses all defaults."""
         config_path = config_fixtures_path / "valid_config_minimal.json"
         config, errors = load_config(config_path)

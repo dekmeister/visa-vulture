@@ -403,9 +403,7 @@ class EquipmentPresenter:
             f"Estimated duration: {duration_str}"
         )
 
-        if not self._view.show_confirmation(
-            f"{action} Step {selected_step}", message
-        ):
+        if not self._view.show_confirmation(f"{action} Step {selected_step}", message):
             return
 
         if is_paused:
@@ -585,10 +583,7 @@ class EquipmentPresenter:
         """Update runtime display and schedule next update."""
         if self._run_start_time is not None and self._model.test_plan is not None:
             elapsed = time.time() - self._run_start_time
-            total = (
-                self._partial_total_duration
-                or self._model.test_plan.total_duration
-            )
+            total = self._partial_total_duration or self._model.test_plan.total_duration
             remaining = max(0.0, total - elapsed)
             self._view.set_runtime_display(int(elapsed))
             self._view.set_remaining_time_display(remaining)
