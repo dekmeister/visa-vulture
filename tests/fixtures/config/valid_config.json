@@ -6,19 +6,5 @@
     "window_title": "VISA Vulture",
     "window_width": 800,
     "window_height": 600,
-    "poll_interval_ms": 50,
-    "instruments": [
-        {
-            "name": "Test Power Supply",
-            "resource_address": "TCPIP::192.168.1.100::INSTR",
-            "type": "power_supply",
-            "timeout_ms": 1000
-        },
-        {
-            "name": "Test Signal Generator",
-            "resource_address": "TCPIP::192.168.1.101::INSTR",
-            "type": "signal_generator",
-            "timeout_ms": 2000
-        }
-    ]
+    "poll_interval_ms": 50
 }

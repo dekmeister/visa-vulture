@@ -1,8 +1,0 @@
-{
-    "instruments": [
-        {"name": "Only Name"},
-        {"resource_address": "TCPIP::1.2.3.4::INSTR"},
-        {"name": "Has Name", "resource_address": "TCPIP::1.2.3.5::INSTR"},
-        {"name": "Bad Type", "resource_address": "TCPIP::1.2.3.6::INSTR", "type": "oscilloscope"}
-    ]
-}
