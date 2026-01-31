@@ -47,15 +47,6 @@ class TestPresenterInitialization:
         assert len(mock_model_for_presenter._progress_callbacks) == 1
         assert len(mock_model_for_presenter._complete_callbacks) == 1
 
-    @pytest.mark.skip(reason="Tab change event removed - single instrument shows only one tab")
-    def test_binds_tab_change_event(
-        self, presenter: EquipmentPresenter, mock_view: Mock
-    ) -> None:
-        """Presenter binds to notebook tab change event."""
-        mock_view.plot_notebook.bind.assert_called_once()
-        call_args = mock_view.plot_notebook.bind.call_args
-        assert "<<NotebookTabChanged>>" in call_args[0]
-
     def test_initial_view_state_matches_model(
         self, presenter: EquipmentPresenter, mock_view: Mock
     ) -> None:
@@ -918,28 +909,6 @@ class TestInstrumentDisplay:
 
         mock_model_for_presenter.get_instrument_identification.assert_called()
         mock_view.set_instrument_display.assert_called_with("PS Model", "PS Tooltip")
-
-    @pytest.mark.skip(reason="Tab change removed - single instrument shows only one tab")
-    def test_signal_generator_tab_shows_signal_generator_info(
-        self,
-        presenter: EquipmentPresenter,
-        mock_model_for_presenter: Mock,
-        mock_view: Mock,
-    ) -> None:
-        """Signal generator tab shows signal generator instrument info."""
-        set_model_state(mock_model_for_presenter, EquipmentState.IDLE)
-        mock_view.get_selected_tab_index.return_value = 1
-        mock_model_for_presenter.get_instrument_identification.return_value = (
-            "SG Model",
-            "SG Tooltip",
-        )
-
-        presenter._on_tab_changed(None)
-
-        mock_model_for_presenter.get_instrument_identification.assert_called_with(
-            "signal_generator"
-        )
-        mock_view.set_instrument_display.assert_called_with("SG Model", "SG Tooltip")
 
     def test_instrument_display_cleared_when_not_connected(
         self,

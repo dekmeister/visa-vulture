@@ -293,6 +293,10 @@ def mock_model_for_presenter() -> Mock:
     model._instruments = {}
     type(model).instruments = PropertyMock(side_effect=lambda: model._instruments)
 
+    # Instrument type tracking via property (for single-instrument mode)
+    model._instrument_type = None
+    type(model).instrument_type = PropertyMock(side_effect=lambda: model._instrument_type)
+
     # Callback storage
     model._state_callbacks = []
     model._progress_callbacks = []
