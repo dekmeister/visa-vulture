@@ -11,6 +11,11 @@ Defines simulated instrument responses for:
   - Voltage control (VOLT, VOLT?)
   - Current control (CURR, CURR?)
   - Output control (OUTP ON/OFF, OUTP?)
+- **Signal Generator** (`TCPIP::192.168.1.101::INSTR`)
+  - Identification: SimGen, SG-2000
+  - Frequency control (FREQ, FREQ?)
+  - Power control (POW, POW?)
+  - Output control (OUTP ON/OFF, OUTP?)
 
 ## Usage
 
