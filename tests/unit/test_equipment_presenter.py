@@ -1,7 +1,7 @@
 """Tests for EquipmentPresenter."""
 
 import time
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -166,89 +166,340 @@ class TestStateTransitionHandling:
         mock_view.set_connection_status.assert_called_with(False)
 
 
-@pytest.mark.skip(reason="Connect now opens ResourceManagerDialog - requires GUI testing")
-class TestConnectHandler:
-    """Tests for connect button handling.
+class TestResourceManagerDialogFlow:
+    """Tests for resource manager dialog-based connection flow.
 
-    Note: These tests are skipped because the connect handler now opens a
-    ResourceManagerDialog which requires a real Tkinter root window.
-    The dialog-based connection flow is better tested through integration tests.
+    These tests verify the presenter's handling of the ResourceManagerDialog
+    by mocking the dialog and testing the callback workflows.
     """
 
-    def test_connect_calls_model_connect(
+    def test_scan_calls_model_and_updates_dialog(
         self,
-        presenter: EquipmentPresenter,
         mock_model_for_presenter: Mock,
         mock_view: Mock,
+        mock_resource_manager_dialog: Mock,
     ) -> None:
-        """Connect button triggers model.connect()."""
-        trigger_view_callback(mock_view, "on_connect")
+        """Scan callback calls model.scan_resources and updates dialog."""
+        from tests.unit.presenter_test_helpers import SynchronousTaskRunner
+        from visa_vulture.presenter import EquipmentPresenter
 
-        mock_model_for_presenter.connect.assert_called_once()
+        mock_model_for_presenter.scan_resources.return_value = [
+            "TCPIP::192.168.1.100::INSTR",
+            "TCPIP::192.168.1.101::INSTR",
+        ]
+        mock_resource_manager_dialog._result = None  # Cancelled
 
-    def test_connect_sets_connecting_status(
+        with patch(
+            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+            SynchronousTaskRunner,
+        ), patch(
+            "visa_vulture.view.ResourceManagerDialog",
+            return_value=mock_resource_manager_dialog,
+        ):
+            presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
+            trigger_view_callback(mock_view, "on_connect")
+
+            # Invoke the captured scan callback
+            assert mock_resource_manager_dialog._on_scan is not None
+            mock_resource_manager_dialog._on_scan()
+
+            mock_model_for_presenter.scan_resources.assert_called_once()
+            mock_resource_manager_dialog.set_resources.assert_called_with(
+                ["TCPIP::192.168.1.100::INSTR", "TCPIP::192.168.1.101::INSTR"]
+            )
+
+    def test_scan_error_updates_dialog_status(
         self,
-        presenter: EquipmentPresenter,
         mock_model_for_presenter: Mock,
         mock_view: Mock,
+        mock_resource_manager_dialog: Mock,
     ) -> None:
-        """Connect button shows connecting status."""
-        # Check status before connect completes
-        mock_view.set_status.reset_mock()
-        trigger_view_callback(mock_view, "on_connect")
+        """Scan error updates dialog with error message."""
+        from tests.unit.presenter_test_helpers import SynchronousTaskRunner
+        from visa_vulture.presenter import EquipmentPresenter
 
-        # First call should be "Connecting..."
-        calls = mock_view.set_status.call_args_list
-        assert any("Connecting" in str(call) for call in calls)
+        mock_model_for_presenter.scan_resources.side_effect = Exception("VISA error")
+        mock_resource_manager_dialog._result = None
 
-    def test_connect_success_updates_view(
+        with patch(
+            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+            SynchronousTaskRunner,
+        ), patch(
+            "visa_vulture.view.ResourceManagerDialog",
+            return_value=mock_resource_manager_dialog,
+        ):
+            presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
+            trigger_view_callback(mock_view, "on_connect")
+
+            assert mock_resource_manager_dialog._on_scan is not None
+            mock_resource_manager_dialog._on_scan()
+
+            # Should update status with error
+            calls = mock_resource_manager_dialog.set_status.call_args_list
+            assert any("failed" in str(call).lower() for call in calls)
+
+    def test_identify_calls_model_for_each_resource(
         self,
-        presenter: EquipmentPresenter,
         mock_model_for_presenter: Mock,
         mock_view: Mock,
+        mock_resource_manager_dialog: Mock,
     ) -> None:
-        """Successful connection updates connection status."""
-        mock_model_for_presenter.connect.return_value = None
+        """Identify callback queries each resource."""
+        from tests.unit.presenter_test_helpers import SynchronousTaskRunner
+        from visa_vulture.presenter import EquipmentPresenter
 
-        trigger_view_callback(mock_view, "on_connect")
+        mock_resource_manager_dialog._resources = [
+            "TCPIP::192.168.1.100::INSTR",
+            "TCPIP::192.168.1.101::INSTR",
+        ]
+        mock_model_for_presenter.identify_resource.side_effect = [
+            "Keysight,E36312A,MY12345,1.0",
+            "Keysight,N5171B,MY67890,2.0",
+        ]
+        mock_resource_manager_dialog._result = None
 
-        mock_view.set_connection_status.assert_called_with(True)
-        # Status should show "Connected"
-        calls = mock_view.set_status.call_args_list
-        assert any("Connected" in str(call) for call in calls)
+        with patch(
+            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+            SynchronousTaskRunner,
+        ), patch(
+            "visa_vulture.view.ResourceManagerDialog",
+            return_value=mock_resource_manager_dialog,
+        ):
+            presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
+            trigger_view_callback(mock_view, "on_connect")
+
+            assert mock_resource_manager_dialog._on_identify is not None
+            mock_resource_manager_dialog._on_identify()
+
+            # Should have called identify_resource for each resource
+            assert mock_model_for_presenter.identify_resource.call_count == 2
+            mock_model_for_presenter.identify_resource.assert_any_call(
+                "TCPIP::192.168.1.100::INSTR"
+            )
+            mock_model_for_presenter.identify_resource.assert_any_call(
+                "TCPIP::192.168.1.101::INSTR"
+            )
+
+            # Should update each resource's identification in dialog
+            mock_resource_manager_dialog.set_resource_identification.assert_any_call(
+                "TCPIP::192.168.1.100::INSTR", "Keysight,E36312A,MY12345,1.0"
+            )
+            mock_resource_manager_dialog.set_resource_identification.assert_any_call(
+                "TCPIP::192.168.1.101::INSTR", "Keysight,N5171B,MY67890,2.0"
+            )
+
+    def test_identify_handles_partial_failures(
+        self,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        mock_resource_manager_dialog: Mock,
+    ) -> None:
+        """Identify handles partial failures - one succeeds, one fails."""
+        from tests.unit.presenter_test_helpers import SynchronousTaskRunner
+        from visa_vulture.presenter import EquipmentPresenter
+
+        mock_resource_manager_dialog._resources = [
+            "TCPIP::192.168.1.100::INSTR",
+            "TCPIP::192.168.1.101::INSTR",
+        ]
+        mock_model_for_presenter.identify_resource.side_effect = [
+            "Keysight,E36312A,MY12345,1.0",
+            None,  # Failed to identify
+        ]
+        mock_resource_manager_dialog._result = None
+
+        with patch(
+            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+            SynchronousTaskRunner,
+        ), patch(
+            "visa_vulture.view.ResourceManagerDialog",
+            return_value=mock_resource_manager_dialog,
+        ):
+            presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
+            trigger_view_callback(mock_view, "on_connect")
+
+            mock_resource_manager_dialog._on_identify()
+
+            # Both should still be updated
+            mock_resource_manager_dialog.set_resource_identification.assert_any_call(
+                "TCPIP::192.168.1.100::INSTR", "Keysight,E36312A,MY12345,1.0"
+            )
+            mock_resource_manager_dialog.set_resource_identification.assert_any_call(
+                "TCPIP::192.168.1.101::INSTR", None
+            )
+
+    def test_connect_success_calls_model_connect_instrument(
+        self,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        mock_resource_manager_dialog: Mock,
+    ) -> None:
+        """Successful connection calls model.connect_instrument with dialog result."""
+        from tests.unit.presenter_test_helpers import SynchronousTaskRunner
+        from visa_vulture.presenter import EquipmentPresenter
+
+        mock_resource_manager_dialog._result = (
+            "TCPIP::192.168.1.100::INSTR",
+            "power_supply",
+        )
+
+        with patch(
+            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+            SynchronousTaskRunner,
+        ), patch(
+            "visa_vulture.view.ResourceManagerDialog",
+            return_value=mock_resource_manager_dialog,
+        ):
+            presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
+            trigger_view_callback(mock_view, "on_connect")
+
+            mock_model_for_presenter.connect_instrument.assert_called_once_with(
+                "TCPIP::192.168.1.100::INSTR", "power_supply"
+            )
+
+    def test_connect_success_shows_power_supply_tab(
+        self,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        mock_resource_manager_dialog: Mock,
+    ) -> None:
+        """Successful power supply connection shows power supply tab only."""
+        from tests.unit.presenter_test_helpers import SynchronousTaskRunner
+        from visa_vulture.presenter import EquipmentPresenter
+
+        mock_resource_manager_dialog._result = (
+            "TCPIP::192.168.1.100::INSTR",
+            "power_supply",
+        )
+
+        with patch(
+            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+            SynchronousTaskRunner,
+        ), patch(
+            "visa_vulture.view.ResourceManagerDialog",
+            return_value=mock_resource_manager_dialog,
+        ):
+            presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
+            trigger_view_callback(mock_view, "on_connect")
+
+            mock_view.show_power_supply_tab_only.assert_called_once()
+
+    def test_connect_success_shows_signal_generator_tab(
+        self,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        mock_resource_manager_dialog: Mock,
+    ) -> None:
+        """Successful signal generator connection shows signal generator tab only."""
+        from tests.unit.presenter_test_helpers import SynchronousTaskRunner
+        from visa_vulture.presenter import EquipmentPresenter
+
+        mock_resource_manager_dialog._result = (
+            "TCPIP::192.168.1.101::INSTR",
+            "signal_generator",
+        )
+
+        with patch(
+            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+            SynchronousTaskRunner,
+        ), patch(
+            "visa_vulture.view.ResourceManagerDialog",
+            return_value=mock_resource_manager_dialog,
+        ):
+            presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
+            trigger_view_callback(mock_view, "on_connect")
+
+            mock_view.show_signal_generator_tab_only.assert_called_once()
+
+    def test_connect_success_updates_view_status(
+        self,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        mock_resource_manager_dialog: Mock,
+    ) -> None:
+        """Successful connection updates connection status and instrument display."""
+        from tests.unit.presenter_test_helpers import SynchronousTaskRunner
+        from visa_vulture.presenter import EquipmentPresenter
+
+        mock_resource_manager_dialog._result = (
+            "TCPIP::192.168.1.100::INSTR",
+            "power_supply",
+        )
+        mock_model_for_presenter.get_instrument_identification.return_value = (
+            "E36312A",
+            "Keysight E36312A SN12345",
+        )
+        set_model_state(mock_model_for_presenter, EquipmentState.IDLE)
+
+        with patch(
+            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+            SynchronousTaskRunner,
+        ), patch(
+            "visa_vulture.view.ResourceManagerDialog",
+            return_value=mock_resource_manager_dialog,
+        ):
+            presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
+            trigger_view_callback(mock_view, "on_connect")
+
+            mock_view.set_connection_status.assert_called_with(True)
+            # Status should show "Connected"
+            calls = mock_view.set_status.call_args_list
+            assert any("Connected" in str(call) for call in calls)
 
     def test_connect_failure_shows_error(
         self,
-        presenter: EquipmentPresenter,
         mock_model_for_presenter: Mock,
         mock_view: Mock,
+        mock_resource_manager_dialog: Mock,
     ) -> None:
         """Connection failure shows error dialog."""
-        mock_model_for_presenter.connect.side_effect = Exception("Connection refused")
+        from tests.unit.presenter_test_helpers import SynchronousTaskRunner
+        from visa_vulture.presenter import EquipmentPresenter
 
-        trigger_view_callback(mock_view, "on_connect")
+        mock_resource_manager_dialog._result = (
+            "TCPIP::192.168.1.100::INSTR",
+            "power_supply",
+        )
+        mock_model_for_presenter.connect_instrument.side_effect = Exception(
+            "Connection refused"
+        )
 
-        mock_view.show_error.assert_called_once()
-        assert "Connection" in mock_view.show_error.call_args[0][0]
+        with patch(
+            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+            SynchronousTaskRunner,
+        ), patch(
+            "visa_vulture.view.ResourceManagerDialog",
+            return_value=mock_resource_manager_dialog,
+        ):
+            presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
+            trigger_view_callback(mock_view, "on_connect")
 
-    def test_connect_updates_instrument_display(
+            mock_view.show_error.assert_called_once()
+            assert "Connection" in mock_view.show_error.call_args[0][0]
+
+    def test_cancel_makes_no_model_calls(
         self,
-        presenter: EquipmentPresenter,
         mock_model_for_presenter: Mock,
         mock_view: Mock,
+        mock_resource_manager_dialog: Mock,
     ) -> None:
-        """Successful connection updates instrument display."""
-        mock_model_for_presenter.connect.return_value = None
-        mock_model_for_presenter.get_instrument_identification.return_value = (
-            "Model123",
-            "Mfg Model123 SN12345",
-        )
-        # Simulate state becoming IDLE after connect
-        set_model_state(mock_model_for_presenter, EquipmentState.IDLE)
+        """Cancelling dialog makes no connection attempt."""
+        from tests.unit.presenter_test_helpers import SynchronousTaskRunner
+        from visa_vulture.presenter import EquipmentPresenter
 
-        trigger_view_callback(mock_view, "on_connect")
+        mock_resource_manager_dialog._result = None  # Cancelled
 
-        mock_view.set_instrument_display.assert_called()
+        with patch(
+            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+            SynchronousTaskRunner,
+        ), patch(
+            "visa_vulture.view.ResourceManagerDialog",
+            return_value=mock_resource_manager_dialog,
+        ):
+            presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
+            trigger_view_callback(mock_view, "on_connect")
+
+            mock_model_for_presenter.connect_instrument.assert_not_called()
 
 
 class TestDisconnectHandler:

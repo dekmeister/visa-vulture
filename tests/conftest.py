@@ -334,3 +334,36 @@ def presenter(mock_model_for_presenter: Mock, mock_view: Mock):
     ):
         presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
         yield presenter
+
+
+@pytest.fixture
+def mock_resource_manager_dialog() -> Mock:
+    """Mock ResourceManagerDialog for testing presenter dialog flow."""
+    dialog = Mock()
+    dialog._result = None
+    dialog._on_scan = None
+    dialog._on_identify = None
+    dialog._resources = []
+
+    def set_on_scan(callback: Callable) -> None:
+        dialog._on_scan = callback
+
+    def set_on_identify(callback: Callable) -> None:
+        dialog._on_identify = callback
+
+    def show() -> tuple[str, str] | None:
+        return dialog._result
+
+    def set_resources(resources: list[str]) -> None:
+        dialog._resources = resources
+
+    def get_resources() -> list[str]:
+        return dialog._resources
+
+    dialog.set_on_scan.side_effect = set_on_scan
+    dialog.set_on_identify.side_effect = set_on_identify
+    dialog.show.side_effect = show
+    dialog.set_resources.side_effect = set_resources
+    dialog.get_resources.side_effect = get_resources
+
+    return dialog

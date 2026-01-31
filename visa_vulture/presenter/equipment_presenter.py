@@ -13,7 +13,7 @@ from ..model import (
     PLAN_TYPE_POWER_SUPPLY,
     PLAN_TYPE_SIGNAL_GENERATOR,
 )
-from ..utils import BackgroundTaskRunner
+from ..utils import BackgroundTaskRunner, TaskResult
 from ..view import MainWindow
 
 logger = logging.getLogger(__name__)
@@ -120,8 +120,8 @@ class EquipmentPresenter:
             return self._model.scan_resources()
 
         def on_complete(result):
-            if isinstance(result, Exception):
-                dialog.set_status(f"Scan failed: {result}")
+            if isinstance(result, TaskResult) and not result.success:
+                dialog.set_status(f"Scan failed: {result.error}")
                 dialog.set_resources([])
                 dialog.set_buttons_enabled(True, False, False)
             else:
@@ -149,8 +149,8 @@ class EquipmentPresenter:
             return results
 
         def on_complete(result):
-            if isinstance(result, Exception):
-                dialog.set_status(f"Identify failed: {result}")
+            if isinstance(result, TaskResult) and not result.success:
+                dialog.set_status(f"Identify failed: {result.error}")
             else:
                 for resource, idn in result.items():
                     dialog.set_resource_identification(resource, idn)
@@ -168,8 +168,8 @@ class EquipmentPresenter:
             self._model.connect_instrument(resource_address, instrument_type)
 
         def on_complete(result):
-            if isinstance(result, Exception):
-                self._view.show_error("Connection Error", str(result))
+            if isinstance(result, TaskResult) and not result.success:
+                self._view.show_error("Connection Error", str(result.error))
                 self._view.set_status("Connection failed")
             else:
                 self._view.set_connection_status(True)

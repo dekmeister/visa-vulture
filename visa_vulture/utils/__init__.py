@@ -1,5 +1,5 @@
 """Shared utilities."""
 
-from .threading_helpers import BackgroundTaskRunner
+from .threading_helpers import BackgroundTaskRunner, TaskResult
 
-__all__ = ["BackgroundTaskRunner"]
+__all__ = ["BackgroundTaskRunner", "TaskResult"]
