@@ -18,15 +18,11 @@ from visa_vulture.model.test_plan import (
 class TestEquipmentModelInitialization:
     """Tests for EquipmentModel initialization."""
 
-    def test_initial_state_is_unknown(
-        self, equipment_model: EquipmentModel
-    ) -> None:
+    def test_initial_state_is_unknown(self, equipment_model: EquipmentModel) -> None:
         """Initial state should be UNKNOWN."""
         assert equipment_model.state == EquipmentState.UNKNOWN
 
-    def test_no_instrument_initially(
-        self, equipment_model: EquipmentModel
-    ) -> None:
+    def test_no_instrument_initially(self, equipment_model: EquipmentModel) -> None:
         """No instrument is connected initially."""
         assert equipment_model.instrument is None
 
@@ -36,9 +32,7 @@ class TestEquipmentModelInitialization:
         """No instrument type is set initially."""
         assert equipment_model.instrument_type is None
 
-    def test_no_test_plan_initially(
-        self, equipment_model: EquipmentModel
-    ) -> None:
+    def test_no_test_plan_initially(self, equipment_model: EquipmentModel) -> None:
         """No test plan is loaded initially."""
         assert equipment_model.test_plan is None
 
@@ -63,9 +57,7 @@ class TestEquipmentModelCallbacks:
         assert len(callback_calls) == 1
         assert callback_calls[0] == (EquipmentState.UNKNOWN, EquipmentState.IDLE)
 
-    def test_register_progress_callback(
-        self, equipment_model: EquipmentModel
-    ) -> None:
+    def test_register_progress_callback(self, equipment_model: EquipmentModel) -> None:
         """Progress callback can be registered."""
         callback = Mock()
         equipment_model.register_progress_callback(callback)
@@ -73,9 +65,7 @@ class TestEquipmentModelCallbacks:
         # Callback is stored (we can't easily verify without running a test)
         assert callback in equipment_model._progress_callbacks
 
-    def test_register_complete_callback(
-        self, equipment_model: EquipmentModel
-    ) -> None:
+    def test_register_complete_callback(self, equipment_model: EquipmentModel) -> None:
         """Complete callback can be registered."""
         callback = Mock()
         equipment_model.register_complete_callback(callback)
@@ -159,9 +149,7 @@ class TestEquipmentModelConnectInstrument:
 
         assert equipment_model.instrument is not None
 
-    def test_connect_from_error_state_allowed(
-        self, mock_visa_connection: Mock
-    ) -> None:
+    def test_connect_from_error_state_allowed(self, mock_visa_connection: Mock) -> None:
         """Connect is allowed from ERROR state."""
         model = EquipmentModel(mock_visa_connection)
         # Manually set to ERROR state
@@ -262,6 +250,9 @@ class TestEquipmentModelDisconnect:
 class TestEquipmentModelRunTest:
     """Tests for run_test method."""
 
+    """Tests with default start-step (from beginning)"""
+    # TODO - add in test that verifies that without a startstep it starts at first step
+
     def test_run_without_plan_raises(
         self, equipment_model: EquipmentModel, mock_visa_connection: Mock
     ) -> None:
@@ -293,13 +284,116 @@ class TestEquipmentModelRunTest:
         with pytest.raises(RuntimeError, match="Cannot run test"):
             model.run_test()
 
+    """Tests with non-default start-step - previously under TestRunTestFromStep"""
+
+    def test_without_plan_raises_from_step(
+        self, equipment_model: EquipmentModel, mock_visa_connection: Mock
+    ) -> None:
+        """Running from step without plan raises RuntimeError."""
+        equipment_model.connect_instrument(
+            "TCPIP::192.168.1.100::INSTR", "power_supply"
+        )
+        with pytest.raises(RuntimeError, match="No test plan loaded"):
+            equipment_model.run_test(2)
+
+    def test_invalid_step_raises_from_step(
+        self,
+        equipment_model: EquipmentModel,
+        mock_visa_connection: Mock,
+        sample_power_supply_plan: TestPlan,
+    ) -> None:
+        """Running from nonexistent step raises ValueError."""
+        equipment_model.connect_instrument(
+            "TCPIP::192.168.1.100::INSTR", "power_supply"
+        )
+        equipment_model.load_test_plan(sample_power_supply_plan)
+        with pytest.raises(ValueError, match="Step 99 not found"):
+            equipment_model.run_test(99)
+
+    def test_wrong_state_raises_from_step(
+        self,
+        equipment_model: EquipmentModel,
+        sample_power_supply_plan: TestPlan,
+    ) -> None:
+        """Running from step in UNKNOWN state raises RuntimeError."""
+        # Don't connect - stays in UNKNOWN
+        equipment_model.load_test_plan(sample_power_supply_plan)
+        with pytest.raises(RuntimeError, match="Cannot run test"):
+            equipment_model.run_test(1)
+
+    def test_skips_earlier_steps_from_step(self, mock_visa_connection: Mock) -> None:
+        """_execute_power_supply_plan with start_step=2 skips step 1."""
+        from visa_vulture.instruments import PowerSupply
+
+        model = EquipmentModel(mock_visa_connection)
+        model._state_machine._state = EquipmentState.RUNNING
+        model._test_plan = TestPlan(
+            name="Test",
+            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            steps=[
+                PowerSupplyTestStep(
+                    step_number=1, duration_seconds=0.0, voltage=5.0, current=1.0
+                ),
+                PowerSupplyTestStep(
+                    step_number=2, duration_seconds=0.0, voltage=10.0, current=2.0
+                ),
+                PowerSupplyTestStep(
+                    step_number=3, duration_seconds=0.0, voltage=15.0, current=3.0
+                ),
+            ],
+        )
+
+        mock_ps = Mock(spec=PowerSupply)
+        mock_ps.is_connected = True
+        model._instrument = mock_ps
+        model._instrument_type = "power_supply"
+
+        progress_steps: list[int] = []
+        model.register_progress_callback(
+            lambda current, total, step: progress_steps.append(step.step_number)
+        )
+
+        model._execute_power_supply_plan(start_step=2)
+
+        assert progress_steps == [2, 3]
+        mock_ps.enable_output.assert_called_once()
+
+    def test_enables_output_on_start_step_from_step(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Output is enabled on the start step, not step 1."""
+        from visa_vulture.instruments import PowerSupply
+
+        model = EquipmentModel(mock_visa_connection)
+        model._state_machine._state = EquipmentState.RUNNING
+        model._test_plan = TestPlan(
+            name="Test",
+            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            steps=[
+                PowerSupplyTestStep(
+                    step_number=1, duration_seconds=0.0, voltage=5.0, current=1.0
+                ),
+                PowerSupplyTestStep(
+                    step_number=2, duration_seconds=0.0, voltage=10.0, current=2.0
+                ),
+            ],
+        )
+
+        mock_ps = Mock(spec=PowerSupply)
+        mock_ps.is_connected = True
+        model._instrument = mock_ps
+        model._instrument_type = "power_supply"
+
+        model._execute_power_supply_plan(start_step=2)
+
+        # enable_output should have been called exactly once (on step 2, not step 1)
+        mock_ps.enable_output.assert_called_once()
+
 
 class TestEquipmentModelStopTest:
     """Tests for stop_test method."""
 
-    def test_stop_sets_flag(
-        self, mock_visa_connection: Mock
-    ) -> None:
+    def test_stop_sets_flag(self, mock_visa_connection: Mock) -> None:
         """stop_test sets the stop flag when running."""
         model = EquipmentModel(mock_visa_connection)
         model._state_machine._state = EquipmentState.RUNNING
@@ -316,9 +410,7 @@ class TestEquipmentModelStopTest:
 
         assert equipment_model._stop_requested is False
 
-    def test_stop_from_paused_sets_flag(
-        self, mock_visa_connection: Mock
-    ) -> None:
+    def test_stop_from_paused_sets_flag(self, mock_visa_connection: Mock) -> None:
         """stop_test sets stop flag and clears pause flag when paused."""
         model = EquipmentModel(mock_visa_connection)
         model._state_machine._state = EquipmentState.PAUSED
@@ -383,9 +475,7 @@ class TestEquipmentModelStopTest:
 class TestEquipmentModelPauseTest:
     """Tests for pause_test method."""
 
-    def test_pause_sets_flag_when_running(
-        self, mock_visa_connection: Mock
-    ) -> None:
+    def test_pause_sets_flag_when_running(self, mock_visa_connection: Mock) -> None:
         """pause_test sets the pause flag when running."""
         model = EquipmentModel(mock_visa_connection)
         model._state_machine._state = EquipmentState.RUNNING
@@ -394,17 +484,13 @@ class TestEquipmentModelPauseTest:
 
         assert model._pause_requested is True
 
-    def test_pause_only_when_running(
-        self, equipment_model: EquipmentModel
-    ) -> None:
+    def test_pause_only_when_running(self, equipment_model: EquipmentModel) -> None:
         """pause_test only sets flag when in RUNNING state."""
         equipment_model.pause_test()
 
         assert equipment_model._pause_requested is False
 
-    def test_pause_from_idle_does_nothing(
-        self, mock_visa_connection: Mock
-    ) -> None:
+    def test_pause_from_idle_does_nothing(self, mock_visa_connection: Mock) -> None:
         """pause_test does nothing when in IDLE state."""
         model = EquipmentModel(mock_visa_connection)
         model._state_machine._state = EquipmentState.IDLE
@@ -417,9 +503,7 @@ class TestEquipmentModelPauseTest:
 class TestEquipmentModelResumeTest:
     """Tests for resume_test method."""
 
-    def test_resume_clears_pause_flag(
-        self, mock_visa_connection: Mock
-    ) -> None:
+    def test_resume_clears_pause_flag(self, mock_visa_connection: Mock) -> None:
         """resume_test clears the pause flag when paused."""
         model = EquipmentModel(mock_visa_connection)
         model._state_machine._state = EquipmentState.PAUSED
@@ -429,9 +513,7 @@ class TestEquipmentModelResumeTest:
 
         assert model._pause_requested is False
 
-    def test_resume_only_when_paused(
-        self, mock_visa_connection: Mock
-    ) -> None:
+    def test_resume_only_when_paused(self, mock_visa_connection: Mock) -> None:
         """resume_test only clears flag when in PAUSED state."""
         model = EquipmentModel(mock_visa_connection)
         model._state_machine._state = EquipmentState.RUNNING
@@ -483,9 +565,7 @@ class TestEquipmentModelRunTestExecution:
         self, mock_visa_connection: Mock, sample_power_supply_plan: TestPlan
     ) -> None:
         """Successful test run transitions IDLE -> RUNNING -> IDLE."""
-        model = self._make_model_at_idle(
-            mock_visa_connection, sample_power_supply_plan
-        )
+        model = self._make_model_at_idle(mock_visa_connection, sample_power_supply_plan)
         state_changes = self._track_state_changes(model)
 
         complete_results: list[tuple[bool, str]] = []
@@ -510,9 +590,7 @@ class TestEquipmentModelRunTestExecution:
         self, mock_visa_connection: Mock, sample_power_supply_plan: TestPlan
     ) -> None:
         """Exception during execution transitions IDLE -> RUNNING -> ERROR."""
-        model = self._make_model_at_idle(
-            mock_visa_connection, sample_power_supply_plan
-        )
+        model = self._make_model_at_idle(mock_visa_connection, sample_power_supply_plan)
         state_changes = self._track_state_changes(model)
 
         complete_results: list[tuple[bool, str]] = []
@@ -539,9 +617,7 @@ class TestEquipmentModelRunTestExecution:
         self, mock_visa_connection: Mock, sample_power_supply_plan: TestPlan
     ) -> None:
         """Stop during execution transitions IDLE -> RUNNING -> IDLE."""
-        model = self._make_model_at_idle(
-            mock_visa_connection, sample_power_supply_plan
-        )
+        model = self._make_model_at_idle(mock_visa_connection, sample_power_supply_plan)
         state_changes = self._track_state_changes(model)
 
         complete_results: list[tuple[bool, str]] = []
@@ -566,9 +642,7 @@ class TestEquipmentModelRunTestExecution:
         self, mock_visa_connection: Mock, sample_power_supply_plan: TestPlan
     ) -> None:
         """Pause during execution transitions RUNNING -> PAUSED, then stop resumes to IDLE."""
-        model = self._make_model_at_idle(
-            mock_visa_connection, sample_power_supply_plan
-        )
+        model = self._make_model_at_idle(mock_visa_connection, sample_power_supply_plan)
         state_changes = self._track_state_changes(model)
 
         def mock_execute(start_step: int = 1) -> None:
@@ -591,9 +665,7 @@ class TestEquipmentModelRunTestExecution:
         self, mock_visa_connection: Mock, sample_power_supply_plan: TestPlan
     ) -> None:
         """Resume after pause transitions PAUSED -> RUNNING -> IDLE."""
-        model = self._make_model_at_idle(
-            mock_visa_connection, sample_power_supply_plan
-        )
+        model = self._make_model_at_idle(mock_visa_connection, sample_power_supply_plan)
         state_changes = self._track_state_changes(model)
 
         complete_results: list[tuple[bool, str]] = []
@@ -625,9 +697,7 @@ class TestEquipmentModelRunTestExecution:
         self, mock_visa_connection: Mock, sample_power_supply_plan: TestPlan
     ) -> None:
         """Exception while paused transitions PAUSED -> ERROR."""
-        model = self._make_model_at_idle(
-            mock_visa_connection, sample_power_supply_plan
-        )
+        model = self._make_model_at_idle(mock_visa_connection, sample_power_supply_plan)
         state_changes = self._track_state_changes(model)
 
         complete_results: list[tuple[bool, str]] = []
@@ -744,108 +814,3 @@ class TestEquipmentModelScanResources:
 
         assert isinstance(resources, list)
         assert len(resources) == 2
-
-
-class TestRunTestFromStep:
-    """Tests for run_test_from_step method."""
-
-    def test_no_plan_raises(
-        self, equipment_model: EquipmentModel, mock_visa_connection: Mock
-    ) -> None:
-        """Running from step without plan raises RuntimeError."""
-        equipment_model.connect_instrument(
-            "TCPIP::192.168.1.100::INSTR", "power_supply"
-        )
-        with pytest.raises(RuntimeError, match="No test plan loaded"):
-            equipment_model.run_test_from_step(2)
-
-    def test_invalid_step_raises(
-        self,
-        equipment_model: EquipmentModel,
-        mock_visa_connection: Mock,
-        sample_power_supply_plan: TestPlan,
-    ) -> None:
-        """Running from nonexistent step raises ValueError."""
-        equipment_model.connect_instrument(
-            "TCPIP::192.168.1.100::INSTR", "power_supply"
-        )
-        equipment_model.load_test_plan(sample_power_supply_plan)
-        with pytest.raises(ValueError, match="Step 99 not found"):
-            equipment_model.run_test_from_step(99)
-
-    def test_wrong_state_raises(
-        self,
-        equipment_model: EquipmentModel,
-        sample_power_supply_plan: TestPlan,
-    ) -> None:
-        """Running from step in UNKNOWN state raises RuntimeError."""
-        # Don't connect - stays in UNKNOWN
-        equipment_model.load_test_plan(sample_power_supply_plan)
-        with pytest.raises(RuntimeError, match="Cannot run test"):
-            equipment_model.run_test_from_step(1)
-
-    def test_skips_earlier_steps(self, mock_visa_connection: Mock) -> None:
-        """_execute_power_supply_plan with start_step=2 skips step 1."""
-        from visa_vulture.instruments import PowerSupply
-
-        model = EquipmentModel(mock_visa_connection)
-        model._state_machine._state = EquipmentState.RUNNING
-        model._test_plan = TestPlan(
-            name="Test",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
-            steps=[
-                PowerSupplyTestStep(
-                    step_number=1, duration_seconds=0.0, voltage=5.0, current=1.0
-                ),
-                PowerSupplyTestStep(
-                    step_number=2, duration_seconds=0.0, voltage=10.0, current=2.0
-                ),
-                PowerSupplyTestStep(
-                    step_number=3, duration_seconds=0.0, voltage=15.0, current=3.0
-                ),
-            ],
-        )
-
-        mock_ps = Mock(spec=PowerSupply)
-        mock_ps.is_connected = True
-        model._instrument = mock_ps
-        model._instrument_type = "power_supply"
-
-        progress_steps: list[int] = []
-        model.register_progress_callback(
-            lambda current, total, step: progress_steps.append(step.step_number)
-        )
-
-        model._execute_power_supply_plan(start_step=2)
-
-        assert progress_steps == [2, 3]
-        mock_ps.enable_output.assert_called_once()
-
-    def test_enables_output_on_start_step(self, mock_visa_connection: Mock) -> None:
-        """Output is enabled on the start step, not step 1."""
-        from visa_vulture.instruments import PowerSupply
-
-        model = EquipmentModel(mock_visa_connection)
-        model._state_machine._state = EquipmentState.RUNNING
-        model._test_plan = TestPlan(
-            name="Test",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
-            steps=[
-                PowerSupplyTestStep(
-                    step_number=1, duration_seconds=0.0, voltage=5.0, current=1.0
-                ),
-                PowerSupplyTestStep(
-                    step_number=2, duration_seconds=0.0, voltage=10.0, current=2.0
-                ),
-            ],
-        )
-
-        mock_ps = Mock(spec=PowerSupply)
-        mock_ps.is_connected = True
-        model._instrument = mock_ps
-        model._instrument_type = "power_supply"
-
-        model._execute_power_supply_plan(start_step=2)
-
-        # enable_output should have been called exactly once (on step 2, not step 1)
-        mock_ps.enable_output.assert_called_once()

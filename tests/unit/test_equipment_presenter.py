@@ -189,12 +189,15 @@ class TestResourceManagerDialogFlow:
         ]
         mock_resource_manager_dialog._result = None  # Cancelled
 
-        with patch(
-            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
-            SynchronousTaskRunner,
-        ), patch(
-            "visa_vulture.view.ResourceManagerDialog",
-            return_value=mock_resource_manager_dialog,
+        with (
+            patch(
+                "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+                SynchronousTaskRunner,
+            ),
+            patch(
+                "visa_vulture.view.ResourceManagerDialog",
+                return_value=mock_resource_manager_dialog,
+            ),
         ):
             presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
             trigger_view_callback(mock_view, "on_connect")
@@ -221,12 +224,15 @@ class TestResourceManagerDialogFlow:
         mock_model_for_presenter.scan_resources.side_effect = Exception("VISA error")
         mock_resource_manager_dialog._result = None
 
-        with patch(
-            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
-            SynchronousTaskRunner,
-        ), patch(
-            "visa_vulture.view.ResourceManagerDialog",
-            return_value=mock_resource_manager_dialog,
+        with (
+            patch(
+                "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+                SynchronousTaskRunner,
+            ),
+            patch(
+                "visa_vulture.view.ResourceManagerDialog",
+                return_value=mock_resource_manager_dialog,
+            ),
         ):
             presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
             trigger_view_callback(mock_view, "on_connect")
@@ -258,12 +264,15 @@ class TestResourceManagerDialogFlow:
         ]
         mock_resource_manager_dialog._result = None
 
-        with patch(
-            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
-            SynchronousTaskRunner,
-        ), patch(
-            "visa_vulture.view.ResourceManagerDialog",
-            return_value=mock_resource_manager_dialog,
+        with (
+            patch(
+                "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+                SynchronousTaskRunner,
+            ),
+            patch(
+                "visa_vulture.view.ResourceManagerDialog",
+                return_value=mock_resource_manager_dialog,
+            ),
         ):
             presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
             trigger_view_callback(mock_view, "on_connect")
@@ -308,12 +317,15 @@ class TestResourceManagerDialogFlow:
         ]
         mock_resource_manager_dialog._result = None
 
-        with patch(
-            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
-            SynchronousTaskRunner,
-        ), patch(
-            "visa_vulture.view.ResourceManagerDialog",
-            return_value=mock_resource_manager_dialog,
+        with (
+            patch(
+                "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+                SynchronousTaskRunner,
+            ),
+            patch(
+                "visa_vulture.view.ResourceManagerDialog",
+                return_value=mock_resource_manager_dialog,
+            ),
         ):
             presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
             trigger_view_callback(mock_view, "on_connect")
@@ -343,12 +355,15 @@ class TestResourceManagerDialogFlow:
             "power_supply",
         )
 
-        with patch(
-            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
-            SynchronousTaskRunner,
-        ), patch(
-            "visa_vulture.view.ResourceManagerDialog",
-            return_value=mock_resource_manager_dialog,
+        with (
+            patch(
+                "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+                SynchronousTaskRunner,
+            ),
+            patch(
+                "visa_vulture.view.ResourceManagerDialog",
+                return_value=mock_resource_manager_dialog,
+            ),
         ):
             presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
             trigger_view_callback(mock_view, "on_connect")
@@ -372,12 +387,15 @@ class TestResourceManagerDialogFlow:
             "power_supply",
         )
 
-        with patch(
-            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
-            SynchronousTaskRunner,
-        ), patch(
-            "visa_vulture.view.ResourceManagerDialog",
-            return_value=mock_resource_manager_dialog,
+        with (
+            patch(
+                "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+                SynchronousTaskRunner,
+            ),
+            patch(
+                "visa_vulture.view.ResourceManagerDialog",
+                return_value=mock_resource_manager_dialog,
+            ),
         ):
             presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
             trigger_view_callback(mock_view, "on_connect")
@@ -399,12 +417,15 @@ class TestResourceManagerDialogFlow:
             "signal_generator",
         )
 
-        with patch(
-            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
-            SynchronousTaskRunner,
-        ), patch(
-            "visa_vulture.view.ResourceManagerDialog",
-            return_value=mock_resource_manager_dialog,
+        with (
+            patch(
+                "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+                SynchronousTaskRunner,
+            ),
+            patch(
+                "visa_vulture.view.ResourceManagerDialog",
+                return_value=mock_resource_manager_dialog,
+            ),
         ):
             presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
             trigger_view_callback(mock_view, "on_connect")
@@ -431,12 +452,15 @@ class TestResourceManagerDialogFlow:
         )
         set_model_state(mock_model_for_presenter, EquipmentState.IDLE)
 
-        with patch(
-            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
-            SynchronousTaskRunner,
-        ), patch(
-            "visa_vulture.view.ResourceManagerDialog",
-            return_value=mock_resource_manager_dialog,
+        with (
+            patch(
+                "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+                SynchronousTaskRunner,
+            ),
+            patch(
+                "visa_vulture.view.ResourceManagerDialog",
+                return_value=mock_resource_manager_dialog,
+            ),
         ):
             presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
             trigger_view_callback(mock_view, "on_connect")
@@ -464,12 +488,15 @@ class TestResourceManagerDialogFlow:
             "Connection refused"
         )
 
-        with patch(
-            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
-            SynchronousTaskRunner,
-        ), patch(
-            "visa_vulture.view.ResourceManagerDialog",
-            return_value=mock_resource_manager_dialog,
+        with (
+            patch(
+                "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+                SynchronousTaskRunner,
+            ),
+            patch(
+                "visa_vulture.view.ResourceManagerDialog",
+                return_value=mock_resource_manager_dialog,
+            ),
         ):
             presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
             trigger_view_callback(mock_view, "on_connect")
@@ -489,12 +516,15 @@ class TestResourceManagerDialogFlow:
 
         mock_resource_manager_dialog._result = None  # Cancelled
 
-        with patch(
-            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
-            SynchronousTaskRunner,
-        ), patch(
-            "visa_vulture.view.ResourceManagerDialog",
-            return_value=mock_resource_manager_dialog,
+        with (
+            patch(
+                "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+                SynchronousTaskRunner,
+            ),
+            patch(
+                "visa_vulture.view.ResourceManagerDialog",
+                return_value=mock_resource_manager_dialog,
+            ),
         ):
             presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
             trigger_view_callback(mock_view, "on_connect")
@@ -1340,7 +1370,7 @@ class TestStartFromHandler:
         mock_model_for_presenter._test_plan = sample_power_supply_plan
         mock_view.show_confirmation.return_value = True
         trigger_view_callback(mock_view, "on_start_from")
-        mock_model_for_presenter.run_test_from_step.assert_called_once_with(2)
+        mock_model_for_presenter.run_test.assert_called_once_with(2)
 
     def test_paused_stops_first(
         self,

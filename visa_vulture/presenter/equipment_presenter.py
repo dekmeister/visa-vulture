@@ -434,7 +434,7 @@ class EquipmentPresenter:
             self._view.power_supply_plot_panel.clear_position()
 
         def task():
-            self._model.run_test_from_step(start_step)
+            self._model.run_test(start_step)
 
         def on_complete(result):
             pass

@@ -233,53 +233,10 @@ class EquipmentModel:
         self._test_plan = test_plan
         logger.info("Loaded test plan: %s", test_plan)
 
-    def run_test(self) -> None:
+    def run_test(self, start_step: int = 1) -> None:
         """
         Execute the loaded test plan.
-
-        Must be called from a background thread.
-        Transitions through RUNNING state and back to IDLE on completion.
-        """
-        if self._test_plan is None:
-            raise RuntimeError("No test plan loaded")
-
-        if self._state_machine.state != EquipmentState.IDLE:
-            raise RuntimeError(
-                f"Cannot run test in {self._state_machine.state.name} state"
-            )
-
-        self._stop_requested = False
-        self._pause_requested = False
-        self._state_machine.to_running()
-
-        try:
-            # Dispatch based on plan type
-            if self._test_plan.plan_type == PLAN_TYPE_POWER_SUPPLY:
-                self._execute_power_supply_plan()
-            elif self._test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
-                self._execute_signal_generator_plan()
-            else:
-                raise RuntimeError(f"Unknown plan type: {self._test_plan.plan_type}")
-
-            success = not self._stop_requested
-            message = "Test completed" if success else "Test stopped by user"
-        except Exception as e:
-            logger.error("Test execution failed: %s", e)
-            self._state_machine.to_error(str(e))
-            self._notify_complete(False, str(e))
-            raise
-        finally:
-            if self._state_machine.state in (
-                EquipmentState.RUNNING,
-                EquipmentState.PAUSED,
-            ):
-                self._state_machine.to_idle()
-
-        self._notify_complete(success, message)
-
-    def run_test_from_step(self, start_step: int) -> None:
-        """
-        Execute the loaded test plan starting from a specific step.
+        Starts from a specific step and if none is specified uses the first step (start of plan).
 
         Must be called from a background thread.
         Transitions through RUNNING state and back to IDLE on completion.
@@ -304,6 +261,7 @@ class EquipmentModel:
         self._state_machine.to_running()
 
         try:
+            # Dispatch based on plan type
             if self._test_plan.plan_type == PLAN_TYPE_POWER_SUPPLY:
                 self._execute_power_supply_plan(start_step=start_step)
             elif self._test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
