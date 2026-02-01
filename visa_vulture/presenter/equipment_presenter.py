@@ -469,12 +469,13 @@ class EquipmentPresenter:
         if new_state == EquipmentState.IDLE and self._pending_start_from is not None:
             start_step, remaining_duration = self._pending_start_from
             self._pending_start_from = None
-            self._view.schedule(
-                50,
-                lambda s=start_step, d=remaining_duration: self._execute_start_from(
-                    s, d
-                ),
-            )
+
+            def start_from_callback(
+                s: int = start_step, d: float = remaining_duration
+            ) -> None:
+                self._execute_start_from(s, d)
+
+            self._view.schedule(50, start_from_callback)
 
         # Schedule view update on main thread
         self._view.schedule(0, lambda: self._update_view_for_state(new_state))

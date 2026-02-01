@@ -297,7 +297,7 @@ class ResourceManagerDialog:
             item = selection[0]
             values = self._tree.item(item, "values")
             if values:
-                return values[0]
+                return str(values[0])
         return None
 
     def get_selected_instrument_type(self) -> str:
