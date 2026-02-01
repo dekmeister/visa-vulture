@@ -689,3 +689,138 @@ class TestReadSignalGeneratorPlanWithModulation:
 
         assert plan is None
         assert any("modulation_frequency must be > 0" in e for e in errors)
+
+
+class TestReadSignalGeneratorPlanModulationValidationFixtures:
+    """Tests for signal generator modulation validation using fixture files."""
+
+    def test_missing_am_depth_fixture_returns_error(
+        self, test_plan_fixtures_path: Path
+    ) -> None:
+        """Missing am_depth in fixture file returns error."""
+        plan, errors = read_test_plan(
+            test_plan_fixtures_path / "invalid_sg_missing_am_depth.csv"
+        )
+
+        assert plan is None
+        assert any("am_depth" in e for e in errors)
+
+    def test_missing_fm_deviation_fixture_returns_error(
+        self, test_plan_fixtures_path: Path
+    ) -> None:
+        """Missing fm_deviation in fixture file returns error."""
+        plan, errors = read_test_plan(
+            test_plan_fixtures_path / "invalid_sg_missing_fm_deviation.csv"
+        )
+
+        assert plan is None
+        assert any("fm_deviation" in e for e in errors)
+
+    def test_missing_modulation_frequency_fixture_returns_error(
+        self, test_plan_fixtures_path: Path
+    ) -> None:
+        """Missing modulation_frequency in fixture file returns error."""
+        plan, errors = read_test_plan(
+            test_plan_fixtures_path / "invalid_sg_missing_mod_freq.csv"
+        )
+
+        assert plan is None
+        assert any("modulation_frequency" in e for e in errors)
+
+    def test_bad_modulation_type_fixture_returns_error(
+        self, test_plan_fixtures_path: Path
+    ) -> None:
+        """Invalid modulation_type in fixture file returns error."""
+        plan, errors = read_test_plan(
+            test_plan_fixtures_path / "invalid_sg_bad_modulation_type.csv"
+        )
+
+        assert plan is None
+        assert any("invalid modulation_type" in e.lower() for e in errors)
+
+    def test_am_depth_over_100_fixture_returns_error(
+        self, test_plan_fixtures_path: Path
+    ) -> None:
+        """AM depth over 100% in fixture file returns error."""
+        plan, errors = read_test_plan(
+            test_plan_fixtures_path / "invalid_sg_am_depth_over_100.csv"
+        )
+
+        assert plan is None
+        assert any("0-100" in e for e in errors)
+
+    def test_negative_am_depth_fixture_returns_error(
+        self, test_plan_fixtures_path: Path
+    ) -> None:
+        """Negative AM depth in fixture file returns error."""
+        plan, errors = read_test_plan(
+            test_plan_fixtures_path / "invalid_sg_negative_am_depth.csv"
+        )
+
+        assert plan is None
+        assert any("0-100" in e for e in errors)
+
+    def test_zero_modulation_frequency_fixture_returns_error(
+        self, test_plan_fixtures_path: Path
+    ) -> None:
+        """Zero modulation_frequency in fixture file returns error."""
+        plan, errors = read_test_plan(
+            test_plan_fixtures_path / "invalid_sg_zero_mod_freq.csv"
+        )
+
+        assert plan is None
+        assert any("modulation_frequency must be > 0" in e for e in errors)
+
+    def test_negative_fm_deviation_fixture_returns_error(
+        self, test_plan_fixtures_path: Path
+    ) -> None:
+        """Negative FM deviation in fixture file returns error."""
+        plan, errors = read_test_plan(
+            test_plan_fixtures_path / "invalid_sg_negative_fm_deviation.csv"
+        )
+
+        assert plan is None
+        assert any("fm_deviation must be > 0" in e for e in errors)
+
+    def test_bad_modulation_enabled_value_fixture_returns_error(
+        self, test_plan_fixtures_path: Path
+    ) -> None:
+        """Invalid modulation_enabled value in fixture file returns error."""
+        plan, errors = read_test_plan(
+            test_plan_fixtures_path / "invalid_sg_bad_mod_enabled_value.csv"
+        )
+
+        assert plan is None
+        assert any("modulation_enabled" in e for e in errors)
+
+    def test_valid_am_fixture_loads_correctly(
+        self, test_plan_fixtures_path: Path
+    ) -> None:
+        """Valid AM modulation fixture loads correctly."""
+        plan, errors = read_test_plan(
+            test_plan_fixtures_path / "valid_signal_generator_am.csv"
+        )
+
+        assert errors == []
+        assert plan is not None
+        assert plan.modulation_config is not None
+        assert plan.modulation_config.modulation_type == ModulationType.AM
+        assert plan.step_count == 3
+        # Check modulation_enabled values match the fixture
+        assert plan.steps[0].modulation_enabled is True
+        assert plan.steps[1].modulation_enabled is False
+        assert plan.steps[2].modulation_enabled is True
+
+    def test_valid_fm_fixture_loads_correctly(
+        self, test_plan_fixtures_path: Path
+    ) -> None:
+        """Valid FM modulation fixture loads correctly."""
+        plan, errors = read_test_plan(
+            test_plan_fixtures_path / "valid_signal_generator_fm.csv"
+        )
+
+        assert errors == []
+        assert plan is not None
+        assert plan.modulation_config is not None
+        assert plan.modulation_config.modulation_type == ModulationType.FM
+        assert plan.step_count == 3

@@ -1,0 +1,6 @@
+# instrument_type: signal_generator
+# modulation_type: am
+# modulation_frequency: 1000
+# am_depth: 150
+duration,frequency,power
+1.0,1000000,0

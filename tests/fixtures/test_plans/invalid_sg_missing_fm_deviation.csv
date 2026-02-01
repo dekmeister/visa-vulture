@@ -1,0 +1,5 @@
+# instrument_type: signal_generator
+# modulation_type: fm
+# modulation_frequency: 1000
+duration,frequency,power
+1.0,1000000,0
