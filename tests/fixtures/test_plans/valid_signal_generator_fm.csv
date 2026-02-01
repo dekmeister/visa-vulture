@@ -1,0 +1,8 @@
+# instrument_type: signal_generator
+# modulation_type: fm
+# modulation_frequency: 400
+# fm_deviation: 75000
+duration,frequency,power,modulation_enabled,description
+1.0,100000000,0,true,FM broadcast test
+1.0,100000000,-10,false,No modulation
+1.0,100000000,0,true,FM resume

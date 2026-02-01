@@ -1,0 +1,10 @@
+# instrument_type: signal_generator
+# modulation_type: am
+# modulation_frequency: 1000
+# am_depth: 50
+duration,frequency,power,modulation_enabled,description
+5.0,1000000,0,true,Start at 1 MHz with 50% AM
+5.0,5000000,-5,true,Sweep to 5 MHz with AM
+5.0,10000000,-10,false,Peak at 10 MHz without modulation
+5.0,5000000,-5,true,Return to 5 MHz with AM
+5.0,1000000,0,true,End at 1 MHz with AM

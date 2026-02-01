@@ -94,6 +94,7 @@ UNKNOWN  ──►  IDLE  ──►  RUNNING  ──►  IDLE
 
 - Simple, editable format for test sequences
 - Required `# instrument_type` metadata comment at the top of the file specifies the plan type
+- Other metadata comments starting with # for various additional functions (e.g. modulation)
 - Data columns vary by instrument type:
   - Power supply: duration, voltage, current columns
   - Signal generator: duration, frequency, power columns

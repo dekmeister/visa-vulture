@@ -21,6 +21,10 @@ from ..model.test_plan import (
     SignalGeneratorTestStep,
     PLAN_TYPE_POWER_SUPPLY,
     PLAN_TYPE_SIGNAL_GENERATOR,
+    ModulationType,
+    ModulationConfig,
+    AMModulationConfig,
+    FMModulationConfig,
 )
 
 logger = logging.getLogger(__name__)
@@ -32,6 +36,15 @@ OPTIONAL_COLUMNS = {"description"}
 
 # Valid instrument types for metadata
 _VALID_INSTRUMENT_TYPES = {PLAN_TYPE_POWER_SUPPLY, PLAN_TYPE_SIGNAL_GENERATOR}
+
+# Modulation metadata keys
+MODULATION_TYPE_KEY = "modulation_type"
+MODULATION_FREQUENCY_KEY = "modulation_frequency"
+AM_DEPTH_KEY = "am_depth"
+FM_DEVIATION_KEY = "fm_deviation"
+
+# Valid modulation type values
+VALID_MODULATION_TYPES = {"am", "fm"}
 
 
 def read_test_plan(file_path: str | Path) -> tuple[TestPlan | None, list[str]]:
@@ -134,7 +147,27 @@ def read_test_plan(file_path: str | Path) -> tuple[TestPlan | None, list[str]]:
                     f"Missing required columns for signal generator: {', '.join(sorted(missing))}"
                 )
                 return None, errors
-            return _parse_test_plan(file_path, rows, column_map, errors, plan_type)
+
+            # Parse modulation config from metadata (may be None if not specified)
+            modulation_config = _parse_modulation_config(metadata, errors)
+            if errors:
+                return None, errors
+
+            result, parse_errors = _parse_test_plan(
+                file_path, rows, column_map, errors, plan_type
+            )
+
+            # Attach modulation config to the test plan if present
+            if result is not None and modulation_config is not None:
+                result = TestPlan(
+                    name=result.name,
+                    plan_type=result.plan_type,
+                    steps=result.steps,
+                    description=result.description,
+                    modulation_config=modulation_config,
+                )
+
+            return result, parse_errors
 
         else:
             errors.append(f"Unknown plan type: '{plan_type}'")
@@ -173,6 +206,8 @@ def _parse_metadata(file_content: str) -> tuple[dict[str, str], str]:
             csv_start = i + 1
         else:
             break
+
+    logger.debug("Loaded metadata from testplan file: %s", metadata)
 
     csv_content = "".join(lines[csv_start:])
     return metadata, csv_content
@@ -342,6 +377,21 @@ def _parse_signal_generator_row(
         errors.append(f"Row {row_num}: invalid power value '{power_str}'")
         return None, errors
 
+    # Parse optional modulation_enabled
+    modulation_enabled = False
+    mod_enabled_str = _get_value(row, column_map, "modulation_enabled")
+    if mod_enabled_str:
+        mod_enabled_lower = mod_enabled_str.lower()
+        if mod_enabled_lower in ("true", "1", "yes"):
+            modulation_enabled = True
+        elif mod_enabled_lower in ("false", "0", "no", ""):
+            modulation_enabled = False
+        else:
+            errors.append(
+                f"Row {row_num}: invalid modulation_enabled value '{mod_enabled_str}'. "
+                f"Use true/false, 1/0, or yes/no"
+            )
+
     # Parse optional description
     description = _get_value(row, column_map, "description")
 
@@ -354,7 +404,120 @@ def _parse_signal_generator_row(
             duration_seconds=duration_seconds,
             frequency=frequency,
             power=power,
+            modulation_enabled=modulation_enabled,
             description=description,
         ),
         [],
+    )
+
+
+def _parse_modulation_config(
+    metadata: dict[str, str],
+    errors: list[str],
+) -> ModulationConfig | None:
+    """
+    Parse modulation configuration from metadata.
+
+    Returns None if no modulation type specified.
+    Appends to errors list if modulation type is specified but
+    required parameters are missing or invalid.
+
+    Args:
+        metadata: Parsed metadata dictionary
+        errors: List to accumulate error messages
+
+    Returns:
+        ModulationConfig or None if no modulation configured
+    """
+    mod_type_str = metadata.get(MODULATION_TYPE_KEY)
+    if not mod_type_str:
+        return None
+
+    if mod_type_str not in VALID_MODULATION_TYPES:
+        errors.append(
+            f"Invalid modulation_type '{mod_type_str}'. "
+            f"Must be one of: {', '.join(sorted(VALID_MODULATION_TYPES))}"
+        )
+        return None
+
+    # Parse common modulation_frequency
+    mod_freq_str = metadata.get(MODULATION_FREQUENCY_KEY)
+    if not mod_freq_str:
+        errors.append(
+            f"Missing required metadata '{MODULATION_FREQUENCY_KEY}' "
+            f"when modulation_type is '{mod_type_str}'"
+        )
+        return None
+
+    try:
+        mod_freq = float(mod_freq_str)
+        if mod_freq <= 0:
+            errors.append(f"modulation_frequency must be > 0, got {mod_freq}")
+            return None
+    except ValueError:
+        errors.append(f"Invalid modulation_frequency value '{mod_freq_str}'")
+        return None
+
+    # Parse type-specific parameters
+    if mod_type_str == "am":
+        return _parse_am_config(metadata, mod_freq, errors)
+    elif mod_type_str == "fm":
+        return _parse_fm_config(metadata, mod_freq, errors)
+
+    return None
+
+
+def _parse_am_config(
+    metadata: dict[str, str],
+    mod_freq: float,
+    errors: list[str],
+) -> AMModulationConfig | None:
+    """Parse AM-specific configuration from metadata."""
+    depth_str = metadata.get(AM_DEPTH_KEY)
+    if not depth_str:
+        errors.append(f"Missing required metadata '{AM_DEPTH_KEY}' for AM modulation")
+        return None
+
+    try:
+        depth = float(depth_str)
+        if not 0 <= depth <= 100:
+            errors.append(f"am_depth must be 0-100%, got {depth}")
+            return None
+    except ValueError:
+        errors.append(f"Invalid am_depth value '{depth_str}'")
+        return None
+
+    return AMModulationConfig(
+        modulation_type=ModulationType.AM,
+        modulation_frequency=mod_freq,
+        depth=depth,
+    )
+
+
+def _parse_fm_config(
+    metadata: dict[str, str],
+    mod_freq: float,
+    errors: list[str],
+) -> FMModulationConfig | None:
+    """Parse FM-specific configuration from metadata."""
+    deviation_str = metadata.get(FM_DEVIATION_KEY)
+    if not deviation_str:
+        errors.append(
+            f"Missing required metadata '{FM_DEVIATION_KEY}' for FM modulation"
+        )
+        return None
+
+    try:
+        deviation = float(deviation_str)
+        if deviation <= 0:
+            errors.append(f"fm_deviation must be > 0, got {deviation}")
+            return None
+    except ValueError:
+        errors.append(f"Invalid fm_deviation value '{deviation_str}'")
+        return None
+
+    return FMModulationConfig(
+        modulation_type=ModulationType.FM,
+        modulation_frequency=mod_freq,
+        deviation=deviation,
     )

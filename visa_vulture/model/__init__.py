@@ -9,6 +9,10 @@ from .test_plan import (
     SignalGeneratorTestStep,
     PLAN_TYPE_POWER_SUPPLY,
     PLAN_TYPE_SIGNAL_GENERATOR,
+    ModulationType,
+    ModulationConfig,
+    AMModulationConfig,
+    FMModulationConfig,
 )
 
 __all__ = [
@@ -20,4 +24,8 @@ __all__ = [
     "SignalGeneratorTestStep",
     "PLAN_TYPE_POWER_SUPPLY",
     "PLAN_TYPE_SIGNAL_GENERATOR",
+    "ModulationType",
+    "ModulationConfig",
+    "AMModulationConfig",
+    "FMModulationConfig",
 ]

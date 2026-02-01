@@ -127,6 +127,86 @@ devices:
           r: ""
           value: 0
 
+      # AM modulation properties
+      am_source:
+        default: "INT"
+        setter:
+          q: "AM:SOUR INT"
+          r: ""
+
+      am_frequency:
+        default: 1000.0
+        getter:
+          q: "AM:INT:FREQ?"
+          r: "{:.1f}"
+        setter:
+          q: "AM:INT:FREQ {:.1f}"
+
+      am_depth:
+        default: 50.0
+        getter:
+          q: "AM:DEPT?"
+          r: "{:.1f}"
+        setter:
+          q: "AM:DEPT {:.1f}"
+
+      am_state:
+        default: 0
+        getter:
+          q: "AM:STAT?"
+          r: "{:d}"
+        setter:
+          q: "AM:STAT ON"
+          r: ""
+          value: 1
+
+      am_state_off:
+        default: 0
+        setter:
+          q: "AM:STAT OFF"
+          r: ""
+          value: 0
+
+      # FM modulation properties
+      fm_source:
+        default: "INT"
+        setter:
+          q: "FM:SOUR INT"
+          r: ""
+
+      fm_frequency:
+        default: 1000.0
+        getter:
+          q: "FM:INT:FREQ?"
+          r: "{:.1f}"
+        setter:
+          q: "FM:INT:FREQ {:.1f}"
+
+      fm_deviation:
+        default: 5000.0
+        getter:
+          q: "FM:DEV?"
+          r: "{:.1f}"
+        setter:
+          q: "FM:DEV {:.1f}"
+
+      fm_state:
+        default: 0
+        getter:
+          q: "FM:STAT?"
+          r: "{:d}"
+        setter:
+          q: "FM:STAT ON"
+          r: ""
+          value: 1
+
+      fm_state_off:
+        default: 0
+        setter:
+          q: "FM:STAT OFF"
+          r: ""
+          value: 0
+
     eom:
       TCPIP INSTR:
         q: "\n"

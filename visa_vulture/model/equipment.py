@@ -13,6 +13,7 @@ from .test_plan import (
     SignalGeneratorTestStep,
     PLAN_TYPE_POWER_SUPPLY,
     PLAN_TYPE_SIGNAL_GENERATOR,
+    ModulationType,
 )
 
 logger = logging.getLogger(__name__)
@@ -384,8 +385,21 @@ class EquipmentModel:
             raise RuntimeError("Connected instrument is not a signal generator")
         signal_gen = self._instrument
 
+        # Configure modulation once at start if specified
+        modulation_config = self._test_plan.modulation_config
+        if modulation_config is not None:
+            logger.info(
+                "Configuring modulation: %s", modulation_config.modulation_type.value
+            )
+            signal_gen.configure_modulation(modulation_config)
+            # Start with modulation disabled; steps control when it's on
+            signal_gen.set_modulation_enabled(modulation_config, False)
+
         total_steps = self._test_plan.step_count
         sorted_steps = sorted(self._test_plan.steps, key=lambda s: s.step_number)
+
+        # Track previous modulation state to avoid redundant commands
+        prev_mod_enabled: bool | None = None
 
         for step in sorted_steps:
             # Skip steps before start_step
@@ -401,16 +415,25 @@ class EquipmentModel:
                 raise TypeError(f"Expected SignalGeneratorTestStep, got {type(step)}")
 
             logger.info(
-                "Executing step %d/%d: F=%.1f Hz, P=%.2f dBm",
+                "Executing step %d/%d: F=%.1f Hz, P=%.2f dBm, Mod=%s",
                 step.step_number,
                 total_steps,
                 step.frequency,
                 step.power,
+                "ON" if step.modulation_enabled else "OFF",
             )
 
             # Apply settings
             signal_gen.set_frequency(step.frequency)
             signal_gen.set_power(step.power)
+
+            # Handle modulation state change
+            if modulation_config is not None:
+                if prev_mod_enabled != step.modulation_enabled:
+                    signal_gen.set_modulation_enabled(
+                        modulation_config, step.modulation_enabled
+                    )
+                    prev_mod_enabled = step.modulation_enabled
 
             # Enable output on first executed step
             if step.step_number == start_step:
@@ -423,8 +446,10 @@ class EquipmentModel:
             if step.duration_seconds > 0:
                 self._interruptible_sleep(step.duration_seconds)
 
-        # Disable output at end
+        # Disable modulation and output at end
         if signal_gen.is_connected:
+            if modulation_config is not None:
+                signal_gen.disable_all_modulation()
             signal_gen.disable_output()
 
     def _interruptible_sleep(self, duration: float) -> None:

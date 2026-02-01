@@ -71,7 +71,19 @@ python -m visa_vulture
 
 ### Test Plan Format
 
-Test plans are CSV files. The format depends on the instrument type. Step numbers are assigned automatically based on row order. The instrument type of the test plan is defined in a header row (indicated by lines starting with #).
+Test plans are CSV files. The format depends on the instrument type. Step numbers are assigned automatically based on row order. 
+
+#### Metadata
+
+Metadata rows are indicated by lines starting with # and placed at the start of the testplan file. Metadata applies to the entire file. Metadata includes:
+
+| Metadata | Required | Description |
+|--------|----------|-------------|
+| instrument_type | Yes | Type of instrument (power_supply or signal_generator) |
+| modulation_type | No | Type of modulation (am or fm) |
+| modulation_frequency | Yes (modulation only) | Frequency of modulation in Hz |
+| am_depth | Yes (AM modulation only) | Depth of modulation (0-100) |
+| fm_devition | Yes (FM modulation only) | Deviation of modulation in Hz |
 
 #### Power Supply Test Plans
 
@@ -99,6 +111,7 @@ duration,voltage,current,description
 | duration | Yes | Duration of this step in seconds |
 | frequency | Yes | Frequency in Hz |
 | power | Yes | Power level in dBm |
+| modulation | No | Modulation enabled or disabled for step (defaults to disabled) |
 | description | No | Optional step description |
 
 Example (`./plans/sample_signal_generator_test_plan.csv`):
@@ -108,6 +121,20 @@ duration,frequency,power,description
 5.0,1000000,0,Start at 1 MHz
 5.0,5000000,-5,Sweep to 5 MHz
 5.0,10000000,-10,Peak at 10 MHz
+```
+
+Example (`./plans/sample_signal_generator_am_test_plan.csv`):
+```csv
+# instrument_type: signal_generator
+# modulation_type: am
+# modulation_frequency: 1000
+# am_depth: 50
+duration,frequency,power,modulation_enabled,description
+5.0,1000000,0,true,Start at 1 MHz with 50% AM
+5.0,5000000,-5,true,Sweep to 5 MHz with AM
+5.0,10000000,-10,false,Peak at 10 MHz without modulation
+5.0,5000000,-5,true,Return to 5 MHz with AM
+5.0,1000000,0,true,End at 1 MHz with AM
 ```
 
 ### Configuration

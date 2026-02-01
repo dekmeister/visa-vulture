@@ -10,6 +10,9 @@ from visa_vulture.model.test_plan import (
     PLAN_TYPE_SIGNAL_GENERATOR,
     PowerSupplyTestStep,
     SignalGeneratorTestStep,
+    ModulationType,
+    AMModulationConfig,
+    FMModulationConfig,
 )
 
 
@@ -417,3 +420,272 @@ class TestReadTestPlanPathTypes:
 
         assert errors == []
         assert plan is not None
+
+
+class TestReadSignalGeneratorPlanWithModulation:
+    """Tests for signal generator plan parsing with modulation metadata."""
+
+    def test_am_modulation_metadata_parsed(self, tmp_path: Path) -> None:
+        """AM modulation metadata is parsed correctly."""
+        csv_path = tmp_path / "am_test.csv"
+        csv_path.write_text(
+            "# instrument_type: signal_generator\n"
+            "# modulation_type: am\n"
+            "# modulation_frequency: 1000\n"
+            "# am_depth: 50\n"
+            "duration,frequency,power,modulation_enabled\n"
+            "1.0,1000000,0,true\n"
+        )
+
+        plan, errors = read_test_plan(csv_path)
+
+        assert errors == []
+        assert plan is not None
+        assert plan.modulation_config is not None
+        assert isinstance(plan.modulation_config, AMModulationConfig)
+        assert plan.modulation_config.modulation_type == ModulationType.AM
+        assert plan.modulation_config.modulation_frequency == 1000.0
+        assert plan.modulation_config.depth == 50.0
+
+    def test_fm_modulation_metadata_parsed(self, tmp_path: Path) -> None:
+        """FM modulation metadata is parsed correctly."""
+        csv_path = tmp_path / "fm_test.csv"
+        csv_path.write_text(
+            "# instrument_type: signal_generator\n"
+            "# modulation_type: fm\n"
+            "# modulation_frequency: 1000\n"
+            "# fm_deviation: 5000\n"
+            "duration,frequency,power\n"
+            "1.0,1000000,0\n"
+        )
+
+        plan, errors = read_test_plan(csv_path)
+
+        assert errors == []
+        assert plan is not None
+        assert isinstance(plan.modulation_config, FMModulationConfig)
+        assert plan.modulation_config.modulation_type == ModulationType.FM
+        assert plan.modulation_config.modulation_frequency == 1000.0
+        assert plan.modulation_config.deviation == 5000.0
+
+    def test_no_modulation_type_results_in_none_config(self, tmp_path: Path) -> None:
+        """Without modulation_type, modulation_config is None."""
+        csv_path = tmp_path / "no_mod.csv"
+        csv_path.write_text(
+            "# instrument_type: signal_generator\n"
+            "duration,frequency,power\n"
+            "1.0,1000000,0\n"
+        )
+
+        plan, errors = read_test_plan(csv_path)
+
+        assert errors == []
+        assert plan is not None
+        assert plan.modulation_config is None
+
+    def test_missing_modulation_frequency_returns_error(self, tmp_path: Path) -> None:
+        """Missing modulation_frequency with modulation_type returns error."""
+        csv_path = tmp_path / "missing_freq.csv"
+        csv_path.write_text(
+            "# instrument_type: signal_generator\n"
+            "# modulation_type: am\n"
+            "# am_depth: 50\n"
+            "duration,frequency,power\n"
+            "1.0,1000000,0\n"
+        )
+
+        plan, errors = read_test_plan(csv_path)
+
+        assert plan is None
+        assert any("modulation_frequency" in e for e in errors)
+
+    def test_missing_am_depth_returns_error(self, tmp_path: Path) -> None:
+        """Missing am_depth for AM modulation returns error."""
+        csv_path = tmp_path / "missing_depth.csv"
+        csv_path.write_text(
+            "# instrument_type: signal_generator\n"
+            "# modulation_type: am\n"
+            "# modulation_frequency: 1000\n"
+            "duration,frequency,power\n"
+            "1.0,1000000,0\n"
+        )
+
+        plan, errors = read_test_plan(csv_path)
+
+        assert plan is None
+        assert any("am_depth" in e for e in errors)
+
+    def test_missing_fm_deviation_returns_error(self, tmp_path: Path) -> None:
+        """Missing fm_deviation for FM modulation returns error."""
+        csv_path = tmp_path / "missing_dev.csv"
+        csv_path.write_text(
+            "# instrument_type: signal_generator\n"
+            "# modulation_type: fm\n"
+            "# modulation_frequency: 1000\n"
+            "duration,frequency,power\n"
+            "1.0,1000000,0\n"
+        )
+
+        plan, errors = read_test_plan(csv_path)
+
+        assert plan is None
+        assert any("fm_deviation" in e for e in errors)
+
+    def test_invalid_modulation_type_returns_error(self, tmp_path: Path) -> None:
+        """Invalid modulation_type returns error."""
+        csv_path = tmp_path / "bad_mod_type.csv"
+        csv_path.write_text(
+            "# instrument_type: signal_generator\n"
+            "# modulation_type: invalid\n"
+            "duration,frequency,power\n"
+            "1.0,1000000,0\n"
+        )
+
+        plan, errors = read_test_plan(csv_path)
+
+        assert plan is None
+        assert any("invalid modulation_type" in e.lower() for e in errors)
+
+    def test_modulation_enabled_column_parsed_true_values(
+        self, tmp_path: Path
+    ) -> None:
+        """modulation_enabled column parses true values correctly."""
+        csv_path = tmp_path / "mod_enabled.csv"
+        csv_path.write_text(
+            "# instrument_type: signal_generator\n"
+            "# modulation_type: am\n"
+            "# modulation_frequency: 1000\n"
+            "# am_depth: 50\n"
+            "duration,frequency,power,modulation_enabled\n"
+            "1.0,1000000,0,true\n"
+            "1.0,2000000,-10,1\n"
+            "1.0,3000000,-5,yes\n"
+        )
+
+        plan, errors = read_test_plan(csv_path)
+
+        assert errors == []
+        assert plan is not None
+        assert plan.steps[0].modulation_enabled is True
+        assert plan.steps[1].modulation_enabled is True
+        assert plan.steps[2].modulation_enabled is True
+
+    def test_modulation_enabled_column_parsed_false_values(
+        self, tmp_path: Path
+    ) -> None:
+        """modulation_enabled column parses false values correctly."""
+        csv_path = tmp_path / "mod_disabled.csv"
+        csv_path.write_text(
+            "# instrument_type: signal_generator\n"
+            "duration,frequency,power,modulation_enabled\n"
+            "1.0,1000000,0,false\n"
+            "1.0,2000000,-10,0\n"
+            "1.0,3000000,-5,no\n"
+        )
+
+        plan, errors = read_test_plan(csv_path)
+
+        assert errors == []
+        assert plan is not None
+        assert plan.steps[0].modulation_enabled is False
+        assert plan.steps[1].modulation_enabled is False
+        assert plan.steps[2].modulation_enabled is False
+
+    def test_modulation_enabled_defaults_to_false(self, tmp_path: Path) -> None:
+        """Missing modulation_enabled column defaults to False."""
+        csv_path = tmp_path / "no_mod_col.csv"
+        csv_path.write_text(
+            "# instrument_type: signal_generator\n"
+            "duration,frequency,power\n"
+            "1.0,1000000,0\n"
+        )
+
+        plan, errors = read_test_plan(csv_path)
+
+        assert errors == []
+        assert plan is not None
+        assert plan.steps[0].modulation_enabled is False
+
+    def test_invalid_modulation_enabled_value_returns_error(
+        self, tmp_path: Path
+    ) -> None:
+        """Invalid modulation_enabled value returns error."""
+        csv_path = tmp_path / "bad_mod_enabled.csv"
+        csv_path.write_text(
+            "# instrument_type: signal_generator\n"
+            "duration,frequency,power,modulation_enabled\n"
+            "1.0,1000000,0,maybe\n"
+        )
+
+        plan, errors = read_test_plan(csv_path)
+
+        assert plan is None
+        assert any("modulation_enabled" in e for e in errors)
+
+    def test_invalid_am_depth_value_returns_error(self, tmp_path: Path) -> None:
+        """Invalid am_depth value returns error."""
+        csv_path = tmp_path / "bad_depth.csv"
+        csv_path.write_text(
+            "# instrument_type: signal_generator\n"
+            "# modulation_type: am\n"
+            "# modulation_frequency: 1000\n"
+            "# am_depth: notanumber\n"
+            "duration,frequency,power\n"
+            "1.0,1000000,0\n"
+        )
+
+        plan, errors = read_test_plan(csv_path)
+
+        assert plan is None
+        assert any("am_depth" in e for e in errors)
+
+    def test_am_depth_out_of_range_returns_error(self, tmp_path: Path) -> None:
+        """AM depth outside 0-100 range returns error."""
+        csv_path = tmp_path / "depth_over.csv"
+        csv_path.write_text(
+            "# instrument_type: signal_generator\n"
+            "# modulation_type: am\n"
+            "# modulation_frequency: 1000\n"
+            "# am_depth: 150\n"
+            "duration,frequency,power\n"
+            "1.0,1000000,0\n"
+        )
+
+        plan, errors = read_test_plan(csv_path)
+
+        assert plan is None
+        assert any("0-100" in e for e in errors)
+
+    def test_invalid_modulation_frequency_returns_error(self, tmp_path: Path) -> None:
+        """Invalid modulation_frequency value returns error."""
+        csv_path = tmp_path / "bad_freq.csv"
+        csv_path.write_text(
+            "# instrument_type: signal_generator\n"
+            "# modulation_type: am\n"
+            "# modulation_frequency: notanumber\n"
+            "# am_depth: 50\n"
+            "duration,frequency,power\n"
+            "1.0,1000000,0\n"
+        )
+
+        plan, errors = read_test_plan(csv_path)
+
+        assert plan is None
+        assert any("modulation_frequency" in e for e in errors)
+
+    def test_zero_modulation_frequency_returns_error(self, tmp_path: Path) -> None:
+        """Zero modulation_frequency returns error."""
+        csv_path = tmp_path / "zero_freq.csv"
+        csv_path.write_text(
+            "# instrument_type: signal_generator\n"
+            "# modulation_type: am\n"
+            "# modulation_frequency: 0\n"
+            "# am_depth: 50\n"
+            "duration,frequency,power\n"
+            "1.0,1000000,0\n"
+        )
+
+        plan, errors = read_test_plan(csv_path)
+
+        assert plan is None
+        assert any("modulation_frequency must be > 0" in e for e in errors)

@@ -1,0 +1,8 @@
+# instrument_type: signal_generator
+# modulation_type: am
+# modulation_frequency: 1000
+# am_depth: 50
+duration,frequency,power,modulation_enabled,description
+1.0,1000000,0,true,Start with AM
+1.0,2000000,-10,false,Sweep no mod
+1.0,1000000,0,true,End with AM
