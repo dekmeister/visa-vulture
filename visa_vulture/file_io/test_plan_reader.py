@@ -13,6 +13,8 @@ import io
 import logging
 from pathlib import Path
 
+from typing import Union
+
 from ..model.test_plan import (
     TestPlan,
     PowerSupplyTestStep,
@@ -123,7 +125,7 @@ def read_test_plan(file_path: str | Path) -> tuple[TestPlan | None, list[str]]:
                     f"Missing required columns for power supply: {', '.join(sorted(missing))}"
                 )
                 return None, errors
-            return _parse_power_supply_plan(file_path, rows, column_map, errors)
+            return _parse_test_plan(file_path, rows, column_map, errors, plan_type)
 
         elif plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
             missing = SIGNAL_GENERATOR_COLUMNS - columns
@@ -132,7 +134,7 @@ def read_test_plan(file_path: str | Path) -> tuple[TestPlan | None, list[str]]:
                     f"Missing required columns for signal generator: {', '.join(sorted(missing))}"
                 )
                 return None, errors
-            return _parse_signal_generator_plan(file_path, rows, column_map, errors)
+            return _parse_test_plan(file_path, rows, column_map, errors, plan_type)
 
         else:
             errors.append(f"Unknown plan type: '{plan_type}'")
@@ -176,20 +178,32 @@ def _parse_metadata(file_content: str) -> tuple[dict[str, str], str]:
     return metadata, csv_content
 
 
-def _parse_power_supply_plan(
+def _parse_test_plan(
     file_path: Path,
     rows: list[dict[str, str]],
     column_map: dict[str, str],
     errors: list[str],
+    plan_type: str,
 ) -> tuple[TestPlan | None, list[str]]:
-    """Parse rows into a power supply TestPlan."""
-    steps: list[PowerSupplyTestStep] = []
+    """Parse rows into a suitable type of TestPlan."""
+    if plan_type not in (PLAN_TYPE_POWER_SUPPLY, PLAN_TYPE_SIGNAL_GENERATOR):
+        errors.append(f"Unknown plan type: '{plan_type}'")
+        return None, errors
+
+    steps: list[PowerSupplyTestStep | SignalGeneratorTestStep] = []
 
     for row_num, row in enumerate(rows, start=2):
         step_number = row_num - 1  # 1-based step number (row 2 = step 1)
-        step, row_errors = _parse_power_supply_row(
-            row, column_map, row_num, step_number
-        )
+        step: PowerSupplyTestStep | SignalGeneratorTestStep | None = None
+        row_errors: list[str] = []
+        if plan_type == PLAN_TYPE_POWER_SUPPLY:
+            step, row_errors = _parse_power_supply_row(
+                row, column_map, row_num, step_number
+            )
+        elif plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
+            step, row_errors = _parse_signal_generator_row(
+                row, column_map, row_num, step_number
+            )
         if row_errors:
             errors.extend(row_errors)
         elif step is not None:
@@ -203,7 +217,7 @@ def _parse_power_supply_plan(
         return None, errors
 
     plan_name = file_path.stem
-    test_plan = TestPlan(name=plan_name, steps=steps, plan_type=PLAN_TYPE_POWER_SUPPLY)
+    test_plan = TestPlan(name=plan_name, steps=steps, plan_type=plan_type)
 
     validation_errors = test_plan.validate()
     if validation_errors:
@@ -211,52 +225,8 @@ def _parse_power_supply_plan(
         return None, errors
 
     logger.info(
-        "Loaded power supply test plan '%s' from %s: %d steps",
-        plan_name,
-        file_path,
-        len(steps),
-    )
-    return test_plan, []
-
-
-def _parse_signal_generator_plan(
-    file_path: Path,
-    rows: list[dict[str, str]],
-    column_map: dict[str, str],
-    errors: list[str],
-) -> tuple[TestPlan | None, list[str]]:
-    """Parse rows into a signal generator TestPlan."""
-    steps: list[SignalGeneratorTestStep] = []
-
-    for row_num, row in enumerate(rows, start=2):
-        step_number = row_num - 1  # 1-based step number (row 2 = step 1)
-        step, row_errors = _parse_signal_generator_row(
-            row, column_map, row_num, step_number
-        )
-        if row_errors:
-            errors.extend(row_errors)
-        elif step is not None:
-            steps.append(step)
-
-    if errors:
-        return None, errors
-
-    if not steps:
-        errors.append("No valid steps found in CSV")
-        return None, errors
-
-    plan_name = file_path.stem
-    test_plan = TestPlan(
-        name=plan_name, steps=steps, plan_type=PLAN_TYPE_SIGNAL_GENERATOR
-    )
-
-    validation_errors = test_plan.validate()
-    if validation_errors:
-        errors.extend(validation_errors)
-        return None, errors
-
-    logger.info(
-        "Loaded signal generator test plan '%s' from %s: %d steps",
+        "Loaded %s test plan '%s' from %s: %d steps",
+        plan_type,
         plan_name,
         file_path,
         len(steps),
