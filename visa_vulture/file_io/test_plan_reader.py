@@ -11,10 +11,12 @@ Followed by the standard CSV header and data rows.
 import csv
 import io
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from typing import Union
 
+from ..config.schema import ValidationLimits
 from ..model.test_plan import (
     TestPlan,
     PowerSupplyTestStep,
@@ -25,7 +27,27 @@ from ..model.test_plan import (
     ModulationConfig,
     AMModulationConfig,
     FMModulationConfig,
+    HARD_LIMIT_POWER_MIN_DBM,
+    HARD_LIMIT_POWER_MAX_DBM,
+    HARD_LIMIT_FREQUENCY_MAX_HZ,
+    HARD_LIMIT_VOLTAGE_MAX_V,
+    HARD_LIMIT_CURRENT_MAX_A,
 )
+
+
+@dataclass
+class TestPlanResult:
+    """Result of reading a test plan with errors and warnings.
+
+    Attributes:
+        plan: The parsed TestPlan, or None if errors occurred
+        errors: List of error messages that prevented loading
+        warnings: List of warning messages (soft limit violations)
+    """
+
+    plan: TestPlan | None
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +69,10 @@ FM_DEVIATION_KEY = "fm_deviation"
 VALID_MODULATION_TYPES = {"am", "fm"}
 
 
-def read_test_plan(file_path: str | Path) -> tuple[TestPlan | None, list[str]]:
+def read_test_plan(
+    file_path: str | Path,
+    soft_limits: ValidationLimits | None = None,
+) -> TestPlanResult:
     """
     Read a test plan from a CSV file.
 
@@ -69,9 +94,12 @@ def read_test_plan(file_path: str | Path) -> tuple[TestPlan | None, list[str]]:
 
     Args:
         file_path: Path to CSV file
+        soft_limits: Optional ValidationLimits for soft limit checking.
+            If provided, values exceeding soft limits generate warnings.
+            If None, soft limit validation is skipped.
 
     Returns:
-        Tuple of (TestPlan or None, list of error messages)
+        TestPlanResult with plan (or None if errors), errors list, and warnings list
     """
     errors: list[str] = []
     file_path = Path(file_path)
@@ -79,7 +107,7 @@ def read_test_plan(file_path: str | Path) -> tuple[TestPlan | None, list[str]]:
     # Check file exists
     if not file_path.exists():
         errors.append(f"File not found: {file_path}")
-        return None, errors
+        return TestPlanResult(plan=None, errors=errors)
 
     # Read file and parse metadata
     try:
@@ -87,7 +115,7 @@ def read_test_plan(file_path: str | Path) -> tuple[TestPlan | None, list[str]]:
             file_content = f.read()
     except OSError as e:
         errors.append(f"Error reading file: {e}")
-        return None, errors
+        return TestPlanResult(plan=None, errors=errors)
 
     metadata, csv_content = _parse_metadata(file_content)
 
@@ -97,11 +125,11 @@ def read_test_plan(file_path: str | Path) -> tuple[TestPlan | None, list[str]]:
             "Missing required metadata. Add '# instrument_type: power_supply' "
             "or '# instrument_type: signal_generator' at the top of the CSV file"
         )
-        return None, errors
+        return TestPlanResult(plan=None, errors=errors)
 
     if "instrument_type" not in metadata:
         errors.append("Missing required metadata field 'instrument_type'")
-        return None, errors
+        return TestPlanResult(plan=None, errors=errors)
 
     plan_type = metadata["instrument_type"]
     if plan_type not in _VALID_INSTRUMENT_TYPES:
@@ -109,7 +137,7 @@ def read_test_plan(file_path: str | Path) -> tuple[TestPlan | None, list[str]]:
             f"Invalid instrument_type '{plan_type}'. "
             f"Must be '{PLAN_TYPE_POWER_SUPPLY}' or '{PLAN_TYPE_SIGNAL_GENERATOR}'"
         )
-        return None, errors
+        return TestPlanResult(plan=None, errors=errors)
 
     # Parse CSV content
     try:
@@ -117,7 +145,7 @@ def read_test_plan(file_path: str | Path) -> tuple[TestPlan | None, list[str]]:
 
         if reader.fieldnames is None:
             errors.append("CSV file is empty or has no header row")
-            return None, errors
+            return TestPlanResult(plan=None, errors=errors)
 
         # Normalize column names to lowercase
         columns = {name.lower().strip() for name in reader.fieldnames}
@@ -128,7 +156,7 @@ def read_test_plan(file_path: str | Path) -> tuple[TestPlan | None, list[str]]:
 
         if not rows:
             errors.append("CSV file has no data rows")
-            return None, errors
+            return TestPlanResult(plan=None, errors=errors)
 
         # Validate columns for detected type
         if plan_type == PLAN_TYPE_POWER_SUPPLY:
@@ -137,8 +165,18 @@ def read_test_plan(file_path: str | Path) -> tuple[TestPlan | None, list[str]]:
                 errors.append(
                     f"Missing required columns for power supply: {', '.join(sorted(missing))}"
                 )
-                return None, errors
-            return _parse_test_plan(file_path, rows, column_map, errors, plan_type)
+                return TestPlanResult(plan=None, errors=errors)
+            plan, parse_errors = _parse_test_plan(
+                file_path, rows, column_map, errors, plan_type
+            )
+            if parse_errors:
+                return TestPlanResult(plan=None, errors=parse_errors)
+            warnings = (
+                _validate_soft_limits(plan, soft_limits)
+                if plan and soft_limits
+                else []
+            )
+            return TestPlanResult(plan=plan, errors=[], warnings=warnings)
 
         elif plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
             missing = SIGNAL_GENERATOR_COLUMNS - columns
@@ -146,16 +184,19 @@ def read_test_plan(file_path: str | Path) -> tuple[TestPlan | None, list[str]]:
                 errors.append(
                     f"Missing required columns for signal generator: {', '.join(sorted(missing))}"
                 )
-                return None, errors
+                return TestPlanResult(plan=None, errors=errors)
 
             # Parse modulation config from metadata (may be None if not specified)
             modulation_config = _parse_modulation_config(metadata, errors)
             if errors:
-                return None, errors
+                return TestPlanResult(plan=None, errors=errors)
 
             result, parse_errors = _parse_test_plan(
                 file_path, rows, column_map, errors, plan_type
             )
+
+            if parse_errors:
+                return TestPlanResult(plan=None, errors=parse_errors)
 
             # Attach modulation config to the test plan if present
             if result is not None and modulation_config is not None:
@@ -167,15 +208,20 @@ def read_test_plan(file_path: str | Path) -> tuple[TestPlan | None, list[str]]:
                     modulation_config=modulation_config,
                 )
 
-            return result, parse_errors
+            warnings = (
+                _validate_soft_limits(result, soft_limits)
+                if result and soft_limits
+                else []
+            )
+            return TestPlanResult(plan=result, errors=[], warnings=warnings)
 
         else:
             errors.append(f"Unknown plan type: '{plan_type}'")
-            return None, errors
+            return TestPlanResult(plan=None, errors=errors)
 
     except csv.Error as e:
         errors.append(f"CSV parsing error: {e}")
-        return None, errors
+        return TestPlanResult(plan=None, errors=errors)
 
 
 def _parse_metadata(file_content: str) -> tuple[dict[str, str], str]:
@@ -306,6 +352,11 @@ def _parse_power_supply_row(
         voltage = float(voltage_str)
         if voltage < 0:
             errors.append(f"Row {row_num}: voltage must be >= 0, got {voltage}")
+        elif voltage > HARD_LIMIT_VOLTAGE_MAX_V:
+            errors.append(
+                f"Row {row_num}: voltage {voltage} V exceeds maximum "
+                f"({HARD_LIMIT_VOLTAGE_MAX_V} V)"
+            )
     except ValueError:
         errors.append(f"Row {row_num}: invalid voltage value '{voltage_str}'")
         return None, errors
@@ -316,6 +367,11 @@ def _parse_power_supply_row(
         current = float(current_str)
         if current < 0:
             errors.append(f"Row {row_num}: current must be >= 0, got {current}")
+        elif current > HARD_LIMIT_CURRENT_MAX_A:
+            errors.append(
+                f"Row {row_num}: current {current} A exceeds maximum "
+                f"({HARD_LIMIT_CURRENT_MAX_A} A)"
+            )
     except ValueError:
         errors.append(f"Row {row_num}: invalid current value '{current_str}'")
         return None, errors
@@ -365,14 +421,29 @@ def _parse_signal_generator_row(
         frequency = float(freq_str)
         if frequency < 0:
             errors.append(f"Row {row_num}: frequency must be >= 0, got {frequency}")
+        elif frequency > HARD_LIMIT_FREQUENCY_MAX_HZ:
+            errors.append(
+                f"Row {row_num}: frequency {frequency} Hz exceeds maximum "
+                f"({HARD_LIMIT_FREQUENCY_MAX_HZ} Hz)"
+            )
     except ValueError:
         errors.append(f"Row {row_num}: invalid frequency value '{freq_str}'")
         return None, errors
 
-    # Parse power (can be negative for dBm)
+    # Parse power (can be negative for dBm, but within reasonable limits)
     power_str = _get_value(row, column_map, "power")
     try:
         power = float(power_str)
+        if power < HARD_LIMIT_POWER_MIN_DBM:
+            errors.append(
+                f"Row {row_num}: power {power} dBm below minimum "
+                f"({HARD_LIMIT_POWER_MIN_DBM} dBm)"
+            )
+        elif power > HARD_LIMIT_POWER_MAX_DBM:
+            errors.append(
+                f"Row {row_num}: power {power} dBm exceeds maximum "
+                f"({HARD_LIMIT_POWER_MAX_DBM} dBm)"
+            )
     except ValueError:
         errors.append(f"Row {row_num}: invalid power value '{power_str}'")
         return None, errors
@@ -521,3 +592,116 @@ def _parse_fm_config(
         modulation_frequency=mod_freq,
         deviation=deviation,
     )
+
+
+def _validate_soft_limits(
+    plan: TestPlan,
+    limits: ValidationLimits,
+) -> list[str]:
+    """
+    Check test plan against soft limits.
+
+    Soft limits generate warnings but do not prevent loading.
+    Values outside soft limits may indicate user error but are
+    not physically impossible.
+
+    Args:
+        plan: The parsed test plan to validate
+        limits: ValidationLimits containing soft limit thresholds
+
+    Returns:
+        List of warning messages (empty if all within limits)
+    """
+    warnings: list[str] = []
+
+    for step in plan.steps:
+        # Check common limits
+        if step.duration_seconds > limits.common.duration_max_s:
+            warnings.append(
+                f"Step {step.step_number}: duration {step.duration_seconds}s "
+                f"exceeds typical maximum ({limits.common.duration_max_s}s)"
+            )
+            logger.warning(
+                "Step %d: duration %.1fs exceeds soft limit of %.1fs",
+                step.step_number,
+                step.duration_seconds,
+                limits.common.duration_max_s,
+            )
+
+        if isinstance(step, SignalGeneratorTestStep):
+            # Check signal generator soft limits
+            if step.power < limits.signal_generator.power_min_dbm:
+                warnings.append(
+                    f"Step {step.step_number}: power {step.power} dBm "
+                    f"below typical noise floor ({limits.signal_generator.power_min_dbm} dBm)"
+                )
+                logger.warning(
+                    "Step %d: power %.1f dBm below soft limit of %.1f dBm",
+                    step.step_number,
+                    step.power,
+                    limits.signal_generator.power_min_dbm,
+                )
+
+            if step.power > limits.signal_generator.power_max_dbm:
+                warnings.append(
+                    f"Step {step.step_number}: power {step.power} dBm "
+                    f"exceeds typical equipment limits ({limits.signal_generator.power_max_dbm} dBm)"
+                )
+                logger.warning(
+                    "Step %d: power %.1f dBm exceeds soft limit of %.1f dBm",
+                    step.step_number,
+                    step.power,
+                    limits.signal_generator.power_max_dbm,
+                )
+
+            if step.frequency < limits.signal_generator.frequency_min_hz:
+                warnings.append(
+                    f"Step {step.step_number}: frequency {step.frequency} Hz "
+                    f"unusually low (< {limits.signal_generator.frequency_min_hz} Hz)"
+                )
+                logger.warning(
+                    "Step %d: frequency %.1f Hz below soft limit of %.1f Hz",
+                    step.step_number,
+                    step.frequency,
+                    limits.signal_generator.frequency_min_hz,
+                )
+
+            if step.frequency > limits.signal_generator.frequency_max_hz:
+                warnings.append(
+                    f"Step {step.step_number}: frequency {step.frequency} Hz "
+                    f"exceeds typical equipment limits ({limits.signal_generator.frequency_max_hz} Hz)"
+                )
+                logger.warning(
+                    "Step %d: frequency %.1f Hz exceeds soft limit of %.1f Hz",
+                    step.step_number,
+                    step.frequency,
+                    limits.signal_generator.frequency_max_hz,
+                )
+
+        elif isinstance(step, PowerSupplyTestStep):
+            # Check power supply soft limits
+            if step.voltage > limits.power_supply.voltage_max_v:
+                warnings.append(
+                    f"Step {step.step_number}: voltage {step.voltage} V "
+                    f"exceeds typical lab supply limits ({limits.power_supply.voltage_max_v} V)"
+                )
+                logger.warning(
+                    "Step %d: voltage %.1f V exceeds soft limit of %.1f V",
+                    step.step_number,
+                    step.voltage,
+                    limits.power_supply.voltage_max_v,
+                )
+
+            if step.current > limits.power_supply.current_max_a:
+                warnings.append(
+                    f"Step {step.step_number}: current {step.current} A "
+                    f"exceeds typical lab supply limits ({limits.power_supply.current_max_a} A)"
+                )
+                logger.warning(
+                    "Step %d: current %.1f A exceeds soft limit of %.1f A",
+                    step.step_number,
+                    step.current,
+                    limits.power_supply.current_max_a,
+                )
+
+    return warnings

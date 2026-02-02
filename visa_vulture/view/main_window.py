@@ -515,6 +515,16 @@ class MainWindow:
         """
         messagebox.showinfo(title, message)
 
+    def show_warning(self, title: str, message: str) -> None:
+        """
+        Show warning dialog.
+
+        Args:
+            title: Dialog title
+            message: Warning message
+        """
+        messagebox.showwarning(title, message)
+
     def show_confirmation(self, title: str, message: str) -> bool:
         """
         Show yes/no confirmation dialog.

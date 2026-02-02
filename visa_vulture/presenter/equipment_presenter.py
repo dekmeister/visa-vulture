@@ -3,6 +3,7 @@
 import logging
 import time
 
+from ..config import ValidationLimits
 from ..file_io import read_test_plan
 from ..model import (
     EquipmentModel,
@@ -29,7 +30,11 @@ class EquipmentPresenter:
     """
 
     def __init__(
-        self, model: EquipmentModel, view: MainWindow, poll_interval_ms: int = 100
+        self,
+        model: EquipmentModel,
+        view: MainWindow,
+        poll_interval_ms: int = 100,
+        validation_limits: ValidationLimits | None = None,
     ):
         """
         Initialize presenter.
@@ -38,10 +43,13 @@ class EquipmentPresenter:
             model: Equipment model
             view: Main window view
             poll_interval_ms: Polling interval for background task results
+            validation_limits: Optional soft validation limits for test plans.
+                If provided, values exceeding soft limits generate warnings.
         """
         self._model = model
         self._view = view
         self._poll_interval_ms = poll_interval_ms
+        self._validation_limits = validation_limits
 
         # Background task runner
         self._task_runner = BackgroundTaskRunner(view.schedule)
@@ -204,17 +212,29 @@ class EquipmentPresenter:
         """Handle load test plan button."""
         logger.info("Loading test plan: %s", file_path)
 
-        test_plan, errors = read_test_plan(file_path)
+        result = read_test_plan(file_path, soft_limits=self._validation_limits)
 
-        if errors:
-            error_msg = "\n".join(errors)
+        if result.errors:
+            error_msg = "\n".join(result.errors)
             self._view.show_error("Test Plan Error", error_msg)
             logger.error("Test plan load failed: %s", error_msg)
             return
 
+        test_plan = result.plan
         if test_plan is None:
             self._view.show_error("Test Plan Error", "Failed to load test plan")
             return
+
+        # Log warnings if any
+        if result.warnings:
+            for warning in result.warnings:
+                logger.warning("Test plan warning: %s", warning)
+            # Show warnings to user but allow proceeding
+            warning_msg = "\n".join(result.warnings)
+            self._view.show_warning(
+                "Test Plan Warnings",
+                f"The test plan was loaded but has warnings:\n\n{warning_msg}",
+            )
 
         try:
             self._model.load_test_plan(test_plan)

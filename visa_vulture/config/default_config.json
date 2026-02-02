@@ -7,18 +7,19 @@
     "window_width": 1200,
     "window_height": 800,
     "poll_interval_ms": 100,
-    "instruments": [
-        {
-            "name": "Power Supply",
-            "resource_address": "TCPIP::192.168.1.100::INSTR",
-            "type": "power_supply",
-            "timeout_ms": 5000
+    "validation_limits": {
+        "signal_generator": {
+            "power_min_dbm": -100,
+            "power_max_dbm": 30,
+            "frequency_min_hz": 1,
+            "frequency_max_hz": 50000000000
         },
-        {
-            "name": "Signal Generator",
-            "resource_address": "TCPIP::192.168.1.101::INSTR",
-            "type": "signal_generator",
-            "timeout_ms": 5000
+        "power_supply": {
+            "voltage_max_v": 100,
+            "current_max_a": 50
+        },
+        "common": {
+            "duration_max_s": 86400
         }
-    ]
+    }
 }

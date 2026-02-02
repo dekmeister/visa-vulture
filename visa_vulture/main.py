@@ -94,6 +94,7 @@ def main() -> int:
         model=model,
         view=view,
         poll_interval_ms=config.poll_interval_ms,
+        validation_limits=config.validation_limits,
     )
 
     # Setup clean shutdown

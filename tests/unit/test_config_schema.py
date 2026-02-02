@@ -224,3 +224,179 @@ class TestValidateConfigErrorAccumulation:
         # Should have errors for simulation_mode, log_level, window_width,
         # window_height, poll_interval_ms
         assert len(errors) >= 4
+
+
+class TestValidationLimitsConfig:
+    """Tests for validation_limits configuration."""
+
+    def test_default_validation_limits(self) -> None:
+        """Default config includes sensible validation limits."""
+        config, errors = validate_config({})
+
+        assert errors == []
+        assert config is not None
+        assert config.validation_limits is not None
+
+        # Check signal generator defaults
+        assert config.validation_limits.signal_generator.power_min_dbm == -100.0
+        assert config.validation_limits.signal_generator.power_max_dbm == 30.0
+        assert config.validation_limits.signal_generator.frequency_min_hz == 1.0
+        assert config.validation_limits.signal_generator.frequency_max_hz == 50e9
+
+        # Check power supply defaults
+        assert config.validation_limits.power_supply.voltage_max_v == 100.0
+        assert config.validation_limits.power_supply.current_max_a == 50.0
+
+        # Check common defaults
+        assert config.validation_limits.common.duration_max_s == 86400.0
+
+    def test_custom_signal_generator_limits(self) -> None:
+        """Custom signal generator limits are parsed correctly."""
+        config_dict = {
+            "validation_limits": {
+                "signal_generator": {
+                    "power_min_dbm": -80,
+                    "power_max_dbm": 20,
+                    "frequency_min_hz": 10,
+                    "frequency_max_hz": 10000000000,
+                }
+            }
+        }
+
+        config, errors = validate_config(config_dict)
+
+        assert errors == []
+        assert config is not None
+        assert config.validation_limits.signal_generator.power_min_dbm == -80.0
+        assert config.validation_limits.signal_generator.power_max_dbm == 20.0
+        assert config.validation_limits.signal_generator.frequency_min_hz == 10.0
+        assert config.validation_limits.signal_generator.frequency_max_hz == 10e9
+
+    def test_custom_power_supply_limits(self) -> None:
+        """Custom power supply limits are parsed correctly."""
+        config_dict = {
+            "validation_limits": {
+                "power_supply": {
+                    "voltage_max_v": 60,
+                    "current_max_a": 30,
+                }
+            }
+        }
+
+        config, errors = validate_config(config_dict)
+
+        assert errors == []
+        assert config is not None
+        assert config.validation_limits.power_supply.voltage_max_v == 60.0
+        assert config.validation_limits.power_supply.current_max_a == 30.0
+
+    def test_custom_common_limits(self) -> None:
+        """Custom common limits are parsed correctly."""
+        config_dict = {
+            "validation_limits": {
+                "common": {
+                    "duration_max_s": 3600,  # 1 hour
+                }
+            }
+        }
+
+        config, errors = validate_config(config_dict)
+
+        assert errors == []
+        assert config is not None
+        assert config.validation_limits.common.duration_max_s == 3600.0
+
+    def test_partial_limits_use_defaults(self) -> None:
+        """Partially specified limits fill in defaults."""
+        config_dict = {
+            "validation_limits": {
+                "signal_generator": {
+                    "power_min_dbm": -50,
+                    # power_max_dbm not specified - should use default
+                }
+            }
+        }
+
+        config, errors = validate_config(config_dict)
+
+        assert errors == []
+        assert config is not None
+        assert config.validation_limits.signal_generator.power_min_dbm == -50.0
+        assert config.validation_limits.signal_generator.power_max_dbm == 30.0  # default
+
+    def test_invalid_limit_type_returns_error(self) -> None:
+        """Non-numeric limit values return error."""
+        config_dict = {
+            "validation_limits": {
+                "signal_generator": {
+                    "power_min_dbm": "low",
+                }
+            }
+        }
+
+        config, errors = validate_config(config_dict)
+
+        assert config is None
+        assert any("power_min_dbm must be numeric" in e for e in errors)
+
+    def test_negative_frequency_limit_returns_error(self) -> None:
+        """Negative frequency limit returns error."""
+        config_dict = {
+            "validation_limits": {
+                "signal_generator": {
+                    "frequency_min_hz": -1,
+                }
+            }
+        }
+
+        config, errors = validate_config(config_dict)
+
+        assert config is None
+        assert any("frequency_min_hz must be numeric >= 0" in e for e in errors)
+
+    def test_negative_voltage_limit_returns_error(self) -> None:
+        """Negative voltage limit returns error."""
+        config_dict = {
+            "validation_limits": {
+                "power_supply": {
+                    "voltage_max_v": -10,
+                }
+            }
+        }
+
+        config, errors = validate_config(config_dict)
+
+        assert config is None
+        assert any("voltage_max_v must be numeric >= 0" in e for e in errors)
+
+    def test_zero_duration_limit_returns_error(self) -> None:
+        """Zero duration limit returns error (must be > 0)."""
+        config_dict = {
+            "validation_limits": {
+                "common": {
+                    "duration_max_s": 0,
+                }
+            }
+        }
+
+        config, errors = validate_config(config_dict)
+
+        assert config is None
+        assert any("duration_max_s must be numeric > 0" in e for e in errors)
+
+    def test_integer_limits_converted_to_float(self) -> None:
+        """Integer limit values are converted to float."""
+        config_dict = {
+            "validation_limits": {
+                "signal_generator": {
+                    "power_min_dbm": -100,  # int, not float
+                }
+            }
+        }
+
+        config, errors = validate_config(config_dict)
+
+        assert errors == []
+        assert config is not None
+        assert isinstance(config.validation_limits.signal_generator.power_min_dbm, float)
+        assert config.validation_limits.signal_generator.power_min_dbm == -100.0
