@@ -36,6 +36,7 @@ class TestPointsTable(ttk.Frame):
             ("abs_time", "Abs. Time (s)", 80),
             ("frequency", "Frequency", 90),
             ("power", "Power (dBm)", 80),
+            ("modulation", "Modulation", 80),
             ("description", "Description", 150),
         ],
     }
@@ -113,6 +114,7 @@ class TestPointsTable(ttk.Frame):
             item_id = f"step_{step.step_number}"
             self._step_to_item[step.step_number] = item_id
 
+            values: tuple[object, ...]
             if self._instrument_type == InstrumentType.POWER_SUPPLY:
                 values = (
                     step.step_number,
@@ -134,12 +136,16 @@ class TestPointsTable(ttk.Frame):
                 else:
                     freq_str = f"{freq:.1f} Hz"
 
+                # Format modulation status
+                modulation_str = "Enabled" if step.modulation_enabled else "Disabled"
+
                 values = (
                     step.step_number,
                     f"{step.duration_seconds:.1f}",
                     f"{step.absolute_time_seconds:.1f}",
                     freq_str,
                     f"{step.power:.1f}",
+                    modulation_str,
                     step.description,
                 )
 
