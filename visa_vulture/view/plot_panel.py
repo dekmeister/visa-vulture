@@ -35,6 +35,7 @@ class AxisConfig:
     default_scale: str = "linear"
     default_ylim: tuple[float, float] = (0.0, 1.0)
     lower_bound_zero: bool = True
+    linear_only: bool = False
 
 
 class PlotPanel(ttk.Frame):
@@ -268,19 +269,21 @@ class PlotPanel(ttk.Frame):
         """Show right-click context menu for Y-axis scale selection."""
         menu = tk.Menu(self, tearoff=0)
 
-        primary_label = (
-            f"{self._primary.legend_label} Y-Axis: Switch to Log"
-            if self._primary_scale == "linear"
-            else f"{self._primary.legend_label} Y-Axis: Switch to Linear"
-        )
-        menu.add_command(label=primary_label, command=self._toggle_primary_scale)
+        if not self._primary.linear_only:
+            primary_label = (
+                f"{self._primary.legend_label} Y-Axis: Switch to Log"
+                if self._primary_scale == "linear"
+                else f"{self._primary.legend_label} Y-Axis: Switch to Linear"
+            )
+            menu.add_command(label=primary_label, command=self._toggle_primary_scale)
 
-        secondary_label = (
-            f"{self._secondary.legend_label} Y-Axis: Switch to Log"
-            if self._secondary_scale == "linear"
-            else f"{self._secondary.legend_label} Y-Axis: Switch to Linear"
-        )
-        menu.add_command(label=secondary_label, command=self._toggle_secondary_scale)
+        if not self._secondary.linear_only:
+            secondary_label = (
+                f"{self._secondary.legend_label} Y-Axis: Switch to Log"
+                if self._secondary_scale == "linear"
+                else f"{self._secondary.legend_label} Y-Axis: Switch to Linear"
+            )
+            menu.add_command(label=secondary_label, command=self._toggle_secondary_scale)
 
         menu.tk_popup(event.x_root, event.y_root)
 
@@ -480,6 +483,7 @@ class SignalGeneratorPlotPanel(PlotPanel):
             default_scale="linear",
             default_ylim=(-20.0, 10.0),
             lower_bound_zero=False,
+            linear_only=True,
         )
 
     def add_point(self, time: float, frequency: float, power: float) -> None:
