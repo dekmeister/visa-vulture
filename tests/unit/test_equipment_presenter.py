@@ -559,6 +559,89 @@ class TestDisconnectHandler:
         mock_view.set_instrument_display.assert_called_with(None, None)
 
 
+class TestLoadTestPlanInstrumentTypeValidation:
+    """Tests for instrument type validation during test plan loading."""
+
+    def test_load_ps_plan_with_sg_connected_shows_error(
+        self,
+        presenter: EquipmentPresenter,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        test_plan_fixtures_path,
+    ) -> None:
+        """Loading power supply plan when signal generator connected shows error."""
+        mock_model_for_presenter._instrument_type = "signal_generator"
+        file_path = str(test_plan_fixtures_path / "valid_power_supply.csv")
+
+        trigger_view_callback(mock_view, "on_load_test_plan", file_path)
+
+        mock_view.show_error.assert_called()
+        assert "Instrument Mismatch" in mock_view.show_error.call_args[0][0]
+        mock_model_for_presenter.load_test_plan.assert_not_called()
+
+    def test_load_sg_plan_with_ps_connected_shows_error(
+        self,
+        presenter: EquipmentPresenter,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        test_plan_fixtures_path,
+    ) -> None:
+        """Loading signal generator plan when power supply connected shows error."""
+        mock_model_for_presenter._instrument_type = "power_supply"
+        file_path = str(test_plan_fixtures_path / "valid_signal_generator.csv")
+
+        trigger_view_callback(mock_view, "on_load_test_plan", file_path)
+
+        mock_view.show_error.assert_called()
+        assert "Instrument Mismatch" in mock_view.show_error.call_args[0][0]
+        mock_model_for_presenter.load_test_plan.assert_not_called()
+
+    def test_load_ps_plan_with_ps_connected_succeeds(
+        self,
+        presenter: EquipmentPresenter,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        test_plan_fixtures_path,
+    ) -> None:
+        """Loading power supply plan when power supply connected succeeds."""
+        mock_model_for_presenter._instrument_type = "power_supply"
+        file_path = str(test_plan_fixtures_path / "valid_power_supply.csv")
+
+        trigger_view_callback(mock_view, "on_load_test_plan", file_path)
+
+        mock_model_for_presenter.load_test_plan.assert_called_once()
+
+    def test_load_sg_plan_with_sg_connected_succeeds(
+        self,
+        presenter: EquipmentPresenter,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        test_plan_fixtures_path,
+    ) -> None:
+        """Loading signal generator plan when signal generator connected succeeds."""
+        mock_model_for_presenter._instrument_type = "signal_generator"
+        file_path = str(test_plan_fixtures_path / "valid_signal_generator.csv")
+
+        trigger_view_callback(mock_view, "on_load_test_plan", file_path)
+
+        mock_model_for_presenter.load_test_plan.assert_called_once()
+
+    def test_load_any_plan_with_no_instrument_succeeds(
+        self,
+        presenter: EquipmentPresenter,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        test_plan_fixtures_path,
+    ) -> None:
+        """Loading any plan when no instrument connected succeeds."""
+        mock_model_for_presenter._instrument_type = None
+        file_path = str(test_plan_fixtures_path / "valid_power_supply.csv")
+
+        trigger_view_callback(mock_view, "on_load_test_plan", file_path)
+
+        mock_model_for_presenter.load_test_plan.assert_called_once()
+
+
 class TestLoadTestPlanHandler:
     """Tests for load test plan button handling."""
 

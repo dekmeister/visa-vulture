@@ -225,6 +225,30 @@ class EquipmentPresenter:
             self._view.show_error("Test Plan Error", "Failed to load test plan")
             return
 
+        # Check instrument type match if connected
+        instrument_type = self._model.instrument_type
+        if instrument_type is not None:
+            plan_type = test_plan.plan_type
+            if plan_type == PLAN_TYPE_POWER_SUPPLY and instrument_type != "power_supply":
+                error_msg = (
+                    "Cannot load power supply test plan: "
+                    "connected instrument is a signal generator"
+                )
+                logger.error("Test plan load failed: %s", error_msg)
+                self._view.show_error("Instrument Mismatch", error_msg)
+                return
+            elif (
+                plan_type == PLAN_TYPE_SIGNAL_GENERATOR
+                and instrument_type != "signal_generator"
+            ):
+                error_msg = (
+                    "Cannot load signal generator test plan: "
+                    "connected instrument is a power supply"
+                )
+                logger.error("Test plan load failed: %s", error_msg)
+                self._view.show_error("Instrument Mismatch", error_msg)
+                return
+
         # Log warnings if any
         if result.warnings:
             for warning in result.warnings:
