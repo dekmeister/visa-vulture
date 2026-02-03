@@ -814,3 +814,301 @@ class TestEquipmentModelScanResources:
 
         assert isinstance(resources, list)
         assert len(resources) == 2
+
+
+class TestOutputDisabledOnStopAndPause:
+    """Safety tests verifying instrument output is disabled during stop operations.
+
+    These are safety-critical tests that ensure power supply and signal generator
+    outputs are properly disabled when tests are stopped from either RUNNING or
+    PAUSED states. This is important because leaving instrument outputs enabled
+    when a test is interrupted could damage connected equipment.
+
+    These tests run the actual execution methods (not mocked) with mock instruments,
+    verifying that disable_output is called at the end of execution.
+    """
+
+    def _make_model_with_power_supply(
+        self, mock_visa_connection: Mock, plan: TestPlan
+    ) -> tuple[EquipmentModel, Mock]:
+        """Create model in IDLE state with mock power supply."""
+        from visa_vulture.instruments import PowerSupply
+
+        model = EquipmentModel(mock_visa_connection)
+        model._state_machine._state = EquipmentState.IDLE
+        model._test_plan = plan
+
+        mock_ps = Mock(spec=PowerSupply)
+        mock_ps.is_connected = True
+        model._instrument = mock_ps
+        model._instrument_type = "power_supply"
+
+        return model, mock_ps
+
+    def _make_model_with_signal_generator(
+        self, mock_visa_connection: Mock, plan: TestPlan
+    ) -> tuple[EquipmentModel, Mock]:
+        """Create model in IDLE state with mock signal generator."""
+        from visa_vulture.instruments import SignalGenerator
+
+        model = EquipmentModel(mock_visa_connection)
+        model._state_machine._state = EquipmentState.IDLE
+        model._test_plan = plan
+
+        mock_sg = Mock(spec=SignalGenerator)
+        mock_sg.is_connected = True
+        model._instrument = mock_sg
+        model._instrument_type = "signal_generator"
+
+        return model, mock_sg
+
+    @staticmethod
+    def _make_zero_duration_power_supply_plan() -> TestPlan:
+        """Create a power supply plan with zero-duration steps for fast tests."""
+        return TestPlan(
+            name="Fast PS Plan",
+            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            steps=[
+                PowerSupplyTestStep(
+                    step_number=1, duration_seconds=0.0, voltage=5.0, current=1.0
+                ),
+            ],
+        )
+
+    @staticmethod
+    def _make_zero_duration_signal_generator_plan() -> TestPlan:
+        """Create a signal generator plan with zero-duration steps for fast tests."""
+        return TestPlan(
+            name="Fast SG Plan",
+            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+            steps=[
+                SignalGeneratorTestStep(
+                    step_number=1, duration_seconds=0.0, frequency=1e6, power=0
+                ),
+            ],
+        )
+
+    # --- Power Supply Tests ---
+
+    def test_stop_from_running_disables_power_supply_output(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Stopping from RUNNING state disables power supply output (safety test)."""
+        plan = self._make_zero_duration_power_supply_plan()
+        model, mock_ps = self._make_model_with_power_supply(mock_visa_connection, plan)
+
+        # Request stop before step 1 completes
+        original_set_voltage = mock_ps.set_voltage
+
+        def set_voltage_then_stop(*args: object) -> None:
+            original_set_voltage(*args)
+            model._stop_requested = True
+
+        mock_ps.set_voltage = set_voltage_then_stop
+
+        model.run_test()
+
+        mock_ps.disable_output.assert_called_once()
+
+    def test_stop_from_paused_disables_power_supply_output(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Stopping from PAUSED state disables power supply output (safety test).
+
+        Uses a plan with duration to trigger the interruptible sleep where pause
+        is detected, then simulates stop from that paused state.
+        """
+        # Plan with duration to enter interruptible sleep
+        plan = TestPlan(
+            name="PS Plan with duration",
+            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            steps=[
+                PowerSupplyTestStep(
+                    step_number=1, duration_seconds=10.0, voltage=5.0, current=1.0
+                ),
+            ],
+        )
+        model, mock_ps = self._make_model_with_power_supply(mock_visa_connection, plan)
+
+        # Request pause during execution, then stop
+        call_count = 0
+        original_set_voltage = mock_ps.set_voltage
+
+        def set_voltage_then_pause_then_stop(*args: object) -> None:
+            nonlocal call_count
+            original_set_voltage(*args)
+            call_count += 1
+            if call_count == 1:
+                model._pause_requested = True
+
+        mock_ps.set_voltage = set_voltage_then_pause_then_stop
+
+        # Patch interruptible_sleep to detect pause and then stop
+        original_sleep = model._interruptible_sleep
+
+        def patched_sleep(duration: float) -> None:
+            # Once paused, request stop
+            if model._pause_requested:
+                model._stop_requested = True
+                model._pause_requested = False
+            original_sleep(duration)
+
+        with patch.object(model, "_interruptible_sleep", patched_sleep):
+            model.run_test()
+
+        mock_ps.disable_output.assert_called_once()
+
+    def test_completed_test_disables_power_supply_output(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Completing all steps normally disables power supply output."""
+        plan = self._make_zero_duration_power_supply_plan()
+        model, mock_ps = self._make_model_with_power_supply(mock_visa_connection, plan)
+
+        model.run_test()
+
+        mock_ps.disable_output.assert_called_once()
+
+    # --- Signal Generator Tests ---
+
+    def test_stop_from_running_disables_signal_generator_output(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Stopping from RUNNING state disables signal generator output (safety test)."""
+        plan = self._make_zero_duration_signal_generator_plan()
+        model, mock_sg = self._make_model_with_signal_generator(
+            mock_visa_connection, plan
+        )
+
+        # Request stop before step 1 completes
+        original_set_frequency = mock_sg.set_frequency
+
+        def set_frequency_then_stop(*args: object) -> None:
+            original_set_frequency(*args)
+            model._stop_requested = True
+
+        mock_sg.set_frequency = set_frequency_then_stop
+
+        model.run_test()
+
+        mock_sg.disable_output.assert_called_once()
+
+    def test_stop_from_paused_disables_signal_generator_output(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Stopping from PAUSED state disables signal generator output (safety test)."""
+        # Plan with duration to enter interruptible sleep
+        plan = TestPlan(
+            name="SG Plan with duration",
+            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+            steps=[
+                SignalGeneratorTestStep(
+                    step_number=1, duration_seconds=10.0, frequency=1e6, power=0
+                ),
+            ],
+        )
+        model, mock_sg = self._make_model_with_signal_generator(
+            mock_visa_connection, plan
+        )
+
+        # Request pause during execution
+        original_set_frequency = mock_sg.set_frequency
+
+        def set_frequency_then_pause(*args: object) -> None:
+            original_set_frequency(*args)
+            model._pause_requested = True
+
+        mock_sg.set_frequency = set_frequency_then_pause
+
+        # Patch interruptible_sleep to detect pause and then stop
+        original_sleep = model._interruptible_sleep
+
+        def patched_sleep(duration: float) -> None:
+            if model._pause_requested:
+                model._stop_requested = True
+                model._pause_requested = False
+            original_sleep(duration)
+
+        with patch.object(model, "_interruptible_sleep", patched_sleep):
+            model.run_test()
+
+        mock_sg.disable_output.assert_called_once()
+
+    def test_stop_disables_signal_generator_modulation(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Stopping disables modulation when modulation was configured (safety test)."""
+        from visa_vulture.model.test_plan import AMModulationConfig, ModulationType
+
+        # Create a plan with AM modulation configured
+        plan_with_modulation = TestPlan(
+            name="Modulated SG Plan",
+            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+            steps=[
+                SignalGeneratorTestStep(
+                    step_number=1,
+                    duration_seconds=0.0,
+                    frequency=1e6,
+                    power=0,
+                    modulation_enabled=True,
+                ),
+            ],
+            modulation_config=AMModulationConfig(
+                modulation_type=ModulationType.AM,
+                modulation_frequency=1000.0,
+                depth=50.0,
+            ),
+        )
+
+        model, mock_sg = self._make_model_with_signal_generator(
+            mock_visa_connection, plan_with_modulation
+        )
+
+        # Request stop during execution
+        original_set_frequency = mock_sg.set_frequency
+
+        def set_frequency_then_stop(*args: object) -> None:
+            original_set_frequency(*args)
+            model._stop_requested = True
+
+        mock_sg.set_frequency = set_frequency_then_stop
+
+        model.run_test()
+
+        mock_sg.disable_all_modulation.assert_called_once()
+        mock_sg.disable_output.assert_called_once()
+
+    def test_completed_test_disables_signal_generator_output_and_modulation(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Completing all steps disables both output and modulation."""
+        from visa_vulture.model.test_plan import FMModulationConfig, ModulationType
+
+        # Create a plan with FM modulation configured
+        plan_with_modulation = TestPlan(
+            name="Modulated SG Plan",
+            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+            steps=[
+                SignalGeneratorTestStep(
+                    step_number=1,
+                    duration_seconds=0.0,
+                    frequency=1e6,
+                    power=0,
+                    modulation_enabled=True,
+                ),
+            ],
+            modulation_config=FMModulationConfig(
+                modulation_type=ModulationType.FM,
+                modulation_frequency=1000.0,
+                deviation=10000.0,
+            ),
+        )
+
+        model, mock_sg = self._make_model_with_signal_generator(
+            mock_visa_connection, plan_with_modulation
+        )
+
+        model.run_test()
+
+        mock_sg.disable_all_modulation.assert_called_once()
+        mock_sg.disable_output.assert_called_once()
