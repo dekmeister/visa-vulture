@@ -3,6 +3,9 @@ CLAUDE.md
 .claude/
 testing-approach.md
 
+# Various large docs
+docs/
+
 # VS code specific files
 .vscode/
 
