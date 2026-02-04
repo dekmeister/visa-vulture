@@ -51,16 +51,10 @@ devices:
           q: "OUTP?"
           r: "{:d}"
         setter:
-          q: "OUTP ON"
-          r: ""
-          value: 1
-
-      output_off:
-        default: 0
-        setter:
-          q: "OUTP OFF"
-          r: ""
-          value: 0
+          q: "OUTP {:d}"
+        specs:
+          valid: [0, 1]
+          type: int
 
     eom:
       TCPIP INSTR:
@@ -116,16 +110,10 @@ devices:
           q: "OUTP?"
           r: "{:d}"
         setter:
-          q: "OUTP ON"
-          r: ""
-          value: 1
-
-      output_off:
-        default: 0
-        setter:
-          q: "OUTP OFF"
-          r: ""
-          value: 0
+          q: "OUTP {:d}"
+        specs:
+          valid: [0, 1]
+          type: int
 
       # AM modulation properties
       am_source:
@@ -156,16 +144,10 @@ devices:
           q: "AM:STAT?"
           r: "{:d}"
         setter:
-          q: "AM:STAT ON"
-          r: ""
-          value: 1
-
-      am_state_off:
-        default: 0
-        setter:
-          q: "AM:STAT OFF"
-          r: ""
-          value: 0
+          q: "AM:STAT {:d}"
+        specs:
+          valid: [0, 1]
+          type: int
 
       # FM modulation properties
       fm_source:
@@ -196,16 +178,10 @@ devices:
           q: "FM:STAT?"
           r: "{:d}"
         setter:
-          q: "FM:STAT ON"
-          r: ""
-          value: 1
-
-      fm_state_off:
-        default: 0
-        setter:
-          q: "FM:STAT OFF"
-          r: ""
-          value: 0
+          q: "FM:STAT {:d}"
+        specs:
+          valid: [0, 1]
+          type: int
 
     eom:
       TCPIP INSTR:

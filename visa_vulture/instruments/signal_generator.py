@@ -115,13 +115,13 @@ class SignalGenerator(BaseInstrument):
         """Enable signal generator output."""
         self._check_connected()
         logger.info("%s: Enabling output", self._name)
-        self.write("OUTP ON")
+        self.write("OUTP 1")
 
     def disable_output(self) -> None:
         """Disable signal generator output."""
         self._check_connected()
         logger.info("%s: Disabling output", self._name)
-        self.write("OUTP OFF")
+        self.write("OUTP 0")
 
     def is_output_enabled(self) -> bool:
         """
@@ -166,13 +166,13 @@ class SignalGenerator(BaseInstrument):
         """Enable AM modulation output."""
         self._check_connected()
         logger.info("%s: Enabling AM modulation", self._name)
-        self.write("AM:STAT ON")
+        self.write("AM:STAT 1")
 
     def disable_am_modulation(self) -> None:
         """Disable AM modulation output."""
         self._check_connected()
         logger.info("%s: Disabling AM modulation", self._name)
-        self.write("AM:STAT OFF")
+        self.write("AM:STAT 0")
 
     def is_am_enabled(self) -> bool:
         """
@@ -217,13 +217,13 @@ class SignalGenerator(BaseInstrument):
         """Enable FM modulation output."""
         self._check_connected()
         logger.info("%s: Enabling FM modulation", self._name)
-        self.write("FM:STAT ON")
+        self.write("FM:STAT 1")
 
     def disable_fm_modulation(self) -> None:
         """Disable FM modulation output."""
         self._check_connected()
         logger.info("%s: Disabling FM modulation", self._name)
-        self.write("FM:STAT OFF")
+        self.write("FM:STAT 0")
 
     def is_fm_enabled(self) -> bool:
         """
@@ -290,5 +290,5 @@ class SignalGenerator(BaseInstrument):
         """Disable all modulation types."""
         self._check_connected()
         logger.info("%s: Disabling all modulation", self._name)
-        self.write("AM:STAT OFF")
-        self.write("FM:STAT OFF")
+        self.write("AM:STAT 0")
+        self.write("FM:STAT 0")

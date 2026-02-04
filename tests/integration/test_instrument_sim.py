@@ -90,7 +90,6 @@ class TestPowerSupplySim:
 
         assert current == pytest.approx(1.5, abs=0.001)
 
-    @pytest.mark.skip(reason="PyVISA-sim output property not configured correctly")
     def test_enable_disable_output(self, connected_power_supply: PowerSupply) -> None:
         """Output can be enabled and disabled."""
         connected_power_supply.enable_output()
@@ -99,7 +98,6 @@ class TestPowerSupplySim:
         connected_power_supply.disable_output()
         assert connected_power_supply.is_output_enabled() is False
 
-    @pytest.mark.skip(reason="PyVISA-sim output property not configured correctly")
     def test_get_status(self, connected_power_supply: PowerSupply) -> None:
         """get_status returns dictionary with status values."""
         connected_power_supply.set_voltage(10.0)
@@ -118,7 +116,6 @@ class TestPowerSupplySim:
         # Just verify it doesn't raise
         connected_power_supply.reset()
 
-    @pytest.mark.skip(reason="PyVISA-sim *OPC? response format issue")
     def test_operation_complete(self, connected_power_supply: PowerSupply) -> None:
         """operation_complete returns True for simulation."""
         result = connected_power_supply.operation_complete()
@@ -172,7 +169,6 @@ class TestSignalGeneratorSim:
 
         assert power == pytest.approx(-5.0, abs=0.01)
 
-    @pytest.mark.skip(reason="PyVISA-sim output property not configured correctly")
     def test_enable_disable_output(
         self, connected_signal_generator: SignalGenerator
     ) -> None:
@@ -183,7 +179,6 @@ class TestSignalGeneratorSim:
         connected_signal_generator.disable_output()
         assert connected_signal_generator.is_output_enabled() is False
 
-    @pytest.mark.skip(reason="PyVISA-sim output property not configured correctly")
     def test_get_status(self, connected_signal_generator: SignalGenerator) -> None:
         """get_status returns dictionary with status values."""
         connected_signal_generator.set_frequency(1.5e6)
@@ -202,7 +197,6 @@ class TestSignalGeneratorSim:
         # Just verify it doesn't raise
         connected_signal_generator.reset()
 
-    @pytest.mark.skip(reason="PyVISA-sim *OPC? response format issue")
     def test_operation_complete(
         self, connected_signal_generator: SignalGenerator
     ) -> None:

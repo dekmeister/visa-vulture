@@ -124,13 +124,13 @@ class PowerSupply(BaseInstrument):
         """Enable power supply output."""
         self._check_connected()
         logger.info("%s: Enabling output", self._name)
-        self.write("OUTP ON")
+        self.write("OUTP 1")
 
     def disable_output(self) -> None:
         """Disable power supply output."""
         self._check_connected()
         logger.info("%s: Disabling output", self._name)
-        self.write("OUTP OFF")
+        self.write("OUTP 0")
 
     def is_output_enabled(self) -> bool:
         """
