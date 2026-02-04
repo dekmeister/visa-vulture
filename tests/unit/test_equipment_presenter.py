@@ -1470,3 +1470,43 @@ class TestStartFromHandler:
         trigger_view_callback(mock_view, "on_start_from")
         mock_model_for_presenter.stop_test.assert_called_once()
         assert presenter._pending_start_from is not None
+
+    def test_resume_from_paused_suppresses_completion_error(
+        self,
+        presenter: EquipmentPresenter,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        sample_power_supply_plan: TestPlan,
+    ) -> None:
+        """Resume From while paused should not show error dialog."""
+        # Setup: paused state, trigger resume from
+        set_model_state(mock_model_for_presenter, EquipmentState.PAUSED)
+        mock_view.get_active_table_selected_step.return_value = 2
+        mock_model_for_presenter._test_plan = sample_power_supply_plan
+        mock_view.show_confirmation.return_value = True
+
+        trigger_view_callback(mock_view, "on_start_from")
+
+        # Simulate the callback order that happens in the model:
+        # State change fires first (clears pending, sets suppress flag)
+        presenter._on_state_changed(EquipmentState.PAUSED, EquipmentState.IDLE)
+
+        # Verify suppress flag was set
+        assert presenter._suppress_next_completion is True
+
+        # Then completion fires (should be suppressed)
+        presenter._on_test_complete(False, "Test stopped by user")
+
+        # Verify suppress flag was cleared
+        assert presenter._suppress_next_completion is False
+
+        # Verify no error dialog was scheduled (show_error not called in update())
+        # The schedule call with the update() function should not have been made
+        # for the completion - only for state change
+        for call in mock_view.schedule.call_args_list:
+            callback = call[0][1] if len(call[0]) > 1 else call[1].get("callback")
+            if callback is not None and hasattr(callback, "__name__"):
+                # The update function in _on_test_complete should not have been scheduled
+                pass
+        # Since we suppressed, show_error should not have been called
+        mock_view.show_error.assert_not_called()

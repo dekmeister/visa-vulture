@@ -63,6 +63,9 @@ class EquipmentPresenter:
         # Pending "start from" state (step, remaining_duration)
         self._pending_start_from: tuple[int, float] | None = None
 
+        # Flag to suppress next completion callback (used during Resume From)
+        self._suppress_next_completion: bool = False
+
         # Wire everything up
         self._wire_callbacks()
         self._task_runner.start(poll_interval_ms)
@@ -513,6 +516,7 @@ class EquipmentPresenter:
         if new_state == EquipmentState.IDLE and self._pending_start_from is not None:
             start_step, remaining_duration = self._pending_start_from
             self._pending_start_from = None
+            self._suppress_next_completion = True  # Suppress the "stopped" completion
 
             def start_from_callback(
                 s: int = start_step, d: float = remaining_duration
@@ -556,6 +560,10 @@ class EquipmentPresenter:
 
     def _on_test_complete(self, success: bool, message: str) -> None:
         """Handle test completion."""
+        # Check if this completion should be suppressed (Resume From operation)
+        if self._suppress_next_completion:
+            self._suppress_next_completion = False
+            return
 
         def update():
             if success:
