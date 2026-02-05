@@ -21,7 +21,7 @@ class MainWindow:
         self,
         root: tk.Tk,
         title: str = "VISA Vulture",
-        width: int = 1200,
+        width: int = 1300,
         height: int = 800,
     ):
         """
@@ -186,7 +186,9 @@ class MainWindow:
         self._power_supply_plot_panel = PowerSupplyPlotPanel(self._ps_container)
         self._ps_container.add(self._power_supply_plot_panel, weight=3)
 
-        self._ps_table = TestPointsTable(self._ps_container, InstrumentType.POWER_SUPPLY)
+        self._ps_table = TestPointsTable(
+            self._ps_container, InstrumentType.POWER_SUPPLY
+        )
         self._ps_container.add(self._ps_table, weight=1)
 
         # Signal generator tab: horizontal paned window with plot and table
@@ -196,7 +198,9 @@ class MainWindow:
         self._signal_gen_plot_panel = SignalGeneratorPlotPanel(self._sg_container)
         self._sg_container.add(self._signal_gen_plot_panel, weight=3)
 
-        self._sg_table = TestPointsTable(self._sg_container, InstrumentType.SIGNAL_GENERATOR)
+        self._sg_table = TestPointsTable(
+            self._sg_container, InstrumentType.SIGNAL_GENERATOR
+        )
         self._sg_container.add(self._sg_table, weight=1)
 
         # Track which tabs are currently visible
@@ -373,7 +377,9 @@ class MainWindow:
             self._run_btn.config(state=tk.NORMAL)
             self._stop_btn.config(state=tk.DISABLED)
             self._pause_btn.config(state=tk.DISABLED)
-            self._start_from_btn.config(state=tk.DISABLED)  # Presenter enables if selected
+            self._start_from_btn.config(
+                state=tk.DISABLED
+            )  # Presenter enables if selected
             self.set_run_button_text("Run")
             self.set_start_from_button_text("Start from...")
         elif state == "RUNNING":
@@ -392,7 +398,9 @@ class MainWindow:
             self._run_btn.config(state=tk.NORMAL)
             self._stop_btn.config(state=tk.NORMAL)
             self._pause_btn.config(state=tk.DISABLED)
-            self._start_from_btn.config(state=tk.DISABLED)  # Presenter enables if selected
+            self._start_from_btn.config(
+                state=tk.DISABLED
+            )  # Presenter enables if selected
             self.set_run_button_text("Resume")
             self.set_start_from_button_text("Resume from...")
         elif state == "ERROR":

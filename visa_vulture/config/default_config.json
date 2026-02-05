@@ -4,7 +4,7 @@
     "log_file": "equipment_controller.log",
     "log_level": "DEBUG",
     "window_title": "VISAVulture",
-    "window_width": 1200,
+    "window_width": 1300,
     "window_height": 800,
     "poll_interval_ms": 100,
     "plot_refresh_interval_ms": 1000,
