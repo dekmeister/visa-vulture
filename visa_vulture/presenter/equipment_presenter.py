@@ -34,6 +34,7 @@ class EquipmentPresenter:
         model: EquipmentModel,
         view: MainWindow,
         poll_interval_ms: int = 100,
+        plot_refresh_interval_ms: int = 1000,
         validation_limits: ValidationLimits | None = None,
     ):
         """
@@ -43,12 +44,14 @@ class EquipmentPresenter:
             model: Equipment model
             view: Main window view
             poll_interval_ms: Polling interval for background task results
+            plot_refresh_interval_ms: Interval for plot position updates during test
             validation_limits: Optional soft validation limits for test plans.
                 If provided, values exceeding soft limits generate warnings.
         """
         self._model = model
         self._view = view
         self._poll_interval_ms = poll_interval_ms
+        self._plot_refresh_interval_ms = plot_refresh_interval_ms
         self._validation_limits = validation_limits
 
         # Background task runner
@@ -59,6 +62,9 @@ class EquipmentPresenter:
         self._run_start_time: float | None = None
         self._elapsed_at_pause: float | None = None
         self._partial_total_duration: float | None = None
+
+        # Plot refresh timer state
+        self._plot_refresh_timer_id: str | None = None
 
         # Pending "start from" state (step, remaining_duration)
         self._pending_start_from: tuple[int, float] | None = None
@@ -330,6 +336,7 @@ class EquipmentPresenter:
                 self._run_start_time = time.time() - self._elapsed_at_pause
                 self._elapsed_at_pause = None
                 self._start_runtime_timer()
+                self._start_plot_refresh_timer()
             return
 
         logger.info("Run requested")
@@ -363,6 +370,7 @@ class EquipmentPresenter:
         self._partial_total_duration = None
         self._run_start_time = time.time()
         self._start_runtime_timer()
+        self._start_plot_refresh_timer()
 
         # Clear position indicator but keep the plan preview for both plot types
         if self._model.test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
@@ -471,6 +479,7 @@ class EquipmentPresenter:
         self._partial_total_duration = remaining_duration
         self._run_start_time = time.time()
         self._start_runtime_timer()
+        self._start_plot_refresh_timer()
 
         if (
             self._model.test_plan is not None
@@ -496,8 +505,9 @@ class EquipmentPresenter:
         """Handle model state change."""
         logger.debug("State changed: %s -> %s", old_state.name, new_state.name)
 
-        # Handle timer when leaving RUNNING state
+        # Handle timers when leaving RUNNING state
         if old_state == EquipmentState.RUNNING and new_state != EquipmentState.RUNNING:
+            self._stop_plot_refresh_timer()
             if new_state == EquipmentState.PAUSED:
                 # Pausing - save elapsed time and stop timer
                 if self._run_start_time is not None:
@@ -663,10 +673,48 @@ class EquipmentPresenter:
             self._runtime_timer_id = None
         # Don't reset run_start_time or displays - keep showing paused values
 
+    # Plot refresh timer methods
+
+    def _start_plot_refresh_timer(self) -> None:
+        """Start periodic plot position updates."""
+        self._update_plot_position()
+
+    def _stop_plot_refresh_timer(self) -> None:
+        """Stop periodic plot position updates."""
+        if self._plot_refresh_timer_id is not None:
+            self._view.cancel_schedule(self._plot_refresh_timer_id)
+            self._plot_refresh_timer_id = None
+
+    def _update_plot_position(self) -> None:
+        """Update plot position indicator based on elapsed time."""
+        if self._run_start_time is None or self._model.test_plan is None:
+            return
+
+        elapsed = time.time() - self._run_start_time
+        # If running partial plan, adjust for offset
+        if self._partial_total_duration is not None:
+            total = self._model.test_plan.total_duration
+            offset = total - self._partial_total_duration
+            current_time = offset + elapsed
+        else:
+            current_time = elapsed
+
+        # Update the appropriate plot
+        if self._model.test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
+            self._view.signal_gen_plot_panel.set_current_position(current_time)
+        else:
+            self._view.power_supply_plot_panel.set_current_position(current_time)
+
+        # Schedule next update
+        self._plot_refresh_timer_id = self._view.schedule(
+            self._plot_refresh_interval_ms, self._update_plot_position
+        )
+
     def shutdown(self) -> None:
         """Clean shutdown of presenter."""
         logger.info("EquipmentPresenter shutting down")
         self._stop_runtime_timer()
+        self._stop_plot_refresh_timer()
         self._task_runner.stop()
 
         # Disconnect if connected

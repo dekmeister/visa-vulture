@@ -61,6 +61,7 @@ class AppConfig:
     window_width: int = 1200
     window_height: int = 800
     poll_interval_ms: int = 100
+    plot_refresh_interval_ms: int = 1000
     validation_limits: ValidationLimits = field(default_factory=ValidationLimits)
 
 
@@ -129,6 +130,14 @@ def validate_config(config_dict: dict[str, Any]) -> tuple[AppConfig | None, list
         errors.append(f"poll_interval_ms must be integer >= 10, got {poll_interval_ms}")
         poll_interval_ms = 100
 
+    # Validate plot_refresh_interval_ms
+    plot_refresh_interval_ms = config_dict.get("plot_refresh_interval_ms", 1000)
+    if not isinstance(plot_refresh_interval_ms, int) or plot_refresh_interval_ms < 100:
+        errors.append(
+            f"plot_refresh_interval_ms must be integer >= 100, got {plot_refresh_interval_ms}"
+        )
+        plot_refresh_interval_ms = 1000
+
     # Validate validation_limits
     validation_limits = _validate_validation_limits(
         config_dict.get("validation_limits", {}), errors
@@ -147,6 +156,7 @@ def validate_config(config_dict: dict[str, Any]) -> tuple[AppConfig | None, list
             window_width=window_width,
             window_height=window_height,
             poll_interval_ms=poll_interval_ms,
+            plot_refresh_interval_ms=plot_refresh_interval_ms,
             validation_limits=validation_limits,
         ),
         [],
