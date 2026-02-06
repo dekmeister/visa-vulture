@@ -1186,3 +1186,100 @@ class TestOutputDisabledOnStopAndPause:
 
         mock_sg.disable_all_modulation.assert_called_once()
         mock_sg.disable_output.assert_called_once()
+
+
+class TestExecutePlanLoop:
+    """Tests for the extracted _execute_plan_loop helper method."""
+
+    def test_sorts_steps_by_step_number(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Steps are executed in step_number order regardless of input order."""
+        model = EquipmentModel(mock_visa_connection)
+        executed: list[int] = []
+
+        steps = [
+            PowerSupplyTestStep(step_number=3, duration_seconds=0.0),
+            PowerSupplyTestStep(step_number=1, duration_seconds=0.0),
+            PowerSupplyTestStep(step_number=2, duration_seconds=0.0),
+        ]
+
+        model._execute_plan_loop(
+            steps, 3, 1, lambda s: executed.append(s.step_number), Mock()
+        )
+
+        assert executed == [1, 2, 3]
+
+    def test_skips_steps_before_start_step(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Steps before start_step are not executed."""
+        model = EquipmentModel(mock_visa_connection)
+        executed: list[int] = []
+
+        steps = [
+            PowerSupplyTestStep(step_number=1, duration_seconds=0.0),
+            PowerSupplyTestStep(step_number=2, duration_seconds=0.0),
+            PowerSupplyTestStep(step_number=3, duration_seconds=0.0),
+        ]
+
+        model._execute_plan_loop(
+            steps, 3, 2, lambda s: executed.append(s.step_number), Mock()
+        )
+
+        assert executed == [2, 3]
+
+    def test_stops_on_stop_requested(self, mock_visa_connection: Mock) -> None:
+        """Loop breaks when _stop_requested is set."""
+        model = EquipmentModel(mock_visa_connection)
+        executed: list[int] = []
+
+        def apply_step(step: PowerSupplyTestStep) -> None:
+            executed.append(step.step_number)
+            if step.step_number == 2:
+                model._stop_requested = True
+
+        steps = [
+            PowerSupplyTestStep(step_number=1, duration_seconds=0.0),
+            PowerSupplyTestStep(step_number=2, duration_seconds=0.0),
+            PowerSupplyTestStep(step_number=3, duration_seconds=0.0),
+        ]
+
+        model._execute_plan_loop(steps, 3, 1, apply_step, Mock())
+
+        assert executed == [1, 2]
+
+    def test_enables_output_on_start_step(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """enable_output is called exactly once, on the start_step."""
+        model = EquipmentModel(mock_visa_connection)
+        enable_mock = Mock()
+
+        steps = [
+            PowerSupplyTestStep(step_number=1, duration_seconds=0.0),
+            PowerSupplyTestStep(step_number=2, duration_seconds=0.0),
+        ]
+
+        model._execute_plan_loop(steps, 2, 2, lambda s: None, enable_mock)
+
+        enable_mock.assert_called_once()
+
+    def test_notifies_progress_for_each_step(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """_notify_progress is called for each executed step."""
+        model = EquipmentModel(mock_visa_connection)
+        progress_steps: list[int] = []
+        model.register_progress_callback(
+            lambda current, total, step: progress_steps.append(current)
+        )
+
+        steps = [
+            PowerSupplyTestStep(step_number=1, duration_seconds=0.0),
+            PowerSupplyTestStep(step_number=2, duration_seconds=0.0),
+        ]
+
+        model._execute_plan_loop(steps, 2, 1, lambda s: None, Mock())
+
+        assert progress_steps == [1, 2]

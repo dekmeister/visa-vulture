@@ -2,7 +2,7 @@
 
 import logging
 import time
-from typing import Callable
+from typing import Callable, Sequence
 
 from ..instruments import BaseInstrument, PowerSupply, SignalGenerator, VISAConnection
 from .state_machine import EquipmentState, StateMachine
@@ -13,7 +13,6 @@ from .test_plan import (
     SignalGeneratorTestStep,
     PLAN_TYPE_POWER_SUPPLY,
     PLAN_TYPE_SIGNAL_GENERATOR,
-    ModulationType,
 )
 
 logger = logging.getLogger(__name__)
@@ -336,6 +335,50 @@ class EquipmentModel:
             logger.info("Resume requested")
             self._pause_requested = False
 
+    def _execute_plan_loop(
+        self,
+        steps: Sequence[TestStep],
+        total_steps: int,
+        start_step: int,
+        apply_step: Callable[[TestStep], None],
+        enable_output: Callable[[], None],
+    ) -> None:
+        """Execute the common test plan step iteration loop.
+
+        Iterates over sorted steps, skipping steps before start_step.
+        For each step, calls apply_step to send instrument-specific commands,
+        enables output on the first executed step, notifies progress, and
+        sleeps for the step duration. Stops early if _stop_requested is set.
+
+        Args:
+            steps: Sequence of test steps to iterate over
+            total_steps: Total number of steps (for progress reporting)
+            start_step: 1-based step number to start execution from
+            apply_step: Callable that applies instrument-specific settings
+                for a step. Should perform type narrowing, logging, and
+                instrument commands.
+            enable_output: Callable that enables the instrument output.
+        """
+        sorted_steps = sorted(steps, key=lambda s: s.step_number)
+
+        for step in sorted_steps:
+            if step.step_number < start_step:
+                continue
+
+            if self._stop_requested:
+                logger.info("Test stopped at step %d", step.step_number)
+                break
+
+            apply_step(step)
+
+            if step.step_number == start_step:
+                enable_output()
+
+            self._notify_progress(step.step_number, total_steps, step)
+
+            if step.duration_seconds > 0:
+                self._interruptible_sleep(step.duration_seconds)
+
     def _execute_power_supply_plan(self, start_step: int = 1) -> None:
         """Execute power supply test plan steps.
 
@@ -348,27 +391,14 @@ class EquipmentModel:
         ):
             return
 
-        # Get the power supply
         if not isinstance(self._instrument, PowerSupply):
             raise RuntimeError("Connected instrument is not a power supply")
         power_supply = self._instrument
-
         total_steps = self._test_plan.step_count
-        sorted_steps = sorted(self._test_plan.steps, key=lambda s: s.step_number)
 
-        for step in sorted_steps:
-            # Skip steps before start_step
-            if step.step_number < start_step:
-                continue
-
-            if self._stop_requested:
-                logger.info("Test stopped at step %d", step.step_number)
-                break
-
-            # Type narrow: steps in power supply plan must be PowerSupplyTestStep
+        def apply_step(step: TestStep) -> None:
             if not isinstance(step, PowerSupplyTestStep):
                 raise TypeError(f"Expected PowerSupplyTestStep, got {type(step)}")
-
             logger.info(
                 "Executing step %d/%d: V=%.3f, I=%.3f",
                 step.step_number,
@@ -376,23 +406,17 @@ class EquipmentModel:
                 step.voltage,
                 step.current,
             )
-
-            # Apply settings
             power_supply.set_voltage(step.voltage)
             power_supply.set_current(step.current)
 
-            # Enable output on first executed step
-            if step.step_number == start_step:
-                power_supply.enable_output()
+        self._execute_plan_loop(
+            self._test_plan.steps,
+            total_steps,
+            start_step,
+            apply_step,
+            power_supply.enable_output,
+        )
 
-            # Notify progress
-            self._notify_progress(step.step_number, total_steps, step)
-
-            # Wait for step duration
-            if step.duration_seconds > 0:
-                self._interruptible_sleep(step.duration_seconds)
-
-        # Disable output at end
         if power_supply.is_connected:
             power_supply.disable_output()
 
@@ -408,7 +432,6 @@ class EquipmentModel:
         ):
             return
 
-        # Get the signal generator
         if not isinstance(self._instrument, SignalGenerator):
             raise RuntimeError("Connected instrument is not a signal generator")
         signal_gen = self._instrument
@@ -420,28 +443,17 @@ class EquipmentModel:
                 "Configuring modulation: %s", modulation_config.modulation_type.value
             )
             signal_gen.configure_modulation(modulation_config)
-            # Start with modulation disabled; steps control when it's on
             signal_gen.set_modulation_enabled(modulation_config, False)
 
         total_steps = self._test_plan.step_count
-        sorted_steps = sorted(self._test_plan.steps, key=lambda s: s.step_number)
-
-        # Track previous modulation state to avoid redundant commands
         prev_mod_enabled: bool | None = None
 
-        for step in sorted_steps:
-            # Skip steps before start_step
-            if step.step_number < start_step:
-                continue
-
-            if self._stop_requested:
-                logger.info("Test stopped at step %d", step.step_number)
-                break
-
-            # Type narrow: steps in signal generator plan must be SignalGeneratorTestStep
+        def apply_step(step: TestStep) -> None:
+            nonlocal prev_mod_enabled
             if not isinstance(step, SignalGeneratorTestStep):
-                raise TypeError(f"Expected SignalGeneratorTestStep, got {type(step)}")
-
+                raise TypeError(
+                    f"Expected SignalGeneratorTestStep, got {type(step)}"
+                )
             logger.info(
                 "Executing step %d/%d: F=%.1f Hz, P=%.2f dBm, Mod=%s",
                 step.step_number,
@@ -450,12 +462,9 @@ class EquipmentModel:
                 step.power,
                 "ON" if step.modulation_enabled else "OFF",
             )
-
-            # Apply settings
             signal_gen.set_frequency(step.frequency)
             signal_gen.set_power(step.power)
 
-            # Handle modulation state change
             if modulation_config is not None:
                 if prev_mod_enabled != step.modulation_enabled:
                     signal_gen.set_modulation_enabled(
@@ -463,18 +472,14 @@ class EquipmentModel:
                     )
                     prev_mod_enabled = step.modulation_enabled
 
-            # Enable output on first executed step
-            if step.step_number == start_step:
-                signal_gen.enable_output()
+        self._execute_plan_loop(
+            self._test_plan.steps,
+            total_steps,
+            start_step,
+            apply_step,
+            signal_gen.enable_output,
+        )
 
-            # Notify progress
-            self._notify_progress(step.step_number, total_steps, step)
-
-            # Wait for step duration
-            if step.duration_seconds > 0:
-                self._interruptible_sleep(step.duration_seconds)
-
-        # Disable modulation and output at end
         if signal_gen.is_connected:
             if modulation_config is not None:
                 signal_gen.disable_all_modulation()

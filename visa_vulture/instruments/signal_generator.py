@@ -109,31 +109,6 @@ class SignalGenerator(BaseInstrument):
         response = self.query("POW?")
         return float(response)
 
-    # Output control
-
-    def enable_output(self) -> None:
-        """Enable signal generator output."""
-        self._check_connected()
-        logger.info("%s: Enabling output", self._name)
-        self.write("OUTP 1")
-
-    def disable_output(self) -> None:
-        """Disable signal generator output."""
-        self._check_connected()
-        logger.info("%s: Disabling output", self._name)
-        self.write("OUTP 0")
-
-    def is_output_enabled(self) -> bool:
-        """
-        Check if output is enabled.
-
-        Returns:
-            True if output is enabled
-        """
-        self._check_connected()
-        response = self.query("OUTP?")
-        return response in ("1", "ON")
-
     # AM Modulation control
 
     def configure_am_modulation(

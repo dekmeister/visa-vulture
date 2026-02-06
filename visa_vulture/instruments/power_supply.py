@@ -118,31 +118,6 @@ class PowerSupply(BaseInstrument):
         response = self.query("MEAS:CURR?")
         return float(response)
 
-    # Output control
-
-    def enable_output(self) -> None:
-        """Enable power supply output."""
-        self._check_connected()
-        logger.info("%s: Enabling output", self._name)
-        self.write("OUTP 1")
-
-    def disable_output(self) -> None:
-        """Disable power supply output."""
-        self._check_connected()
-        logger.info("%s: Disabling output", self._name)
-        self.write("OUTP 0")
-
-    def is_output_enabled(self) -> bool:
-        """
-        Check if output is enabled.
-
-        Returns:
-            True if output is enabled
-        """
-        self._check_connected()
-        response = self.query("OUTP?")
-        return response in ("1", "ON")
-
     # Power measurement
 
     def measure_power(self) -> float:
