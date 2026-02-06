@@ -594,6 +594,27 @@ def _parse_fm_config(
     )
 
 
+def _check_soft_limit(
+    warnings: list[str],
+    step_number: int,
+    field: str,
+    value: float,
+    limit: float,
+    unit: str,
+    description: str,
+    direction: str = "exceeds",
+) -> None:
+    """Append a soft-limit warning and log it."""
+    warnings.append(
+        f"Step {step_number}: {field} {value} {unit} "
+        f"{description} ({limit} {unit})"
+    )
+    logger.warning(
+        "Step %d: %s %.1f %s %s soft limit of %.1f %s",
+        step_number, field, value, unit, direction, limit, unit,
+    )
+
+
 def _validate_soft_limits(
     plan: TestPlan,
     limits: ValidationLimits,
@@ -615,93 +636,51 @@ def _validate_soft_limits(
     warnings: list[str] = []
 
     for step in plan.steps:
-        # Check common limits
         if step.duration_seconds > limits.common.duration_max_s:
-            warnings.append(
-                f"Step {step.step_number}: duration {step.duration_seconds}s "
-                f"exceeds typical maximum ({limits.common.duration_max_s}s)"
-            )
-            logger.warning(
-                "Step %d: duration %.1fs exceeds soft limit of %.1fs",
-                step.step_number,
-                step.duration_seconds,
-                limits.common.duration_max_s,
+            _check_soft_limit(
+                warnings, step.step_number, "duration",
+                step.duration_seconds, limits.common.duration_max_s,
+                "s", "exceeds typical maximum",
             )
 
         if isinstance(step, SignalGeneratorTestStep):
-            # Check signal generator soft limits
             if step.power < limits.signal_generator.power_min_dbm:
-                warnings.append(
-                    f"Step {step.step_number}: power {step.power} dBm "
-                    f"below typical noise floor ({limits.signal_generator.power_min_dbm} dBm)"
+                _check_soft_limit(
+                    warnings, step.step_number, "power",
+                    step.power, limits.signal_generator.power_min_dbm,
+                    "dBm", "below typical noise floor", "below",
                 )
-                logger.warning(
-                    "Step %d: power %.1f dBm below soft limit of %.1f dBm",
-                    step.step_number,
-                    step.power,
-                    limits.signal_generator.power_min_dbm,
-                )
-
             if step.power > limits.signal_generator.power_max_dbm:
-                warnings.append(
-                    f"Step {step.step_number}: power {step.power} dBm "
-                    f"exceeds typical equipment limits ({limits.signal_generator.power_max_dbm} dBm)"
+                _check_soft_limit(
+                    warnings, step.step_number, "power",
+                    step.power, limits.signal_generator.power_max_dbm,
+                    "dBm", "exceeds typical equipment limits",
                 )
-                logger.warning(
-                    "Step %d: power %.1f dBm exceeds soft limit of %.1f dBm",
-                    step.step_number,
-                    step.power,
-                    limits.signal_generator.power_max_dbm,
-                )
-
             if step.frequency < limits.signal_generator.frequency_min_hz:
-                warnings.append(
-                    f"Step {step.step_number}: frequency {step.frequency} Hz "
-                    f"unusually low (< {limits.signal_generator.frequency_min_hz} Hz)"
+                _check_soft_limit(
+                    warnings, step.step_number, "frequency",
+                    step.frequency, limits.signal_generator.frequency_min_hz,
+                    "Hz", "below typical minimum", "below",
                 )
-                logger.warning(
-                    "Step %d: frequency %.1f Hz below soft limit of %.1f Hz",
-                    step.step_number,
-                    step.frequency,
-                    limits.signal_generator.frequency_min_hz,
-                )
-
             if step.frequency > limits.signal_generator.frequency_max_hz:
-                warnings.append(
-                    f"Step {step.step_number}: frequency {step.frequency} Hz "
-                    f"exceeds typical equipment limits ({limits.signal_generator.frequency_max_hz} Hz)"
-                )
-                logger.warning(
-                    "Step %d: frequency %.1f Hz exceeds soft limit of %.1f Hz",
-                    step.step_number,
-                    step.frequency,
-                    limits.signal_generator.frequency_max_hz,
+                _check_soft_limit(
+                    warnings, step.step_number, "frequency",
+                    step.frequency, limits.signal_generator.frequency_max_hz,
+                    "Hz", "exceeds typical equipment limits",
                 )
 
         elif isinstance(step, PowerSupplyTestStep):
-            # Check power supply soft limits
             if step.voltage > limits.power_supply.voltage_max_v:
-                warnings.append(
-                    f"Step {step.step_number}: voltage {step.voltage} V "
-                    f"exceeds typical lab supply limits ({limits.power_supply.voltage_max_v} V)"
+                _check_soft_limit(
+                    warnings, step.step_number, "voltage",
+                    step.voltage, limits.power_supply.voltage_max_v,
+                    "V", "exceeds typical lab supply limits",
                 )
-                logger.warning(
-                    "Step %d: voltage %.1f V exceeds soft limit of %.1f V",
-                    step.step_number,
-                    step.voltage,
-                    limits.power_supply.voltage_max_v,
-                )
-
             if step.current > limits.power_supply.current_max_a:
-                warnings.append(
-                    f"Step {step.step_number}: current {step.current} A "
-                    f"exceeds typical lab supply limits ({limits.power_supply.current_max_a} A)"
-                )
-                logger.warning(
-                    "Step %d: current %.1f A exceeds soft limit of %.1f A",
-                    step.step_number,
-                    step.current,
-                    limits.power_supply.current_max_a,
+                _check_soft_limit(
+                    warnings, step.step_number, "current",
+                    step.current, limits.power_supply.current_max_a,
+                    "A", "exceeds typical lab supply limits",
                 )
 
     return warnings
