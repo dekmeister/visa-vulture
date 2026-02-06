@@ -1,10 +1,12 @@
 """Tests for the test plan reader module."""
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-from visa_vulture.file_io.test_plan_reader import read_test_plan
+from visa_vulture.config.schema import SignalGeneratorSoftLimits, ValidationLimits
+from visa_vulture.file_io.test_plan_reader import TestPlanResult, read_test_plan
 from visa_vulture.model.test_plan import (
     PLAN_TYPE_POWER_SUPPLY,
     PLAN_TYPE_SIGNAL_GENERATOR,
@@ -14,6 +16,41 @@ from visa_vulture.model.test_plan import (
     AMModulationConfig,
     FMModulationConfig,
 )
+
+
+def _make_ps_csv(
+    duration: float = 1.0,
+    voltage: float = 5.0,
+    current: float = 1.0,
+) -> str:
+    """Build a minimal power supply test plan CSV."""
+    return (
+        "# instrument_type: power_supply\n"
+        "duration,voltage,current\n"
+        f"{duration},{voltage},{current}\n"
+    )
+
+
+def _make_sg_csv(
+    duration: float = 1.0,
+    frequency: float = 1000000,
+    power: float = 0,
+) -> str:
+    """Build a minimal signal generator test plan CSV."""
+    return (
+        "# instrument_type: signal_generator\n"
+        "duration,frequency,power\n"
+        f"{duration},{frequency},{power}\n"
+    )
+
+
+def _parse_plan_csv(
+    tmp_path: Path, content: str, **kwargs: Any
+) -> TestPlanResult:
+    """Write CSV content to a temp file and parse it."""
+    csv_path = tmp_path / "test.csv"
+    csv_path.write_text(content)
+    return read_test_plan(csv_path, **kwargs)
 
 
 class TestReadTestPlanFileHandling:
@@ -189,49 +226,28 @@ class TestReadTestPlanValueValidation:
 
     def test_negative_duration_returns_error(self, tmp_path: Path) -> None:
         """Negative duration value returns error."""
-        csv_path = tmp_path / "negative_duration.csv"
-        csv_path.write_text(
-            "# instrument_type: power_supply\nduration,voltage,current\n-1.0,5.0,1.0\n"
-        )
-
-        result = read_test_plan(csv_path)
+        result = _parse_plan_csv(tmp_path, _make_ps_csv(duration=-1.0))
 
         assert result.plan is None
         assert any("must be >= 0" in e for e in result.errors)
 
     def test_negative_voltage_returns_error(self, tmp_path: Path) -> None:
         """Negative voltage value returns error."""
-        csv_path = tmp_path / "negative_voltage.csv"
-        csv_path.write_text(
-            "# instrument_type: power_supply\nduration,voltage,current\n0.0,-5.0,1.0\n"
-        )
-
-        result = read_test_plan(csv_path)
+        result = _parse_plan_csv(tmp_path, _make_ps_csv(voltage=-5.0))
 
         assert result.plan is None
         assert any("voltage" in e.lower() and ">= 0" in e for e in result.errors)
 
     def test_negative_current_returns_error(self, tmp_path: Path) -> None:
         """Negative current value returns error."""
-        csv_path = tmp_path / "negative_current.csv"
-        csv_path.write_text(
-            "# instrument_type: power_supply\nduration,voltage,current\n0.0,5.0,-1.0\n"
-        )
-
-        result = read_test_plan(csv_path)
+        result = _parse_plan_csv(tmp_path, _make_ps_csv(current=-1.0))
 
         assert result.plan is None
         assert any("current" in e.lower() and ">= 0" in e for e in result.errors)
 
     def test_negative_frequency_returns_error(self, tmp_path: Path) -> None:
         """Negative frequency value returns error."""
-        csv_path = tmp_path / "negative_freq.csv"
-        csv_path.write_text(
-            "# instrument_type: signal_generator\n"
-            "duration,frequency,power\n0.0,-1000,0\n"
-        )
-
-        result = read_test_plan(csv_path)
+        result = _parse_plan_csv(tmp_path, _make_sg_csv(frequency=-1000))
 
         assert result.plan is None
         assert any("frequency" in e.lower() and ">= 0" in e for e in result.errors)
@@ -242,13 +258,7 @@ class TestReadTestPlanTypeDetection:
 
     def test_type_detected_from_metadata(self, tmp_path: Path) -> None:
         """Type is detected from instrument_type metadata."""
-        csv_path = tmp_path / "metadata_type.csv"
-        csv_path.write_text(
-            "# instrument_type: signal_generator\n"
-            "duration,frequency,power\n0.0,1000000,0\n"
-        )
-
-        result = read_test_plan(csv_path)
+        result = _parse_plan_csv(tmp_path, _make_sg_csv())
 
         assert result.errors == []
         assert result.plan is not None
@@ -831,98 +841,49 @@ class TestHardLimitValidation:
 
     def test_power_below_hard_minimum_returns_error(self, tmp_path: Path) -> None:
         """Power below -200 dBm returns error."""
-        csv_path = tmp_path / "power_too_low.csv"
-        csv_path.write_text(
-            "# instrument_type: signal_generator\n"
-            "duration,frequency,power\n"
-            "1.0,1000000,-250\n"
-        )
-
-        result = read_test_plan(csv_path)
+        result = _parse_plan_csv(tmp_path, _make_sg_csv(power=-250))
 
         assert result.plan is None
         assert any("power" in e.lower() and "-200" in e for e in result.errors)
 
     def test_power_above_hard_maximum_returns_error(self, tmp_path: Path) -> None:
         """Power above +60 dBm returns error."""
-        csv_path = tmp_path / "power_too_high.csv"
-        csv_path.write_text(
-            "# instrument_type: signal_generator\n"
-            "duration,frequency,power\n"
-            "1.0,1000000,100\n"
-        )
-
-        result = read_test_plan(csv_path)
+        result = _parse_plan_csv(tmp_path, _make_sg_csv(power=100))
 
         assert result.plan is None
         assert any("power" in e.lower() and "60" in e for e in result.errors)
 
     def test_frequency_above_hard_maximum_returns_error(self, tmp_path: Path) -> None:
         """Frequency above 100 THz returns error."""
-        csv_path = tmp_path / "freq_too_high.csv"
-        csv_path.write_text(
-            "# instrument_type: signal_generator\n"
-            "duration,frequency,power\n"
-            "1.0,200000000000000,0\n"  # 200 THz
-        )
-
-        result = read_test_plan(csv_path)
+        result = _parse_plan_csv(tmp_path, _make_sg_csv(frequency=200000000000000))
 
         assert result.plan is None
         assert any("frequency" in e.lower() and "exceeds" in e.lower() for e in result.errors)
 
     def test_voltage_above_hard_maximum_returns_error(self, tmp_path: Path) -> None:
         """Voltage above 10kV returns error."""
-        csv_path = tmp_path / "voltage_too_high.csv"
-        csv_path.write_text(
-            "# instrument_type: power_supply\n"
-            "duration,voltage,current\n"
-            "1.0,15000,1.0\n"  # 15kV
-        )
-
-        result = read_test_plan(csv_path)
+        result = _parse_plan_csv(tmp_path, _make_ps_csv(voltage=15000))
 
         assert result.plan is None
         assert any("voltage" in e.lower() and "exceeds" in e.lower() for e in result.errors)
 
     def test_current_above_hard_maximum_returns_error(self, tmp_path: Path) -> None:
         """Current above 1000A returns error."""
-        csv_path = tmp_path / "current_too_high.csv"
-        csv_path.write_text(
-            "# instrument_type: power_supply\n"
-            "duration,voltage,current\n"
-            "1.0,5.0,1500\n"  # 1500A
-        )
-
-        result = read_test_plan(csv_path)
+        result = _parse_plan_csv(tmp_path, _make_ps_csv(current=1500))
 
         assert result.plan is None
         assert any("current" in e.lower() and "exceeds" in e.lower() for e in result.errors)
 
     def test_power_at_hard_minimum_is_valid(self, tmp_path: Path) -> None:
         """Power exactly at -200 dBm is valid."""
-        csv_path = tmp_path / "power_at_min.csv"
-        csv_path.write_text(
-            "# instrument_type: signal_generator\n"
-            "duration,frequency,power\n"
-            "1.0,1000000,-200\n"
-        )
-
-        result = read_test_plan(csv_path)
+        result = _parse_plan_csv(tmp_path, _make_sg_csv(power=-200))
 
         assert result.errors == []
         assert result.plan is not None
 
     def test_power_at_hard_maximum_is_valid(self, tmp_path: Path) -> None:
         """Power exactly at +60 dBm is valid."""
-        csv_path = tmp_path / "power_at_max.csv"
-        csv_path.write_text(
-            "# instrument_type: signal_generator\n"
-            "duration,frequency,power\n"
-            "1.0,1000000,60\n"
-        )
-
-        result = read_test_plan(csv_path)
+        result = _parse_plan_csv(tmp_path, _make_sg_csv(power=60))
 
         assert result.errors == []
         assert result.plan is not None
@@ -933,17 +894,10 @@ class TestSoftLimitValidation:
 
     def test_power_below_soft_minimum_returns_warning(self, tmp_path: Path) -> None:
         """Power below soft limit generates warning but plan loads."""
-        from visa_vulture.config.schema import ValidationLimits
-
-        csv_path = tmp_path / "power_low.csv"
-        csv_path.write_text(
-            "# instrument_type: signal_generator\n"
-            "duration,frequency,power\n"
-            "1.0,1000000,-150\n"  # Below default -100 dBm soft limit
+        limits = ValidationLimits()
+        result = _parse_plan_csv(
+            tmp_path, _make_sg_csv(power=-150), soft_limits=limits
         )
-
-        limits = ValidationLimits()  # Use defaults
-        result = read_test_plan(csv_path, soft_limits=limits)
 
         assert result.errors == []
         assert result.plan is not None
@@ -952,17 +906,10 @@ class TestSoftLimitValidation:
 
     def test_power_above_soft_maximum_returns_warning(self, tmp_path: Path) -> None:
         """Power above soft limit generates warning but plan loads."""
-        from visa_vulture.config.schema import ValidationLimits
-
-        csv_path = tmp_path / "power_high.csv"
-        csv_path.write_text(
-            "# instrument_type: signal_generator\n"
-            "duration,frequency,power\n"
-            "1.0,1000000,50\n"  # Above default +30 dBm soft limit
-        )
-
         limits = ValidationLimits()
-        result = read_test_plan(csv_path, soft_limits=limits)
+        result = _parse_plan_csv(
+            tmp_path, _make_sg_csv(power=50), soft_limits=limits
+        )
 
         assert result.errors == []
         assert result.plan is not None
@@ -971,17 +918,10 @@ class TestSoftLimitValidation:
 
     def test_frequency_below_soft_minimum_returns_warning(self, tmp_path: Path) -> None:
         """Frequency below soft limit generates warning but plan loads."""
-        from visa_vulture.config.schema import ValidationLimits
-
-        csv_path = tmp_path / "freq_low.csv"
-        csv_path.write_text(
-            "# instrument_type: signal_generator\n"
-            "duration,frequency,power\n"
-            "1.0,0.5,0\n"  # Below default 1 Hz soft limit
-        )
-
         limits = ValidationLimits()
-        result = read_test_plan(csv_path, soft_limits=limits)
+        result = _parse_plan_csv(
+            tmp_path, _make_sg_csv(frequency=0.5), soft_limits=limits
+        )
 
         assert result.errors == []
         assert result.plan is not None
@@ -990,17 +930,10 @@ class TestSoftLimitValidation:
 
     def test_voltage_above_soft_maximum_returns_warning(self, tmp_path: Path) -> None:
         """Voltage above soft limit generates warning but plan loads."""
-        from visa_vulture.config.schema import ValidationLimits
-
-        csv_path = tmp_path / "voltage_high.csv"
-        csv_path.write_text(
-            "# instrument_type: power_supply\n"
-            "duration,voltage,current\n"
-            "1.0,200,1.0\n"  # Above default 100V soft limit
-        )
-
         limits = ValidationLimits()
-        result = read_test_plan(csv_path, soft_limits=limits)
+        result = _parse_plan_csv(
+            tmp_path, _make_ps_csv(voltage=200), soft_limits=limits
+        )
 
         assert result.errors == []
         assert result.plan is not None
@@ -1009,17 +942,10 @@ class TestSoftLimitValidation:
 
     def test_duration_above_soft_maximum_returns_warning(self, tmp_path: Path) -> None:
         """Duration above soft limit generates warning but plan loads."""
-        from visa_vulture.config.schema import ValidationLimits
-
-        csv_path = tmp_path / "duration_long.csv"
-        csv_path.write_text(
-            "# instrument_type: power_supply\n"
-            "duration,voltage,current\n"
-            "100000,5.0,1.0\n"  # Above default 86400s (24h) soft limit
-        )
-
         limits = ValidationLimits()
-        result = read_test_plan(csv_path, soft_limits=limits)
+        result = _parse_plan_csv(
+            tmp_path, _make_ps_csv(duration=100000), soft_limits=limits
+        )
 
         assert result.errors == []
         assert result.plan is not None
@@ -1028,22 +954,11 @@ class TestSoftLimitValidation:
 
     def test_custom_soft_limits_respected(self, tmp_path: Path) -> None:
         """Custom soft limits from config are used."""
-        from visa_vulture.config.schema import (
-            ValidationLimits,
-            SignalGeneratorSoftLimits,
-        )
-
-        csv_path = tmp_path / "custom_limit.csv"
-        csv_path.write_text(
-            "# instrument_type: signal_generator\n"
-            "duration,frequency,power\n"
-            "1.0,1000000,15\n"  # Would be OK with default +30, but custom is +10
-        )
-
-        # Custom limit: power max is +10 dBm
         custom_sg_limits = SignalGeneratorSoftLimits(power_max_dbm=10.0)
         limits = ValidationLimits(signal_generator=custom_sg_limits)
-        result = read_test_plan(csv_path, soft_limits=limits)
+        result = _parse_plan_csv(
+            tmp_path, _make_sg_csv(power=15), soft_limits=limits
+        )
 
         assert result.errors == []
         assert result.plan is not None
@@ -1052,17 +967,8 @@ class TestSoftLimitValidation:
 
     def test_no_warnings_for_valid_values(self, tmp_path: Path) -> None:
         """Values within soft limits generate no warnings."""
-        from visa_vulture.config.schema import ValidationLimits
-
-        csv_path = tmp_path / "all_valid.csv"
-        csv_path.write_text(
-            "# instrument_type: signal_generator\n"
-            "duration,frequency,power\n"
-            "1.0,1000000,0\n"  # All values within soft limits
-        )
-
         limits = ValidationLimits()
-        result = read_test_plan(csv_path, soft_limits=limits)
+        result = _parse_plan_csv(tmp_path, _make_sg_csv(), soft_limits=limits)
 
         assert result.errors == []
         assert result.plan is not None
@@ -1070,8 +976,6 @@ class TestSoftLimitValidation:
 
     def test_multiple_warnings_accumulated(self, tmp_path: Path) -> None:
         """Multiple soft limit violations generate multiple warnings."""
-        from visa_vulture.config.schema import ValidationLimits
-
         csv_path = tmp_path / "multiple_warnings.csv"
         csv_path.write_text(
             "# instrument_type: signal_generator\n"
@@ -1089,15 +993,7 @@ class TestSoftLimitValidation:
 
     def test_soft_limit_validation_skipped_without_limits(self, tmp_path: Path) -> None:
         """Without soft_limits parameter, no warnings are generated."""
-        csv_path = tmp_path / "no_limits.csv"
-        csv_path.write_text(
-            "# instrument_type: signal_generator\n"
-            "duration,frequency,power\n"
-            "1.0,1000000,-150\n"  # Would trigger warning if limits provided
-        )
-
-        # No soft_limits parameter
-        result = read_test_plan(csv_path)
+        result = _parse_plan_csv(tmp_path, _make_sg_csv(power=-150))
 
         assert result.errors == []
         assert result.plan is not None
@@ -1109,14 +1005,7 @@ class TestTestPlanResult:
 
     def test_result_with_successful_parse(self, tmp_path: Path) -> None:
         """Result with successful parse has plan and empty error list."""
-        csv_path = tmp_path / "valid.csv"
-        csv_path.write_text(
-            "# instrument_type: power_supply\n"
-            "duration,voltage,current\n"
-            "1.0,5.0,1.0\n"
-        )
-
-        result = read_test_plan(csv_path)
+        result = _parse_plan_csv(tmp_path, _make_ps_csv())
 
         assert result.plan is not None
         assert result.errors == []
@@ -1138,17 +1027,10 @@ class TestTestPlanResult:
 
     def test_result_with_warnings_has_plan(self, tmp_path: Path) -> None:
         """Result with warnings still has valid plan."""
-        from visa_vulture.config.schema import ValidationLimits
-
-        csv_path = tmp_path / "with_warnings.csv"
-        csv_path.write_text(
-            "# instrument_type: signal_generator\n"
-            "duration,frequency,power\n"
-            "1.0,1000000,-150\n"  # Triggers soft limit warning
-        )
-
         limits = ValidationLimits()
-        result = read_test_plan(csv_path, soft_limits=limits)
+        result = _parse_plan_csv(
+            tmp_path, _make_sg_csv(power=-150), soft_limits=limits
+        )
 
         assert result.plan is not None
         assert result.errors == []
