@@ -71,6 +71,19 @@ class EquipmentModel:
         """Get the type of connected instrument."""
         return self._instrument_type
 
+    def is_plan_type_compatible(self, plan_type: str) -> bool:
+        """Check if a plan type is compatible with the connected instrument.
+
+        Returns True if compatible or if no instrument is connected.
+        """
+        if self._instrument_type is None:
+            return True
+        if plan_type == PLAN_TYPE_POWER_SUPPLY:
+            return self._instrument_type == "power_supply"
+        if plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
+            return self._instrument_type == "signal_generator"
+        return True
+
     def register_state_callback(
         self, callback: Callable[[EquipmentState, EquipmentState], None]
     ) -> None:
@@ -265,6 +278,12 @@ class EquipmentModel:
 
         if self._test_plan.get_step(start_step) is None:
             raise ValueError(f"Step {start_step} not found in test plan")
+
+        if not self.is_plan_type_compatible(self._test_plan.plan_type):
+            raise RuntimeError(
+                f"Test plan type '{self._test_plan.plan_type}' is not compatible "
+                f"with connected instrument type '{self._instrument_type}'"
+            )
 
         self._stop_requested = False
         self._pause_requested = False

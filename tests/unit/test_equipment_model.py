@@ -105,6 +105,80 @@ class TestEquipmentModelTestPlan:
         assert equipment_model.test_plan is sample_power_supply_plan
 
 
+class TestPlanTypeCompatibility:
+    """Tests for plan type / instrument type compatibility checking."""
+
+    def test_compatible_when_no_instrument(
+        self, equipment_model: EquipmentModel
+    ) -> None:
+        """Any plan type is compatible when no instrument is connected."""
+        assert equipment_model.is_plan_type_compatible(PLAN_TYPE_POWER_SUPPLY) is True
+        assert (
+            equipment_model.is_plan_type_compatible(PLAN_TYPE_SIGNAL_GENERATOR) is True
+        )
+
+    def test_compatible_ps_plan_with_ps_instrument(
+        self, equipment_model: EquipmentModel, mock_visa_connection: Mock
+    ) -> None:
+        """Power supply plan is compatible with power supply instrument."""
+        equipment_model.connect_instrument(
+            "TCPIP::192.168.1.100::INSTR", "power_supply"
+        )
+        assert equipment_model.is_plan_type_compatible(PLAN_TYPE_POWER_SUPPLY) is True
+
+    def test_compatible_sg_plan_with_sg_instrument(
+        self, equipment_model: EquipmentModel, mock_visa_connection: Mock
+    ) -> None:
+        """Signal generator plan is compatible with signal generator instrument."""
+        equipment_model.connect_instrument(
+            "TCPIP::192.168.1.100::INSTR", "signal_generator"
+        )
+        assert (
+            equipment_model.is_plan_type_compatible(PLAN_TYPE_SIGNAL_GENERATOR) is True
+        )
+
+    def test_incompatible_ps_plan_with_sg_instrument(
+        self, equipment_model: EquipmentModel, mock_visa_connection: Mock
+    ) -> None:
+        """Power supply plan is incompatible with signal generator instrument."""
+        equipment_model.connect_instrument(
+            "TCPIP::192.168.1.100::INSTR", "signal_generator"
+        )
+        assert equipment_model.is_plan_type_compatible(PLAN_TYPE_POWER_SUPPLY) is False
+
+    def test_incompatible_sg_plan_with_ps_instrument(
+        self, equipment_model: EquipmentModel, mock_visa_connection: Mock
+    ) -> None:
+        """Signal generator plan is incompatible with power supply instrument."""
+        equipment_model.connect_instrument(
+            "TCPIP::192.168.1.100::INSTR", "power_supply"
+        )
+        assert (
+            equipment_model.is_plan_type_compatible(PLAN_TYPE_SIGNAL_GENERATOR) is False
+        )
+
+    def test_run_test_raises_on_incompatible_types(
+        self, equipment_model: EquipmentModel, mock_visa_connection: Mock
+    ) -> None:
+        """run_test raises RuntimeError when plan and instrument types don't match."""
+        equipment_model.connect_instrument(
+            "TCPIP::192.168.1.100::INSTR", "signal_generator"
+        )
+        ps_plan = TestPlan(
+            name="PS Plan",
+            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            steps=[
+                PowerSupplyTestStep(
+                    step_number=1, duration_seconds=1.0, voltage=5.0, current=1.0
+                ),
+            ],
+        )
+        equipment_model.load_test_plan(ps_plan)
+
+        with pytest.raises(RuntimeError, match="not compatible"):
+            equipment_model.run_test()
+
+
 class TestEquipmentModelConnectInstrument:
     """Tests for connect_instrument method."""
 

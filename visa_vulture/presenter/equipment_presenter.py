@@ -584,23 +584,14 @@ class EquipmentPresenter:
 
         Returns an error message if mismatched, or None if compatible.
         """
-        instrument_type = self._model.instrument_type
-        if instrument_type is None:
+        if self._model.is_plan_type_compatible(plan_type):
             return None
-        if plan_type == PLAN_TYPE_POWER_SUPPLY and instrument_type != "power_supply":
-            return (
-                "Cannot load power supply test plan: "
-                "connected instrument is a signal generator"
-            )
-        if (
-            plan_type == PLAN_TYPE_SIGNAL_GENERATOR
-            and instrument_type != "signal_generator"
-        ):
-            return (
-                "Cannot load signal generator test plan: "
-                "connected instrument is a power supply"
-            )
-        return None
+        plan_label = plan_type.replace("_", " ")
+        instrument_label = (self._model.instrument_type or "").replace("_", " ")
+        return (
+            f"Cannot load {plan_label} test plan: "
+            f"connected instrument is a {instrument_label}"
+        )
 
     def _setup_signal_generator_preview(self, test_plan) -> None:
         """Set up signal generator plot and table for a loaded test plan."""

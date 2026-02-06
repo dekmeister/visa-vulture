@@ -318,6 +318,23 @@ def mock_model_for_presenter() -> Mock:
     # Default return values
     model.get_instrument_identification.return_value = (None, None)
 
+    # Plan type compatibility - mirrors real EquipmentModel.is_plan_type_compatible()
+    def is_plan_type_compatible(plan_type: str) -> bool:
+        from visa_vulture.model.test_plan import (
+            PLAN_TYPE_POWER_SUPPLY,
+            PLAN_TYPE_SIGNAL_GENERATOR,
+        )
+
+        if model._instrument_type is None:
+            return True
+        if plan_type == PLAN_TYPE_POWER_SUPPLY:
+            return model._instrument_type == "power_supply"
+        if plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
+            return model._instrument_type == "signal_generator"
+        return True
+
+    model.is_plan_type_compatible.side_effect = is_plan_type_compatible
+
     return model
 
 
