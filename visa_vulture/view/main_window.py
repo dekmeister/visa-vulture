@@ -8,6 +8,48 @@ from .log_panel import LogPanel
 from .plot_panel import PowerSupplyPlotPanel, SignalGeneratorPlotPanel
 from .test_points_table import TestPointsTable, InstrumentType
 
+# Button enable/disable configuration per equipment state.
+_BUTTON_STATES: dict[str, dict[str, str]] = {
+    "UNKNOWN": {
+        "connect": tk.NORMAL, "disconnect": tk.DISABLED, "load": tk.NORMAL,
+        "run": tk.DISABLED, "stop": tk.DISABLED, "pause": tk.DISABLED, "start_from": tk.DISABLED,
+    },
+    "IDLE": {
+        "connect": tk.DISABLED, "disconnect": tk.NORMAL, "load": tk.NORMAL,
+        "run": tk.NORMAL, "stop": tk.DISABLED, "pause": tk.DISABLED, "start_from": tk.DISABLED,
+    },
+    "RUNNING": {
+        "connect": tk.DISABLED, "disconnect": tk.DISABLED, "load": tk.DISABLED,
+        "run": tk.DISABLED, "stop": tk.NORMAL, "pause": tk.NORMAL, "start_from": tk.DISABLED,
+    },
+    "PAUSED": {
+        "connect": tk.DISABLED, "disconnect": tk.DISABLED, "load": tk.DISABLED,
+        "run": tk.NORMAL, "stop": tk.NORMAL, "pause": tk.DISABLED, "start_from": tk.DISABLED,
+    },
+    "ERROR": {
+        "connect": tk.NORMAL, "disconnect": tk.NORMAL, "load": tk.NORMAL,
+        "run": tk.DISABLED, "stop": tk.DISABLED, "pause": tk.DISABLED, "start_from": tk.DISABLED,
+    },
+}
+
+# Run button text per state.
+_RUN_BUTTON_TEXT: dict[str, str] = {
+    "UNKNOWN": "Run",
+    "IDLE": "Run",
+    "RUNNING": "Run",
+    "PAUSED": "Resume",
+    "ERROR": "Run",
+}
+
+# Start-from button text per state. RUNNING is intentionally absent so the
+# text is preserved from the previous state when entering RUNNING.
+_START_FROM_BUTTON_TEXT: dict[str, str] = {
+    "UNKNOWN": "Start from...",
+    "IDLE": "Start from...",
+    "PAUSED": "Resume from...",
+    "ERROR": "Start from...",
+}
+
 
 class MainWindow:
     """
@@ -72,7 +114,13 @@ class MainWindow:
         panel = ttk.Frame(self._root, padding=5)
         panel.grid(row=0, column=0, sticky="ew")
 
-        # Connection section
+        self._create_connection_section(panel)
+        self._create_test_plan_section(panel)
+        self._create_execution_section(panel)
+        self._create_status_display(panel)
+
+    def _create_connection_section(self, panel: ttk.Frame) -> None:
+        """Create connection controls section."""
         conn_frame = ttk.LabelFrame(panel, text="Connection", padding=5)
         conn_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
@@ -89,11 +137,11 @@ class MainWindow:
         )
         self._disconnect_btn.pack(side=tk.LEFT, padx=2)
 
-        # Connection indicator
         self._conn_indicator = ttk.Label(conn_frame, text="\u25cf", foreground="gray")
         self._conn_indicator.pack(side=tk.LEFT, padx=5)
 
-        # Test plan section
+    def _create_test_plan_section(self, panel: ttk.Frame) -> None:
+        """Create test plan controls section."""
         plan_frame = ttk.LabelFrame(panel, text="Test Plan", padding=5)
         plan_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
@@ -105,7 +153,8 @@ class MainWindow:
         self._plan_label = ttk.Label(plan_frame, text="No plan loaded", width=30)
         self._plan_label.pack(side=tk.LEFT, padx=5)
 
-        # Run section
+    def _create_execution_section(self, panel: ttk.Frame) -> None:
+        """Create execution controls section."""
         run_frame = ttk.LabelFrame(panel, text="Execution", padding=5)
         run_frame.pack(side=tk.LEFT, fill=tk.Y)
 
@@ -132,7 +181,8 @@ class MainWindow:
         )
         self._start_from_btn.pack(side=tk.LEFT, padx=2)
 
-        # State and runtime display (vertical layout)
+    def _create_status_display(self, panel: ttk.Frame) -> None:
+        """Create right-aligned status display with instrument, state, and timing."""
         status_frame = ttk.Frame(panel)
         status_frame.pack(side=tk.RIGHT, padx=10)
 
@@ -360,59 +410,27 @@ class MainWindow:
         Args:
             state: Current state name
         """
-        if state == "UNKNOWN":
-            self._connect_btn.config(state=tk.NORMAL)
-            self._disconnect_btn.config(state=tk.DISABLED)
-            self._load_btn.config(state=tk.NORMAL)
-            self._run_btn.config(state=tk.DISABLED)
-            self._stop_btn.config(state=tk.DISABLED)
-            self._pause_btn.config(state=tk.DISABLED)
-            self._start_from_btn.config(state=tk.DISABLED)
-            self.set_run_button_text("Run")
-            self.set_start_from_button_text("Start from...")
-        elif state == "IDLE":
-            self._connect_btn.config(state=tk.DISABLED)
-            self._disconnect_btn.config(state=tk.NORMAL)
-            self._load_btn.config(state=tk.NORMAL)
-            self._run_btn.config(state=tk.NORMAL)
-            self._stop_btn.config(state=tk.DISABLED)
-            self._pause_btn.config(state=tk.DISABLED)
-            self._start_from_btn.config(
-                state=tk.DISABLED
-            )  # Presenter enables if selected
-            self.set_run_button_text("Run")
-            self.set_start_from_button_text("Start from...")
-        elif state == "RUNNING":
-            self._connect_btn.config(state=tk.DISABLED)
-            self._disconnect_btn.config(state=tk.DISABLED)
-            self._load_btn.config(state=tk.DISABLED)
-            self._run_btn.config(state=tk.DISABLED)
-            self._stop_btn.config(state=tk.NORMAL)
-            self._pause_btn.config(state=tk.NORMAL)
-            self._start_from_btn.config(state=tk.DISABLED)
-            self.set_run_button_text("Run")
-        elif state == "PAUSED":
-            self._connect_btn.config(state=tk.DISABLED)
-            self._disconnect_btn.config(state=tk.DISABLED)
-            self._load_btn.config(state=tk.DISABLED)
-            self._run_btn.config(state=tk.NORMAL)
-            self._stop_btn.config(state=tk.NORMAL)
-            self._pause_btn.config(state=tk.DISABLED)
-            self._start_from_btn.config(
-                state=tk.DISABLED
-            )  # Presenter enables if selected
-            self.set_run_button_text("Resume")
-            self.set_start_from_button_text("Resume from...")
-        elif state == "ERROR":
-            self._connect_btn.config(state=tk.NORMAL)
-            self._disconnect_btn.config(state=tk.NORMAL)
-            self._load_btn.config(state=tk.NORMAL)
-            self._run_btn.config(state=tk.DISABLED)
-            self._stop_btn.config(state=tk.DISABLED)
-            self._pause_btn.config(state=tk.DISABLED)
-            self._start_from_btn.config(state=tk.DISABLED)
-            self.set_run_button_text("Run")
-            self.set_start_from_button_text("Start from...")
+        config = _BUTTON_STATES.get(state)
+        if config is None:
+            return
+
+        button_map = {
+            "connect": self._connect_btn,
+            "disconnect": self._disconnect_btn,
+            "load": self._load_btn,
+            "run": self._run_btn,
+            "stop": self._stop_btn,
+            "pause": self._pause_btn,
+            "start_from": self._start_from_btn,
+        }
+
+        for name, button in button_map.items():
+            button.config(state=config[name])
+
+        self.set_run_button_text(_RUN_BUTTON_TEXT.get(state, "Run"))
+
+        if state in _START_FROM_BUTTON_TEXT:
+            self.set_start_from_button_text(_START_FROM_BUTTON_TEXT[state])
 
     def set_run_button_text(self, text: str) -> None:
         """
@@ -613,49 +631,48 @@ class MainWindow:
         if self._sg_tab_visible:
             self._plot_notebook.select(self._sg_container)
 
+    def _show_tab(
+        self, container: ttk.PanedWindow, text: str, is_visible: bool
+    ) -> bool:
+        """Ensure a notebook tab is visible. Returns updated visibility."""
+        if not is_visible:
+            self._plot_notebook.add(container, text=text)
+        return True
+
+    def _hide_tab(self, container: ttk.PanedWindow, is_visible: bool) -> bool:
+        """Ensure a notebook tab is hidden. Returns updated visibility."""
+        if is_visible:
+            self._plot_notebook.hide(container)
+        return False
+
     def show_power_supply_tab_only(self) -> None:
         """Show only power supply tab, hide signal generator tab."""
-        # Ensure power supply tab is visible
-        if not self._ps_tab_visible:
-            self._plot_notebook.add(self._ps_container, text="Power Supply")
-            self._ps_tab_visible = True
-
-        # Hide signal generator tab if visible
-        if self._sg_tab_visible:
-            self._plot_notebook.hide(self._sg_container)
-            self._sg_tab_visible = False
-
-        # Select power supply tab
+        self._ps_tab_visible = self._show_tab(
+            self._ps_container, "Power Supply", self._ps_tab_visible
+        )
+        self._sg_tab_visible = self._hide_tab(
+            self._sg_container, self._sg_tab_visible
+        )
         self._plot_notebook.select(self._ps_container)
 
     def show_signal_generator_tab_only(self) -> None:
         """Show only signal generator tab, hide power supply tab."""
-        # Ensure signal generator tab is visible
-        if not self._sg_tab_visible:
-            self._plot_notebook.add(self._sg_container, text="Signal Generator")
-            self._sg_tab_visible = True
-
-        # Hide power supply tab if visible
-        if self._ps_tab_visible:
-            self._plot_notebook.hide(self._ps_container)
-            self._ps_tab_visible = False
-
-        # Select signal generator tab
+        self._sg_tab_visible = self._show_tab(
+            self._sg_container, "Signal Generator", self._sg_tab_visible
+        )
+        self._ps_tab_visible = self._hide_tab(
+            self._ps_container, self._ps_tab_visible
+        )
         self._plot_notebook.select(self._sg_container)
 
     def show_all_tabs(self) -> None:
         """Show both tabs (for disconnected state)."""
-        # Re-add power supply tab if hidden
-        if not self._ps_tab_visible:
-            self._plot_notebook.add(self._ps_container, text="Power Supply")
-            self._ps_tab_visible = True
-
-        # Re-add signal generator tab if hidden
-        if not self._sg_tab_visible:
-            self._plot_notebook.add(self._sg_container, text="Signal Generator")
-            self._sg_tab_visible = True
-
-        # Select power supply tab by default
+        self._ps_tab_visible = self._show_tab(
+            self._ps_container, "Power Supply", self._ps_tab_visible
+        )
+        self._sg_tab_visible = self._show_tab(
+            self._sg_container, "Signal Generator", self._sg_tab_visible
+        )
         self._plot_notebook.select(self._ps_container)
 
     def schedule(self, delay_ms: int, callback: Callable[[], None]) -> str:
