@@ -1,7 +1,6 @@
 """Equipment presenter - coordinates model and view."""
 
 import logging
-import time
 
 from ..config import ValidationLimits
 from ..file_io import read_test_plan
@@ -17,6 +16,7 @@ from ..model import (
 )
 from ..utils import BackgroundTaskRunner, TaskResult
 from ..view import MainWindow
+from .timer_manager import TimerManager
 
 logger = logging.getLogger(__name__)
 
@@ -63,14 +63,10 @@ class EquipmentPresenter:
         # Background task runner
         self._task_runner = BackgroundTaskRunner(view.schedule)
 
-        # Runtime timer state
-        self._runtime_timer_id: str | None = None
-        self._run_start_time: float | None = None
-        self._elapsed_at_pause: float | None = None
-        self._partial_total_duration: float | None = None
-
-        # Plot refresh timer state
-        self._plot_refresh_timer_id: str | None = None
+        # Timer management (runtime display + plot refresh)
+        self._timer = TimerManager(
+            view.schedule, view.cancel_schedule, plot_refresh_interval_ms
+        )
 
         # Pending "start from" state (step, remaining_duration)
         self._pending_start_from: tuple[int, float] | None = None
@@ -142,7 +138,10 @@ class EquipmentPresenter:
 
         # Resolve the selected instrument type through the registry
         instrument_class = None
-        if self._instrument_registry and selected_display_name in self._instrument_registry:
+        if (
+            self._instrument_registry
+            and selected_display_name in self._instrument_registry
+        ):
             entry = self._instrument_registry[selected_display_name]
             instrument_type = entry.base_type
             # Only pass custom class for non-built-in instruments
@@ -273,28 +272,11 @@ class EquipmentPresenter:
             return
 
         # Check instrument type match if connected
-        instrument_type = self._model.instrument_type
-        if instrument_type is not None:
-            plan_type = test_plan.plan_type
-            if plan_type == PLAN_TYPE_POWER_SUPPLY and instrument_type != "power_supply":
-                error_msg = (
-                    "Cannot load power supply test plan: "
-                    "connected instrument is a signal generator"
-                )
-                logger.error("Test plan load failed: %s", error_msg)
-                self._view.show_error("Instrument Mismatch", error_msg)
-                return
-            elif (
-                plan_type == PLAN_TYPE_SIGNAL_GENERATOR
-                and instrument_type != "signal_generator"
-            ):
-                error_msg = (
-                    "Cannot load signal generator test plan: "
-                    "connected instrument is a power supply"
-                )
-                logger.error("Test plan load failed: %s", error_msg)
-                self._view.show_error("Instrument Mismatch", error_msg)
-                return
+        mismatch = self._check_instrument_type_match(test_plan.plan_type)
+        if mismatch is not None:
+            logger.error("Test plan load failed: %s", mismatch)
+            self._view.show_error("Instrument Mismatch", mismatch)
+            return
 
         # Log warnings if any
         if result.warnings:
@@ -314,39 +296,9 @@ class EquipmentPresenter:
 
             # Handle plot and table based on plan type
             if test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
-                # Signal generator plan
-                self._view.signal_gen_plot_panel.clear()
-                self._view.signal_gen_plot_panel.set_title(test_plan.name)
-                self._view.show_signal_generator_plot()
-
-                # Load test plan preview (show full trajectory)
-                # Steps are SignalGeneratorTestStep when plan_type is signal_generator
-                times = [s.absolute_time_seconds for s in test_plan.steps]
-                freqs = [s.frequency for s in test_plan.steps]  # type: ignore[attr-defined]
-                powers = [s.power for s in test_plan.steps]  # type: ignore[attr-defined]
-                self._view.signal_gen_plot_panel.load_test_plan_preview(
-                    times, freqs, powers
-                )
-
-                # Load test steps into table
-                self._view.sg_table.load_steps(test_plan.steps)
+                self._setup_signal_generator_preview(test_plan)
             else:
-                # Power supply plan
-                self._view.power_supply_plot_panel.clear()
-                self._view.power_supply_plot_panel.set_title(test_plan.name)
-                self._view.show_power_supply_plot()
-
-                # Load test plan preview (show full trajectory)
-                # Steps are PowerSupplyTestStep when plan_type is power_supply
-                times = [s.absolute_time_seconds for s in test_plan.steps]
-                voltages = [s.voltage for s in test_plan.steps]  # type: ignore[attr-defined]
-                currents = [s.current for s in test_plan.steps]  # type: ignore[attr-defined]
-                self._view.power_supply_plot_panel.load_test_plan_preview(
-                    times, voltages, currents
-                )
-
-                # Load test steps into table
-                self._view.ps_table.load_steps(test_plan.steps)
+                self._setup_power_supply_preview(test_plan)
 
             # Enable run button if connected
             if self._model.state == EquipmentState.IDLE:
@@ -370,11 +322,7 @@ class EquipmentPresenter:
             self._view.set_status("Resuming test...")
 
             # Restore runtime timer from where we left off
-            if self._elapsed_at_pause is not None:
-                self._run_start_time = time.time() - self._elapsed_at_pause
-                self._elapsed_at_pause = None
-                self._start_runtime_timer()
-                self._start_plot_refresh_timer()
+            self._timer.resume(self._update_runtime, self._update_plot_position)
             return
 
         logger.info("Run requested")
@@ -384,31 +332,15 @@ class EquipmentPresenter:
             return
 
         # Verify instrument type matches plan type
-        plan_type = self._model.test_plan.plan_type
-        instrument_type = self._model.instrument_type
-        if plan_type == PLAN_TYPE_POWER_SUPPLY and instrument_type != "power_supply":
-            self._view.show_error(
-                "Instrument Mismatch",
-                "Power supply test plan requires a power supply instrument",
-            )
-            return
-        elif (
-            plan_type == PLAN_TYPE_SIGNAL_GENERATOR
-            and instrument_type != "signal_generator"
-        ):
-            self._view.show_error(
-                "Instrument Mismatch",
-                "Signal generator test plan requires a signal generator instrument",
-            )
+        mismatch = self._check_instrument_type_match(self._model.test_plan.plan_type)
+        if mismatch is not None:
+            self._view.show_error("Instrument Mismatch", mismatch)
             return
 
         self._view.set_status("Running test...")
 
         # Start runtime timer
-        self._partial_total_duration = None
-        self._run_start_time = time.time()
-        self._start_runtime_timer()
-        self._start_plot_refresh_timer()
+        self._timer.start(self._update_runtime, self._update_plot_position)
 
         # Clear position indicator but keep the plan preview for both plot types
         if self._model.test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
@@ -431,7 +363,7 @@ class EquipmentPresenter:
         self._model.stop_test()
         self._view.set_status("Stopping...")
         # Clear pause state if stopping from paused
-        self._elapsed_at_pause = None
+        self._timer.clear_pause_state()
 
     def _handle_pause(self) -> None:
         """Handle pause button."""
@@ -502,7 +434,7 @@ class EquipmentPresenter:
         if is_paused:
             self._pending_start_from = (selected_step, remaining_duration)
             self._model.stop_test()
-            self._elapsed_at_pause = None
+            self._timer.clear_pause_state()
             self._view.set_status(f"Restarting from step {selected_step}...")
             return
 
@@ -514,10 +446,9 @@ class EquipmentPresenter:
         logger.info("Starting test from step %d", start_step)
         self._view.set_status(f"Running from step {start_step}...")
 
-        self._partial_total_duration = remaining_duration
-        self._run_start_time = time.time()
-        self._start_runtime_timer()
-        self._start_plot_refresh_timer()
+        self._timer.start_from(
+            remaining_duration, self._update_runtime, self._update_plot_position
+        )
 
         if (
             self._model.test_plan is not None
@@ -545,20 +476,20 @@ class EquipmentPresenter:
 
         # Handle timers when leaving RUNNING state
         if old_state == EquipmentState.RUNNING and new_state != EquipmentState.RUNNING:
-            self._stop_plot_refresh_timer()
+            self._timer.stop_plot_refresh()
             if new_state == EquipmentState.PAUSED:
-                # Pausing - save elapsed time and stop timer
-                if self._run_start_time is not None:
-                    self._elapsed_at_pause = time.time() - self._run_start_time
-                self._view.schedule(0, self._stop_runtime_timer_for_pause)
+                # Pausing - save elapsed time (on callback thread for accuracy),
+                # then cancel timer scheduling on main thread
+                self._timer.save_pause_state()
+                self._view.schedule(0, self._timer.cancel_runtime_timer)
             else:
                 # Actually stopping
-                self._elapsed_at_pause = None
-                self._view.schedule(0, self._stop_runtime_timer)
+                self._timer.clear_pause_state()
+                self._view.schedule(0, self._stop_and_reset_display)
 
         # Clear pause state when transitioning from PAUSED to IDLE (stop while paused)
         if old_state == EquipmentState.PAUSED and new_state == EquipmentState.IDLE:
-            self._elapsed_at_pause = None
+            self._timer.clear_pause_state()
 
         # Handle pending "start from" operation (after stopping a paused run)
         if new_state == EquipmentState.IDLE and self._pending_start_from is not None:
@@ -648,6 +579,55 @@ class EquipmentPresenter:
         model_name, tooltip = self._model.get_instrument_identification()
         self._view.set_instrument_display(model_name, tooltip)
 
+    def _check_instrument_type_match(self, plan_type: str) -> str | None:
+        """Check if the plan type is compatible with the connected instrument.
+
+        Returns an error message if mismatched, or None if compatible.
+        """
+        instrument_type = self._model.instrument_type
+        if instrument_type is None:
+            return None
+        if plan_type == PLAN_TYPE_POWER_SUPPLY and instrument_type != "power_supply":
+            return (
+                "Cannot load power supply test plan: "
+                "connected instrument is a signal generator"
+            )
+        if (
+            plan_type == PLAN_TYPE_SIGNAL_GENERATOR
+            and instrument_type != "signal_generator"
+        ):
+            return (
+                "Cannot load signal generator test plan: "
+                "connected instrument is a power supply"
+            )
+        return None
+
+    def _setup_signal_generator_preview(self, test_plan) -> None:
+        """Set up signal generator plot and table for a loaded test plan."""
+        self._view.signal_gen_plot_panel.clear()
+        self._view.signal_gen_plot_panel.set_title(test_plan.name)
+        self._view.show_signal_generator_plot()
+
+        times = [s.absolute_time_seconds for s in test_plan.steps]
+        freqs = [s.frequency for s in test_plan.steps]  # type: ignore[attr-defined]
+        powers = [s.power for s in test_plan.steps]  # type: ignore[attr-defined]
+        self._view.signal_gen_plot_panel.load_test_plan_preview(times, freqs, powers)
+        self._view.sg_table.load_steps(test_plan.steps)
+
+    def _setup_power_supply_preview(self, test_plan) -> None:
+        """Set up power supply plot and table for a loaded test plan."""
+        self._view.power_supply_plot_panel.clear()
+        self._view.power_supply_plot_panel.set_title(test_plan.name)
+        self._view.show_power_supply_plot()
+
+        times = [s.absolute_time_seconds for s in test_plan.steps]
+        voltages = [s.voltage for s in test_plan.steps]  # type: ignore[attr-defined]
+        currents = [s.current for s in test_plan.steps]  # type: ignore[attr-defined]
+        self._view.power_supply_plot_panel.load_test_plan_preview(
+            times, voltages, currents
+        )
+        self._view.ps_table.load_steps(test_plan.steps)
+
     def _update_view_for_state(self, state: EquipmentState) -> None:
         """Update view based on current state."""
         state_name = state.name
@@ -674,66 +654,33 @@ class EquipmentPresenter:
             has_plan = self._model.test_plan is not None
             self._view.set_start_from_enabled(selected is not None and has_plan)
 
-    # Runtime timer methods
-
-    def _start_runtime_timer(self) -> None:
-        """Start the runtime timer that updates every second."""
-        self._update_runtime()
+    # Timer tick callbacks (called by TimerManager, need model/view access)
 
     def _update_runtime(self) -> None:
         """Update runtime display and schedule next update."""
-        if self._run_start_time is not None and self._model.test_plan is not None:
-            elapsed = time.time() - self._run_start_time
+        elapsed = self._timer.get_elapsed()
+        if elapsed is not None and self._model.test_plan is not None:
             elapsed_int = int(elapsed)
-            total = self._partial_total_duration or self._model.test_plan.total_duration
+            total = (
+                self._timer.partial_total_duration
+                or self._model.test_plan.total_duration
+            )
             remaining = max(0.0, total - elapsed_int)
             self._view.set_runtime_display(elapsed_int)
             self._view.set_remaining_time_display(remaining)
-            self._runtime_timer_id = self._view.schedule(1000, self._update_runtime)
-
-    def _stop_runtime_timer(self) -> None:
-        """Stop the runtime timer and reset display."""
-        if self._runtime_timer_id is not None:
-            self._view.cancel_schedule(self._runtime_timer_id)
-            self._runtime_timer_id = None
-        self._run_start_time = None
-        self._partial_total_duration = None
-        self._view.set_runtime_display(None)
-        # Show total duration if a plan is loaded, otherwise --:--
-        if self._model.test_plan is not None:
-            self._view.set_remaining_time_display(self._model.test_plan.total_duration)
-        else:
-            self._view.set_remaining_time_display(None)
-
-    def _stop_runtime_timer_for_pause(self) -> None:
-        """Stop the runtime timer but preserve display values for pause."""
-        if self._runtime_timer_id is not None:
-            self._view.cancel_schedule(self._runtime_timer_id)
-            self._runtime_timer_id = None
-        # Don't reset run_start_time or displays - keep showing paused values
-
-    # Plot refresh timer methods
-
-    def _start_plot_refresh_timer(self) -> None:
-        """Start periodic plot position updates."""
-        self._update_plot_position()
-
-    def _stop_plot_refresh_timer(self) -> None:
-        """Stop periodic plot position updates."""
-        if self._plot_refresh_timer_id is not None:
-            self._view.cancel_schedule(self._plot_refresh_timer_id)
-            self._plot_refresh_timer_id = None
+            self._timer.schedule_runtime_tick(self._update_runtime)
 
     def _update_plot_position(self) -> None:
         """Update plot position indicator based on elapsed time."""
-        if self._run_start_time is None or self._model.test_plan is None:
+        elapsed = self._timer.get_elapsed()
+        if elapsed is None or self._model.test_plan is None:
             return
 
-        elapsed = time.time() - self._run_start_time
         # If running partial plan, adjust for offset
-        if self._partial_total_duration is not None:
+        partial = self._timer.partial_total_duration
+        if partial is not None:
             total = self._model.test_plan.total_duration
-            offset = total - self._partial_total_duration
+            offset = total - partial
             current_time = offset + elapsed
         else:
             current_time = elapsed
@@ -744,16 +691,21 @@ class EquipmentPresenter:
         else:
             self._view.power_supply_plot_panel.set_current_position(current_time)
 
-        # Schedule next update
-        self._plot_refresh_timer_id = self._view.schedule(
-            self._plot_refresh_interval_ms, self._update_plot_position
-        )
+        self._timer.schedule_plot_tick(self._update_plot_position)
+
+    def _stop_and_reset_display(self) -> None:
+        """Stop all timers and reset runtime/remaining displays."""
+        self._timer.stop()
+        self._view.set_runtime_display(None)
+        if self._model.test_plan is not None:
+            self._view.set_remaining_time_display(self._model.test_plan.total_duration)
+        else:
+            self._view.set_remaining_time_display(None)
 
     def shutdown(self) -> None:
         """Clean shutdown of presenter."""
         logger.info("EquipmentPresenter shutting down")
-        self._stop_runtime_timer()
-        self._stop_plot_refresh_timer()
+        self._stop_and_reset_display()
         self._task_runner.stop()
 
         # Disconnect if connected

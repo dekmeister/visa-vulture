@@ -99,8 +99,8 @@ class TestStateTransitionHandling:
         """Transitioning to PAUSED saves elapsed time."""
         # Setup: simulate running with timer
         set_model_state(mock_model_for_presenter, EquipmentState.RUNNING)
-        presenter._run_start_time = time.time() - 30.0  # 30 seconds elapsed
-        presenter._runtime_timer_id = "timer_active"
+        presenter._timer._run_start_time =time.time() - 30.0  # 30 seconds elapsed
+        presenter._timer._runtime_timer_id ="timer_active"
 
         trigger_state_change(
             mock_model_for_presenter, EquipmentState.RUNNING, EquipmentState.PAUSED
@@ -108,8 +108,8 @@ class TestStateTransitionHandling:
         execute_scheduled_callbacks(mock_view)
 
         # Elapsed time should be saved
-        assert presenter._elapsed_at_pause is not None
-        assert 29.0 <= presenter._elapsed_at_pause <= 31.0
+        assert presenter._timer.elapsed_at_pause is not None
+        assert 29.0 <= presenter._timer.elapsed_at_pause <= 31.0
 
     def test_running_to_idle_clears_timer(
         self,
@@ -120,8 +120,8 @@ class TestStateTransitionHandling:
         """Transitioning from RUNNING to IDLE clears timer state."""
         # Setup: simulate running with timer
         set_model_state(mock_model_for_presenter, EquipmentState.RUNNING)
-        presenter._run_start_time = time.time() - 10.0
-        presenter._runtime_timer_id = "timer_active"
+        presenter._timer._run_start_time =time.time() - 10.0
+        presenter._timer._runtime_timer_id ="timer_active"
 
         trigger_state_change(
             mock_model_for_presenter, EquipmentState.RUNNING, EquipmentState.IDLE
@@ -129,8 +129,8 @@ class TestStateTransitionHandling:
         execute_scheduled_callbacks(mock_view)
 
         # Timer state should be cleared
-        assert presenter._run_start_time is None
-        assert presenter._elapsed_at_pause is None
+        assert presenter._timer.run_start_time is None
+        assert presenter._timer.elapsed_at_pause is None
 
     def test_paused_to_idle_clears_pause_state(
         self,
@@ -140,14 +140,14 @@ class TestStateTransitionHandling:
     ) -> None:
         """Stop while paused clears elapsed_at_pause."""
         set_model_state(mock_model_for_presenter, EquipmentState.PAUSED)
-        presenter._elapsed_at_pause = 45.0
+        presenter._timer._elapsed_at_pause =45.0
 
         trigger_state_change(
             mock_model_for_presenter, EquipmentState.PAUSED, EquipmentState.IDLE
         )
         execute_scheduled_callbacks(mock_view)
 
-        assert presenter._elapsed_at_pause is None
+        assert presenter._timer.elapsed_at_pause is None
 
     def test_error_state_updates_view(
         self,
@@ -775,7 +775,7 @@ class TestRunHandler:
 
         trigger_view_callback(mock_view, "on_run")
 
-        assert presenter._run_start_time is not None
+        assert presenter._timer.run_start_time is not None
 
     def test_run_clears_power_supply_position_for_sg_plan(
         self,
@@ -858,11 +858,11 @@ class TestStopHandler:
         mock_view: Mock,
     ) -> None:
         """Stop clears elapsed_at_pause if set."""
-        presenter._elapsed_at_pause = 60.0
+        presenter._timer._elapsed_at_pause =60.0
 
         trigger_view_callback(mock_view, "on_stop")
 
-        assert presenter._elapsed_at_pause is None
+        assert presenter._timer.elapsed_at_pause is None
 
 
 class TestResumeHandler:
@@ -894,14 +894,14 @@ class TestResumeHandler:
         """Resume restores timer accounting for elapsed time."""
         set_model_state(mock_model_for_presenter, EquipmentState.PAUSED)
         mock_model_for_presenter._test_plan = sample_power_supply_plan
-        presenter._elapsed_at_pause = 45.0
+        presenter._timer._elapsed_at_pause =45.0
 
         trigger_view_callback(mock_view, "on_run")
 
         # Start time should be set to account for 45 seconds already elapsed
-        assert presenter._run_start_time is not None
+        assert presenter._timer.run_start_time is not None
         # elapsed_at_pause should be cleared
-        assert presenter._elapsed_at_pause is None
+        assert presenter._timer.elapsed_at_pause is None
 
     def test_resume_sets_status(
         self,
@@ -937,7 +937,7 @@ class TestRuntimeTimer:
 
         trigger_view_callback(mock_view, "on_run")
 
-        assert presenter._run_start_time is not None
+        assert presenter._timer.run_start_time is not None
         mock_view.set_runtime_display.assert_called()
 
     def test_timer_updates_both_displays(
@@ -967,8 +967,8 @@ class TestRuntimeTimer:
         """Timer stops when test completes."""
         set_model_state(mock_model_for_presenter, EquipmentState.RUNNING)
         mock_model_for_presenter._test_plan = sample_power_supply_plan
-        presenter._run_start_time = time.time()
-        presenter._runtime_timer_id = "timer_1"
+        presenter._timer._run_start_time =time.time()
+        presenter._timer._runtime_timer_id ="timer_1"
 
         # Simulate transition to IDLE (test complete)
         trigger_state_change(
@@ -976,7 +976,7 @@ class TestRuntimeTimer:
         )
         execute_scheduled_callbacks(mock_view)
 
-        assert presenter._run_start_time is None
+        assert presenter._timer.run_start_time is None
 
     def test_timer_pauses_preserves_display(
         self,
@@ -988,8 +988,8 @@ class TestRuntimeTimer:
         """Pausing timer preserves display values."""
         set_model_state(mock_model_for_presenter, EquipmentState.RUNNING)
         mock_model_for_presenter._test_plan = sample_power_supply_plan
-        presenter._run_start_time = time.time() - 30.0
-        presenter._runtime_timer_id = "timer_1"
+        presenter._timer._run_start_time =time.time() - 30.0
+        presenter._timer._runtime_timer_id ="timer_1"
 
         # Record call counts before pause
         runtime_calls_before = mock_view.set_runtime_display.call_count
@@ -1000,9 +1000,9 @@ class TestRuntimeTimer:
         execute_scheduled_callbacks(mock_view)
 
         # Timer stopped but display not reset
-        assert presenter._runtime_timer_id is None
+        assert presenter._timer.runtime_timer_id is None
         # run_start_time preserved (not cleared like normal stop)
-        assert presenter._run_start_time is not None
+        assert presenter._timer.run_start_time is not None
 
     def test_multiple_pause_resume_cycles(
         self,
@@ -1017,17 +1017,17 @@ class TestRuntimeTimer:
 
         # Start run
         trigger_view_callback(mock_view, "on_run")
-        initial_start = presenter._run_start_time
+        initial_start = presenter._timer.run_start_time
 
         # Simulate 10 seconds passing, then pause
-        presenter._run_start_time = time.time() - 10.0
+        presenter._timer._run_start_time =time.time() - 10.0
         set_model_state(mock_model_for_presenter, EquipmentState.RUNNING)
         trigger_state_change(
             mock_model_for_presenter, EquipmentState.RUNNING, EquipmentState.PAUSED
         )
         execute_scheduled_callbacks(mock_view)
 
-        first_pause_elapsed = presenter._elapsed_at_pause
+        first_pause_elapsed = presenter._timer.elapsed_at_pause
         assert first_pause_elapsed is not None
         assert 9.0 <= first_pause_elapsed <= 11.0
 
@@ -1036,9 +1036,9 @@ class TestRuntimeTimer:
         trigger_view_callback(mock_view, "on_run")
 
         # elapsed_at_pause should be cleared
-        assert presenter._elapsed_at_pause is None
+        assert presenter._timer.elapsed_at_pause is None
         # run_start_time should be adjusted
-        assert presenter._run_start_time is not None
+        assert presenter._timer.run_start_time is not None
 
 
 class TestProgressCallback:
@@ -1317,12 +1317,12 @@ class TestShutdown:
         mock_view: Mock,
     ) -> None:
         """Shutdown stops runtime timer."""
-        presenter._runtime_timer_id = "timer_1"
-        presenter._run_start_time = time.time()
+        presenter._timer._runtime_timer_id ="timer_1"
+        presenter._timer._run_start_time =time.time()
 
         presenter.shutdown()
 
-        assert presenter._run_start_time is None
+        assert presenter._timer.run_start_time is None
         mock_view.cancel_schedule.assert_called()
 
     def test_shutdown_disconnects_if_connected(
