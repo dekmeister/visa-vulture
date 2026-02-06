@@ -1,4 +1,4 @@
-# VISAvulture - Program Overview
+# VISA Vulture - Program Overview
 
 ## Purpose
 
@@ -18,7 +18,7 @@ A Python GUI application for controlling test equipment over VISA. The applicati
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                        Model                            │
-│  • Equipment state machine (UNKNOWN/IDLE/RUNNING/ERROR) │
+│  • Equipment state machine (5 states inc. PAUSED)       │
 │  • Test plan representation                             │
 │  • Instrument abstraction                               │
 │  • No knowledge of GUI                                  │
@@ -50,10 +50,12 @@ A Python GUI application for controlling test equipment over VISA. The applicati
 The equipment state machine is intentionally simple to start:
 
 ```
-UNKNOWN  ──►  IDLE  ──►  RUNNING  ──►  IDLE
-    │           │            │
-    ▼           ▼            ▼
-  ERROR       ERROR        ERROR
+UNKNOWN  ──►  IDLE  ──►  RUNNING  ◄──►  PAUSED
+              ▲ │            │            │ │
+              │ ▼            ▼            │ ▼
+              │ ERROR       ERROR         │ ERROR
+              │                           │
+              └───────────────────────────┘
 ```
 
 | State   | Description                                      |
@@ -61,6 +63,7 @@ UNKNOWN  ──►  IDLE  ──►  RUNNING  ──►  IDLE
 | UNKNOWN | Default startup state; equipment state unknown   |
 | IDLE    | Connected and ready; not executing a test        |
 | RUNNING | Actively executing a test plan                   |
+| PAUSED  | Test paused; can resume or stop                  |
 | ERROR   | Failure occurred; user intervention required     |
 
 ## Key Design Decisions
@@ -117,7 +120,7 @@ UNKNOWN  ──►  IDLE  ──►  RUNNING  ──►  IDLE
 
 | Future Need                  | How Structure Supports It              |
 |------------------------------|----------------------------------------|
-| Additional instruments       | Add new class in instruments/          |
+| Additional instruments       | Custom: extend in root `instruments/`; built-in: add in `visa_vulture/instruments/` |
 | New test plan types          | Add TestStep subclass in model/test_plan.py, parser in file_io/ |
 | More states                  | Extend EquipmentState enum             |
 | New file formats             | Add parser in file_io/                 |

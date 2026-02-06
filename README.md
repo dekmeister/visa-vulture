@@ -83,7 +83,7 @@ Metadata rows are indicated by lines starting with # and placed at the start of 
 | modulation_type | No | Type of modulation (am or fm) |
 | modulation_frequency | Yes (modulation only) | Frequency of modulation in Hz |
 | am_depth | Yes (AM modulation only) | Depth of modulation (0-100) |
-| fm_devition | Yes (FM modulation only) | Deviation of modulation in Hz |
+| fm_deviation | Yes (FM modulation only) | Deviation of modulation in Hz |
 
 #### Power Supply Test Plans
 
@@ -157,7 +157,7 @@ The application follows the Model-View-Presenter (MVP) pattern:
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                        Model                            │
-│  • Equipment state machine (UNKNOWN/IDLE/RUNNING/ERROR) │
+│  • Equipment state machine (5 states inc. PAUSED)       │
 │  • Test plan representation                             │
 │  • Instrument abstraction                               │
 └─────────────────────────────────────────────────────────┘
@@ -209,7 +209,7 @@ See [instruments/README.md](instruments/README.md) for full documentation and th
 1. Create a new class in `visa_vulture/instruments/` inheriting from `BaseInstrument`
 2. Implement required methods: `connect`, `disconnect`, `get_status`
 3. Add instrument-specific commands
-4. Register the type in `visa_vulture/model/equipment.py`
+4. Register in `visa_vulture/instruments/instrument_loader.py` registry
 5. Add simulation responses to `visa_vulture/simulation/instruments.yaml`
 
 ## Development

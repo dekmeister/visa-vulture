@@ -16,6 +16,8 @@ Defines simulated instrument responses for:
   - Frequency control (FREQ, FREQ?)
   - Power control (POW, POW?)
   - Output control (OUTP ON/OFF, OUTP?)
+  - AM modulation (AM:SOUR, AM:INT:FREQ, AM:DEPT, AM:STAT)
+  - FM modulation (FM:SOUR, FM:INT:FREQ, FM:DEV, FM:STAT)
 
 ## Usage
 

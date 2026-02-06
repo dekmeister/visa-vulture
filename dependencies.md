@@ -2,7 +2,7 @@
 
 ## External Dependencies
 
-Refer to requirements.txt
+Refer to pyproject.toml
 
 ### Notes
 
@@ -280,7 +280,7 @@ user_config.json (optional override)
         │
         ├──► simulation_mode? → VISAConnection backend selection
         │
-        ├──► instruments config → Create instrument objects
+        ├──► instrument_loader → Scan custom instruments, build registry
         │
         └──► interface config → Window size, poll intervals
 ```

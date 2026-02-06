@@ -8,6 +8,8 @@ instruments/                    # User-defined custom instrument extensions (pro
 
 visa_vulture/
 │
+├── __init__.py
+├── __main__.py
 ├── main.py
 │
 ├── config/
@@ -27,6 +29,7 @@ visa_vulture/
 │   ├── main_window.py
 │   ├── log_panel.py
 │   ├── plot_panel.py
+│   ├── resource_manager_dialog.py
 │   └── test_points_table.py
 │
 ├── presenter/
@@ -43,7 +46,8 @@ visa_vulture/
 │   ├── visa_connection.py
 │   ├── base_instrument.py
 │   ├── power_supply.py
-│   └── signal_generator.py
+│   ├── signal_generator.py
+│   └── instrument_loader.py
 │
 ├── logging_config/
 │   ├── __init__.py
@@ -53,12 +57,9 @@ visa_vulture/
 │   ├── instruments.yaml
 │   └── README.md
 │
-├── utils/
-│   ├── __init__.py
-│   └── threading_helpers.py
-│
-├── requirements.txt
-└── README.md
+└── utils/
+    ├── __init__.py
+    └── threading_helpers.py
 ```
 
 ---
@@ -69,9 +70,9 @@ visa_vulture/
 
 | File | Purpose |
 |------|---------|
+| `__init__.py` | Package init with `__version__` |
+| `__main__.py` | Enables `python -m visa_vulture` |
 | `main.py` | Application entry point; loads config, initialises logging, wires components, manages shutdown |
-| `requirements.txt` | Python package dependencies |
-| `README.md` | Project documentation, setup instructions |
 
 ---
 
@@ -81,7 +82,7 @@ Configuration loading and validation.
 
 | File | Purpose |
 |------|---------|
-| `__init__.py` | Exports: `load_config` |
+| `__init__.py` | Exports: `load_config`, `AppConfig`, `ValidationLimits`, soft limit classes |
 | `loader.py` | Load JSON file, call validation, return config dict or errors |
 | `schema.py` | Define expected structure, field types, defaults, validation rules |
 | `default_config.json` | Default configuration shipped with application |
@@ -107,10 +108,11 @@ GUI components, no business logic.
 
 | File | Purpose |
 |------|---------|
-| `__init__.py` | Exports: `MainWindow`, `PlotPanel`, `PowerSupplyPlotPanel`, `SignalGeneratorPlotPanel`, `AxisConfig` |
+| `__init__.py` | Exports: `MainWindow`, `PlotPanel`, `PowerSupplyPlotPanel`, `SignalGeneratorPlotPanel`, `AxisConfig`, `ResourceManagerDialog`, `TestPointsTable`, `InstrumentType` |
 | `main_window.py` | Main application window, assembles panels, exposes callbacks |
 | `log_panel.py` | `LogPanel` widget with scrolling text, level filtering, auto-scroll |
 | `plot_panel.py` | `PlotPanel` base class, `PowerSupplyPlotPanel` and `SignalGeneratorPlotPanel` subclasses for dual-axis matplotlib plots |
+| `resource_manager_dialog.py` | `ResourceManagerDialog` for instrument connection with resource scanning and identification |
 | `test_points_table.py` | Tabular display of all test plan steps |
 
 ---
@@ -132,7 +134,7 @@ File parsing and writing.
 
 | File | Purpose |
 |------|---------|
-| `__init__.py` | Exports: `read_test_plan`, `write_results` |
+| `__init__.py` | Exports: `read_test_plan`, `TestPlanResult`, `write_results` |
 | `test_plan_reader.py` | Parse CSV into `TestPlan`, validate columns and values |
 | `results_writer.py` | Write test results to CSV (stub initially) |
 
@@ -205,24 +207,31 @@ Each `__init__.py` curates what other packages import:
 ```python
 # config/__init__.py
 from .loader import load_config
+from .schema import (
+    AppConfig, ValidationLimits, SignalGeneratorSoftLimits,
+    PowerSupplySoftLimits, CommonSoftLimits,
+)
 
 # model/__init__.py
 from .state_machine import EquipmentState
 from .equipment import EquipmentModel
 from .test_plan import (
     TestPlan, TestStep, PowerSupplyTestStep, SignalGeneratorTestStep,
-    PLAN_TYPE_POWER_SUPPLY, PLAN_TYPE_SIGNAL_GENERATOR
+    PLAN_TYPE_POWER_SUPPLY, PLAN_TYPE_SIGNAL_GENERATOR,
+    ModulationType, ModulationConfig, AMModulationConfig, FMModulationConfig,
 )
 
 # view/__init__.py
 from .main_window import MainWindow
 from .plot_panel import AxisConfig, PlotPanel, PowerSupplyPlotPanel, SignalGeneratorPlotPanel
+from .resource_manager_dialog import ResourceManagerDialog
+from .test_points_table import TestPointsTable, InstrumentType
 
 # presenter/__init__.py
 from .equipment_presenter import EquipmentPresenter
 
 # file_io/__init__.py
-from .test_plan_reader import read_test_plan
+from .test_plan_reader import read_test_plan, TestPlanResult
 from .results_writer import write_results
 
 # instruments/__init__.py
@@ -239,7 +248,7 @@ from .instrument_loader import (
 from .setup import setup_logging, GUILogHandler
 
 # utils/__init__.py
-from .threading_helpers import BackgroundTaskRunner
+from .threading_helpers import BackgroundTaskRunner, TaskResult
 ```
 
 This allows clean imports elsewhere:
