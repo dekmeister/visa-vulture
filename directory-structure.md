@@ -134,9 +134,8 @@ File parsing and writing.
 
 | File | Purpose |
 |------|---------|
-| `__init__.py` | Exports: `read_test_plan`, `TestPlanResult`, `write_results` |
+| `__init__.py` | Exports: `read_test_plan`, `TestPlanResult` |
 | `test_plan_reader.py` | Parse CSV into `TestPlan`, validate columns and values |
-| `results_writer.py` | Write test results to CSV (stub initially) |
 
 ---
 
@@ -232,7 +231,6 @@ from .equipment_presenter import EquipmentPresenter
 
 # file_io/__init__.py
 from .test_plan_reader import read_test_plan, TestPlanResult
-from .results_writer import write_results
 
 # instruments/__init__.py
 from .visa_connection import VISAConnection
