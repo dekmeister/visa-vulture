@@ -1,6 +1,6 @@
 """Tests for the equipment model module."""
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import pytest
 
@@ -13,6 +13,71 @@ from visa_vulture.model.test_plan import (
     SignalGeneratorTestStep,
     TestPlan,
 )
+
+
+# --- Shared helpers for execution tests ---
+
+
+def _make_model_with_power_supply(
+    mock_visa_connection: Mock, plan: TestPlan
+) -> tuple[EquipmentModel, Mock]:
+    """Create model in IDLE state with mock power supply."""
+    from visa_vulture.instruments import PowerSupply
+
+    model = EquipmentModel(mock_visa_connection)
+    model._state_machine._state = EquipmentState.IDLE
+    model._test_plan = plan
+
+    mock_ps = Mock(spec=PowerSupply)
+    mock_ps.is_connected = True
+    model._instrument = mock_ps
+    model._instrument_type = "power_supply"
+
+    return model, mock_ps
+
+
+def _make_model_with_signal_generator(
+    mock_visa_connection: Mock, plan: TestPlan
+) -> tuple[EquipmentModel, Mock]:
+    """Create model in IDLE state with mock signal generator."""
+    from visa_vulture.instruments import SignalGenerator
+
+    model = EquipmentModel(mock_visa_connection)
+    model._state_machine._state = EquipmentState.IDLE
+    model._test_plan = plan
+
+    mock_sg = Mock(spec=SignalGenerator)
+    mock_sg.is_connected = True
+    model._instrument = mock_sg
+    model._instrument_type = "signal_generator"
+
+    return model, mock_sg
+
+
+def _make_zero_duration_power_supply_plan() -> TestPlan:
+    """Create a power supply plan with zero-duration steps for fast tests."""
+    return TestPlan(
+        name="Fast PS Plan",
+        plan_type=PLAN_TYPE_POWER_SUPPLY,
+        steps=[
+            PowerSupplyTestStep(
+                step_number=1, duration_seconds=0.0, voltage=5.0, current=1.0
+            ),
+        ],
+    )
+
+
+def _make_zero_duration_signal_generator_plan() -> TestPlan:
+    """Create a signal generator plan with zero-duration steps for fast tests."""
+    return TestPlan(
+        name="Fast SG Plan",
+        plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+        steps=[
+            SignalGeneratorTestStep(
+                step_number=1, duration_seconds=0.0, frequency=1e6, power=0
+            ),
+        ],
+    )
 
 
 class TestEquipmentModelInitialization:
@@ -902,74 +967,14 @@ class TestOutputDisabledOnStopAndPause:
     verifying that disable_output is called at the end of execution.
     """
 
-    def _make_model_with_power_supply(
-        self, mock_visa_connection: Mock, plan: TestPlan
-    ) -> tuple[EquipmentModel, Mock]:
-        """Create model in IDLE state with mock power supply."""
-        from visa_vulture.instruments import PowerSupply
-
-        model = EquipmentModel(mock_visa_connection)
-        model._state_machine._state = EquipmentState.IDLE
-        model._test_plan = plan
-
-        mock_ps = Mock(spec=PowerSupply)
-        mock_ps.is_connected = True
-        model._instrument = mock_ps
-        model._instrument_type = "power_supply"
-
-        return model, mock_ps
-
-    def _make_model_with_signal_generator(
-        self, mock_visa_connection: Mock, plan: TestPlan
-    ) -> tuple[EquipmentModel, Mock]:
-        """Create model in IDLE state with mock signal generator."""
-        from visa_vulture.instruments import SignalGenerator
-
-        model = EquipmentModel(mock_visa_connection)
-        model._state_machine._state = EquipmentState.IDLE
-        model._test_plan = plan
-
-        mock_sg = Mock(spec=SignalGenerator)
-        mock_sg.is_connected = True
-        model._instrument = mock_sg
-        model._instrument_type = "signal_generator"
-
-        return model, mock_sg
-
-    @staticmethod
-    def _make_zero_duration_power_supply_plan() -> TestPlan:
-        """Create a power supply plan with zero-duration steps for fast tests."""
-        return TestPlan(
-            name="Fast PS Plan",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
-            steps=[
-                PowerSupplyTestStep(
-                    step_number=1, duration_seconds=0.0, voltage=5.0, current=1.0
-                ),
-            ],
-        )
-
-    @staticmethod
-    def _make_zero_duration_signal_generator_plan() -> TestPlan:
-        """Create a signal generator plan with zero-duration steps for fast tests."""
-        return TestPlan(
-            name="Fast SG Plan",
-            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
-            steps=[
-                SignalGeneratorTestStep(
-                    step_number=1, duration_seconds=0.0, frequency=1e6, power=0
-                ),
-            ],
-        )
-
     # --- Power Supply Tests ---
 
     def test_stop_from_running_disables_power_supply_output(
         self, mock_visa_connection: Mock
     ) -> None:
         """Stopping from RUNNING state disables power supply output (safety test)."""
-        plan = self._make_zero_duration_power_supply_plan()
-        model, mock_ps = self._make_model_with_power_supply(mock_visa_connection, plan)
+        plan = _make_zero_duration_power_supply_plan()
+        model, mock_ps = _make_model_with_power_supply(mock_visa_connection, plan)
 
         # Request stop before step 1 completes
         original_set_voltage = mock_ps.set_voltage
@@ -1002,7 +1007,7 @@ class TestOutputDisabledOnStopAndPause:
                 ),
             ],
         )
-        model, mock_ps = self._make_model_with_power_supply(mock_visa_connection, plan)
+        model, mock_ps = _make_model_with_power_supply(mock_visa_connection, plan)
 
         # Request pause during execution, then stop
         call_count = 0
@@ -1036,8 +1041,8 @@ class TestOutputDisabledOnStopAndPause:
         self, mock_visa_connection: Mock
     ) -> None:
         """Completing all steps normally disables power supply output."""
-        plan = self._make_zero_duration_power_supply_plan()
-        model, mock_ps = self._make_model_with_power_supply(mock_visa_connection, plan)
+        plan = _make_zero_duration_power_supply_plan()
+        model, mock_ps = _make_model_with_power_supply(mock_visa_connection, plan)
 
         model.run_test()
 
@@ -1049,8 +1054,8 @@ class TestOutputDisabledOnStopAndPause:
         self, mock_visa_connection: Mock
     ) -> None:
         """Stopping from RUNNING state disables signal generator output (safety test)."""
-        plan = self._make_zero_duration_signal_generator_plan()
-        model, mock_sg = self._make_model_with_signal_generator(
+        plan = _make_zero_duration_signal_generator_plan()
+        model, mock_sg = _make_model_with_signal_generator(
             mock_visa_connection, plan
         )
 
@@ -1081,7 +1086,7 @@ class TestOutputDisabledOnStopAndPause:
                 ),
             ],
         )
-        model, mock_sg = self._make_model_with_signal_generator(
+        model, mock_sg = _make_model_with_signal_generator(
             mock_visa_connection, plan
         )
 
@@ -1134,7 +1139,7 @@ class TestOutputDisabledOnStopAndPause:
             ),
         )
 
-        model, mock_sg = self._make_model_with_signal_generator(
+        model, mock_sg = _make_model_with_signal_generator(
             mock_visa_connection, plan_with_modulation
         )
 
@@ -1178,7 +1183,7 @@ class TestOutputDisabledOnStopAndPause:
             ),
         )
 
-        model, mock_sg = self._make_model_with_signal_generator(
+        model, mock_sg = _make_model_with_signal_generator(
             mock_visa_connection, plan_with_modulation
         )
 
@@ -1283,3 +1288,263 @@ class TestExecutePlanLoop:
         model._execute_plan_loop(steps, 2, 1, lambda s: None, Mock())
 
         assert progress_steps == [1, 2]
+
+
+class TestPowerSupplyExecutionPath:
+    """Tests verifying power supply per-step instrument command values.
+
+    These tests ensure that _execute_power_supply_plan correctly extracts
+    voltage and current from each PowerSupplyTestStep and passes the exact
+    values to the corresponding instrument methods.
+    """
+
+    def test_multi_step_sets_correct_voltage_and_current_per_step(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Each step's voltage and current are sent to the instrument in order."""
+        plan = TestPlan(
+            name="Multi-step PS",
+            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            steps=[
+                PowerSupplyTestStep(
+                    step_number=1, duration_seconds=0.0, voltage=1.0, current=0.1
+                ),
+                PowerSupplyTestStep(
+                    step_number=2, duration_seconds=0.0, voltage=5.0, current=0.5
+                ),
+                PowerSupplyTestStep(
+                    step_number=3, duration_seconds=0.0, voltage=12.0, current=2.0
+                ),
+            ],
+        )
+        model, mock_ps = _make_model_with_power_supply(mock_visa_connection, plan)
+
+        model._execute_power_supply_plan()
+
+        assert mock_ps.set_voltage.call_args_list == [
+            call(1.0),
+            call(5.0),
+            call(12.0),
+        ]
+        assert mock_ps.set_current.call_args_list == [
+            call(0.1),
+            call(0.5),
+            call(2.0),
+        ]
+
+
+class TestSignalGeneratorExecutionPath:
+    """Tests verifying signal generator per-step instrument command values.
+
+    These tests ensure that _execute_signal_generator_plan correctly extracts
+    frequency and power from each SignalGeneratorTestStep, passes exact values
+    to instrument methods, and handles the modulation toggle optimization
+    (prev_mod_enabled tracking) correctly.
+    """
+
+    def test_multi_step_sets_correct_frequency_and_power_per_step(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Each step's frequency and power are sent to the instrument in order."""
+        plan = TestPlan(
+            name="Multi-step SG",
+            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+            steps=[
+                SignalGeneratorTestStep(
+                    step_number=1, duration_seconds=0.0, frequency=1e6, power=0.0
+                ),
+                SignalGeneratorTestStep(
+                    step_number=2, duration_seconds=0.0, frequency=2e6, power=-5.0
+                ),
+                SignalGeneratorTestStep(
+                    step_number=3, duration_seconds=0.0, frequency=5e6, power=-20.0
+                ),
+            ],
+        )
+        model, mock_sg = _make_model_with_signal_generator(mock_visa_connection, plan)
+
+        model._execute_signal_generator_plan()
+
+        assert mock_sg.set_frequency.call_args_list == [
+            call(1e6),
+            call(2e6),
+            call(5e6),
+        ]
+        assert mock_sg.set_power.call_args_list == [
+            call(0.0),
+            call(-5.0),
+            call(-20.0),
+        ]
+
+    def test_no_modulation_config_skips_all_modulation_calls(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Without modulation_config, no modulation methods are called."""
+        plan = TestPlan(
+            name="SG no mod",
+            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+            steps=[
+                SignalGeneratorTestStep(
+                    step_number=1, duration_seconds=0.0, frequency=1e6, power=0.0
+                ),
+            ],
+        )
+        model, mock_sg = _make_model_with_signal_generator(mock_visa_connection, plan)
+
+        model._execute_signal_generator_plan()
+
+        mock_sg.configure_modulation.assert_not_called()
+        mock_sg.set_modulation_enabled.assert_not_called()
+        mock_sg.disable_all_modulation.assert_not_called()
+
+    def test_modulation_configured_once_and_initially_disabled(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Modulation is configured once at start and initially disabled."""
+        from visa_vulture.model.test_plan import AMModulationConfig, ModulationType
+
+        am_config = AMModulationConfig(
+            modulation_type=ModulationType.AM,
+            modulation_frequency=1000.0,
+            depth=50.0,
+        )
+        plan = TestPlan(
+            name="SG with AM",
+            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+            steps=[
+                SignalGeneratorTestStep(
+                    step_number=1,
+                    duration_seconds=0.0,
+                    frequency=1e6,
+                    power=0.0,
+                    modulation_enabled=True,
+                ),
+                SignalGeneratorTestStep(
+                    step_number=2,
+                    duration_seconds=0.0,
+                    frequency=2e6,
+                    power=-5.0,
+                    modulation_enabled=True,
+                ),
+            ],
+            modulation_config=am_config,
+        )
+        model, mock_sg = _make_model_with_signal_generator(mock_visa_connection, plan)
+
+        model._execute_signal_generator_plan()
+
+        mock_sg.configure_modulation.assert_called_once_with(am_config)
+        # First set_modulation_enabled call is the initial disable
+        assert mock_sg.set_modulation_enabled.call_args_list[0] == call(
+            am_config, False
+        )
+
+    def test_modulation_toggle_skips_redundant_calls(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """set_modulation_enabled is only called when state changes between steps."""
+        from visa_vulture.model.test_plan import AMModulationConfig, ModulationType
+
+        am_config = AMModulationConfig(
+            modulation_type=ModulationType.AM,
+            modulation_frequency=1000.0,
+            depth=50.0,
+        )
+        # Pattern: True, True, False, False
+        # Expected calls: initial(False), step1(True), step3(False)
+        # Step 2 skipped (same as step 1), step 4 skipped (same as step 3)
+        plan = TestPlan(
+            name="SG toggle test",
+            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+            steps=[
+                SignalGeneratorTestStep(
+                    step_number=1,
+                    duration_seconds=0.0,
+                    frequency=1e6,
+                    power=0.0,
+                    modulation_enabled=True,
+                ),
+                SignalGeneratorTestStep(
+                    step_number=2,
+                    duration_seconds=0.0,
+                    frequency=2e6,
+                    power=-5.0,
+                    modulation_enabled=True,
+                ),
+                SignalGeneratorTestStep(
+                    step_number=3,
+                    duration_seconds=0.0,
+                    frequency=3e6,
+                    power=-10.0,
+                    modulation_enabled=False,
+                ),
+                SignalGeneratorTestStep(
+                    step_number=4,
+                    duration_seconds=0.0,
+                    frequency=4e6,
+                    power=-15.0,
+                    modulation_enabled=False,
+                ),
+            ],
+            modulation_config=am_config,
+        )
+        model, mock_sg = _make_model_with_signal_generator(mock_visa_connection, plan)
+
+        model._execute_signal_generator_plan()
+
+        assert mock_sg.set_modulation_enabled.call_args_list == [
+            call(am_config, False),  # Initial disable
+            call(am_config, True),  # Step 1: None != True
+            call(am_config, False),  # Step 3: True != False
+        ]
+
+    def test_modulation_toggled_every_step_when_alternating(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Every step triggers set_modulation_enabled when state alternates."""
+        from visa_vulture.model.test_plan import AMModulationConfig, ModulationType
+
+        am_config = AMModulationConfig(
+            modulation_type=ModulationType.AM,
+            modulation_frequency=1000.0,
+            depth=50.0,
+        )
+        # Pattern: True, False, True — every step changes
+        plan = TestPlan(
+            name="SG alternating",
+            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+            steps=[
+                SignalGeneratorTestStep(
+                    step_number=1,
+                    duration_seconds=0.0,
+                    frequency=1e6,
+                    power=0.0,
+                    modulation_enabled=True,
+                ),
+                SignalGeneratorTestStep(
+                    step_number=2,
+                    duration_seconds=0.0,
+                    frequency=2e6,
+                    power=-5.0,
+                    modulation_enabled=False,
+                ),
+                SignalGeneratorTestStep(
+                    step_number=3,
+                    duration_seconds=0.0,
+                    frequency=3e6,
+                    power=-10.0,
+                    modulation_enabled=True,
+                ),
+            ],
+            modulation_config=am_config,
+        )
+        model, mock_sg = _make_model_with_signal_generator(mock_visa_connection, plan)
+
+        model._execute_signal_generator_plan()
+
+        assert mock_sg.set_modulation_enabled.call_args_list == [
+            call(am_config, False),  # Initial disable
+            call(am_config, True),  # Step 1
+            call(am_config, False),  # Step 2
+            call(am_config, True),  # Step 3
+        ]
