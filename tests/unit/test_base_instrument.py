@@ -49,41 +49,23 @@ class TestBaseInstrumentProperties:
 class TestBaseInstrumentIdnParsing:
     """Tests for *IDN? response parsing."""
 
-    def test_manufacturer_parses_first_field(self) -> None:
-        """manufacturer() returns first field of IDN."""
+    @pytest.mark.parametrize(
+        "method,expected",
+        [
+            ("manufacturer", "Keysight"),
+            ("model", "E36313A"),
+            ("serial", "MY12345678"),
+            ("firmware", "1.2.3"),
+        ],
+    )
+    def test_idn_field_parsing(self, method: str, expected: str) -> None:
+        """Each IDN field method parses the correct comma-separated position."""
         instrument = PowerSupply(
             name="Test PS",
             resource_address="TCPIP::192.168.1.100::INSTR",
         )
         instrument._identification = "Keysight,E36313A,MY12345678,1.2.3"
-        assert instrument.manufacturer() == "Keysight"
-
-    def test_model_parses_second_field(self) -> None:
-        """model() returns second field of IDN."""
-        instrument = PowerSupply(
-            name="Test PS",
-            resource_address="TCPIP::192.168.1.100::INSTR",
-        )
-        instrument._identification = "Keysight,E36313A,MY12345678,1.2.3"
-        assert instrument.model() == "E36313A"
-
-    def test_serial_parses_third_field(self) -> None:
-        """serial() returns third field of IDN."""
-        instrument = PowerSupply(
-            name="Test PS",
-            resource_address="TCPIP::192.168.1.100::INSTR",
-        )
-        instrument._identification = "Keysight,E36313A,MY12345678,1.2.3"
-        assert instrument.serial() == "MY12345678"
-
-    def test_firmware_parses_fourth_field(self) -> None:
-        """firmware() returns fourth field of IDN."""
-        instrument = PowerSupply(
-            name="Test PS",
-            resource_address="TCPIP::192.168.1.100::INSTR",
-        )
-        instrument._identification = "Keysight,E36313A,MY12345678,1.2.3"
-        assert instrument.firmware() == "1.2.3"
+        assert getattr(instrument, method)() == expected
 
     def test_missing_idn_returns_unknown(self) -> None:
         """Returns 'Unknown' when identification is None."""

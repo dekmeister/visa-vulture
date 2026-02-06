@@ -148,66 +148,56 @@ class TestValidateConfigWindowSettings:
         assert config is None
         assert any("window_title must be string" in e for e in errors)
 
-    def test_window_width_below_minimum_returns_error(self) -> None:
-        """window_width below 400 returns error."""
-        config, errors = validate_config({"window_width": 300})
-        assert config is None
-        assert any("window_width must be integer >= 400" in e for e in errors)
 
-    def test_window_width_non_integer_returns_error(self) -> None:
-        """Non-integer window_width returns error."""
-        config, errors = validate_config({"window_width": "wide"})
-        assert config is None
-        assert any("window_width must be integer >= 400" in e for e in errors)
+class TestValidateConfigIntegerMinFields:
+    """Tests for integer fields with minimum value constraints."""
 
-    def test_window_height_below_minimum_returns_error(self) -> None:
-        """window_height below 300 returns error."""
-        config, errors = validate_config({"window_height": 200})
+    @pytest.mark.parametrize(
+        "field,minimum,below_value",
+        [
+            ("window_width", 400, 300),
+            ("window_height", 300, 200),
+            ("poll_interval_ms", 10, 5),
+        ],
+    )
+    def test_below_minimum_returns_error(
+        self, field: str, minimum: int, below_value: int
+    ) -> None:
+        """Value below minimum returns error."""
+        config, errors = validate_config({field: below_value})
         assert config is None
-        assert any("window_height must be integer >= 300" in e for e in errors)
+        assert any(f"{field} must be integer >= {minimum}" in e for e in errors)
 
-    def test_window_height_non_integer_returns_error(self) -> None:
-        """Non-integer window_height returns error."""
-        config, errors = validate_config({"window_height": "tall"})
+    @pytest.mark.parametrize(
+        "field,minimum,bad_value",
+        [
+            ("window_width", 400, "wide"),
+            ("window_height", 300, "tall"),
+            ("poll_interval_ms", 10, "fast"),
+        ],
+    )
+    def test_non_integer_returns_error(
+        self, field: str, minimum: int, bad_value: str
+    ) -> None:
+        """Non-integer value returns error."""
+        config, errors = validate_config({field: bad_value})
         assert config is None
-        assert any("window_height must be integer >= 300" in e for e in errors)
+        assert any(f"{field} must be integer >= {minimum}" in e for e in errors)
 
-    def test_window_width_at_minimum(self) -> None:
-        """window_width of exactly 400 is valid."""
-        config, errors = validate_config({"window_width": 400})
+    @pytest.mark.parametrize(
+        "field,min_value",
+        [
+            ("window_width", 400),
+            ("window_height", 300),
+            ("poll_interval_ms", 10),
+        ],
+    )
+    def test_at_minimum_is_valid(self, field: str, min_value: int) -> None:
+        """Value at exactly the minimum is accepted."""
+        config, errors = validate_config({field: min_value})
         assert errors == []
         assert config is not None
-        assert config.window_width == 400
-
-    def test_window_height_at_minimum(self) -> None:
-        """window_height of exactly 300 is valid."""
-        config, errors = validate_config({"window_height": 300})
-        assert errors == []
-        assert config is not None
-        assert config.window_height == 300
-
-
-class TestValidateConfigPollInterval:
-    """Tests for poll_interval_ms validation."""
-
-    def test_poll_interval_below_minimum_returns_error(self) -> None:
-        """poll_interval_ms below 10 returns error."""
-        config, errors = validate_config({"poll_interval_ms": 5})
-        assert config is None
-        assert any("poll_interval_ms must be integer >= 10" in e for e in errors)
-
-    def test_poll_interval_non_integer_returns_error(self) -> None:
-        """Non-integer poll_interval_ms returns error."""
-        config, errors = validate_config({"poll_interval_ms": "fast"})
-        assert config is None
-        assert any("poll_interval_ms must be integer >= 10" in e for e in errors)
-
-    def test_poll_interval_at_minimum(self) -> None:
-        """poll_interval_ms of exactly 10 is valid."""
-        config, errors = validate_config({"poll_interval_ms": 10})
-        assert errors == []
-        assert config is not None
-        assert config.poll_interval_ms == 10
+        assert getattr(config, field) == min_value
 
 
 class TestValidateConfigErrorAccumulation:
