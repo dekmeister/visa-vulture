@@ -14,8 +14,6 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from typing import Union
-
 from ..config.schema import ValidationLimits
 from ..model.test_plan import (
     TestPlan,
@@ -59,6 +57,12 @@ OPTIONAL_COLUMNS = {"description"}
 # Valid instrument types for metadata
 _VALID_INSTRUMENT_TYPES = {PLAN_TYPE_POWER_SUPPLY, PLAN_TYPE_SIGNAL_GENERATOR}
 
+# Required columns by plan type
+_COLUMN_REQUIREMENTS: dict[str, set[str]] = {
+    PLAN_TYPE_POWER_SUPPLY: POWER_SUPPLY_COLUMNS,
+    PLAN_TYPE_SIGNAL_GENERATOR: SIGNAL_GENERATOR_COLUMNS,
+}
+
 # Modulation metadata keys
 MODULATION_TYPE_KEY = "modulation_type"
 MODULATION_FREQUENCY_KEY = "modulation_frequency"
@@ -101,127 +105,117 @@ def read_test_plan(
     Returns:
         TestPlanResult with plan (or None if errors), errors list, and warnings list
     """
-    errors: list[str] = []
     file_path = Path(file_path)
 
-    # Check file exists
     if not file_path.exists():
-        errors.append(f"File not found: {file_path}")
-        return TestPlanResult(plan=None, errors=errors)
+        return TestPlanResult(plan=None, errors=[f"File not found: {file_path}"])
 
-    # Read file and parse metadata
     try:
         with open(file_path, "r", encoding="utf-8", newline="") as f:
             file_content = f.read()
     except OSError as e:
-        errors.append(f"Error reading file: {e}")
-        return TestPlanResult(plan=None, errors=errors)
+        return TestPlanResult(plan=None, errors=[f"Error reading file: {e}"])
 
     metadata, csv_content = _parse_metadata(file_content)
 
-    # Validate instrument_type metadata
     if not metadata:
-        errors.append(
-            "Missing required metadata. Add '# instrument_type: power_supply' "
-            "or '# instrument_type: signal_generator' at the top of the CSV file"
+        return TestPlanResult(
+            plan=None,
+            errors=[
+                "Missing required metadata. Add '# instrument_type: power_supply' "
+                "or '# instrument_type: signal_generator' at the top of the CSV file"
+            ],
         )
-        return TestPlanResult(plan=None, errors=errors)
 
     if "instrument_type" not in metadata:
-        errors.append("Missing required metadata field 'instrument_type'")
-        return TestPlanResult(plan=None, errors=errors)
+        return TestPlanResult(
+            plan=None,
+            errors=["Missing required metadata field 'instrument_type'"],
+        )
 
     plan_type = metadata["instrument_type"]
     if plan_type not in _VALID_INSTRUMENT_TYPES:
-        errors.append(
-            f"Invalid instrument_type '{plan_type}'. "
-            f"Must be '{PLAN_TYPE_POWER_SUPPLY}' or '{PLAN_TYPE_SIGNAL_GENERATOR}'"
+        return TestPlanResult(
+            plan=None,
+            errors=[
+                f"Invalid instrument_type '{plan_type}'. "
+                f"Must be '{PLAN_TYPE_POWER_SUPPLY}' or '{PLAN_TYPE_SIGNAL_GENERATOR}'"
+            ],
         )
-        return TestPlanResult(plan=None, errors=errors)
 
-    # Parse CSV content
     try:
-        reader = csv.DictReader(io.StringIO(csv_content))
-
-        if reader.fieldnames is None:
-            errors.append("CSV file is empty or has no header row")
-            return TestPlanResult(plan=None, errors=errors)
-
-        # Normalize column names to lowercase
-        columns = {name.lower().strip() for name in reader.fieldnames}
-        column_map = {name.lower().strip(): name for name in reader.fieldnames}
-
-        # Read all rows
-        rows = list(reader)
-
-        if not rows:
-            errors.append("CSV file has no data rows")
-            return TestPlanResult(plan=None, errors=errors)
-
-        # Validate columns for detected type
-        if plan_type == PLAN_TYPE_POWER_SUPPLY:
-            missing = POWER_SUPPLY_COLUMNS - columns
-            if missing:
-                errors.append(
-                    f"Missing required columns for power supply: {', '.join(sorted(missing))}"
-                )
-                return TestPlanResult(plan=None, errors=errors)
-            plan, parse_errors = _parse_test_plan(
-                file_path, rows, column_map, errors, plan_type
-            )
-            if parse_errors:
-                return TestPlanResult(plan=None, errors=parse_errors)
-            warnings = (
-                _validate_soft_limits(plan, soft_limits)
-                if plan and soft_limits
-                else []
-            )
-            return TestPlanResult(plan=plan, errors=[], warnings=warnings)
-
-        elif plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
-            missing = SIGNAL_GENERATOR_COLUMNS - columns
-            if missing:
-                errors.append(
-                    f"Missing required columns for signal generator: {', '.join(sorted(missing))}"
-                )
-                return TestPlanResult(plan=None, errors=errors)
-
-            # Parse modulation config from metadata (may be None if not specified)
-            modulation_config = _parse_modulation_config(metadata, errors)
-            if errors:
-                return TestPlanResult(plan=None, errors=errors)
-
-            result, parse_errors = _parse_test_plan(
-                file_path, rows, column_map, errors, plan_type
-            )
-
-            if parse_errors:
-                return TestPlanResult(plan=None, errors=parse_errors)
-
-            # Attach modulation config to the test plan if present
-            if result is not None and modulation_config is not None:
-                result = TestPlan(
-                    name=result.name,
-                    plan_type=result.plan_type,
-                    steps=result.steps,
-                    description=result.description,
-                    modulation_config=modulation_config,
-                )
-
-            warnings = (
-                _validate_soft_limits(result, soft_limits)
-                if result and soft_limits
-                else []
-            )
-            return TestPlanResult(plan=result, errors=[], warnings=warnings)
-
-        else:
-            errors.append(f"Unknown plan type: '{plan_type}'")
-            return TestPlanResult(plan=None, errors=errors)
-
+        return _parse_csv_content(
+            csv_content, metadata, file_path, plan_type, soft_limits
+        )
     except csv.Error as e:
-        errors.append(f"CSV parsing error: {e}")
-        return TestPlanResult(plan=None, errors=errors)
+        return TestPlanResult(plan=None, errors=[f"CSV parsing error: {e}"])
+
+
+def _parse_csv_content(
+    csv_content: str,
+    metadata: dict[str, str],
+    file_path: Path,
+    plan_type: str,
+    soft_limits: ValidationLimits | None,
+) -> TestPlanResult:
+    """Parse CSV content into a TestPlanResult."""
+    errors: list[str] = []
+
+    reader = csv.DictReader(io.StringIO(csv_content))
+
+    if reader.fieldnames is None:
+        return TestPlanResult(
+            plan=None, errors=["CSV file is empty or has no header row"]
+        )
+
+    columns = {name.lower().strip() for name in reader.fieldnames}
+    column_map = {name.lower().strip(): name for name in reader.fieldnames}
+
+    rows = list(reader)
+    if not rows:
+        return TestPlanResult(plan=None, errors=["CSV file has no data rows"])
+
+    # Validate required columns
+    required = _COLUMN_REQUIREMENTS[plan_type]
+    missing = required - columns
+    if missing:
+        return TestPlanResult(
+            plan=None,
+            errors=[
+                f"Missing required columns for {plan_type.replace('_', ' ')}: "
+                f"{', '.join(sorted(missing))}"
+            ],
+        )
+
+    # Parse modulation config for signal generators
+    modulation_config = None
+    if plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
+        modulation_config = _parse_modulation_config(metadata, errors)
+        if errors:
+            return TestPlanResult(plan=None, errors=errors)
+
+    # Parse rows into steps
+    plan, parse_errors = _parse_test_plan(
+        file_path, rows, column_map, errors, plan_type
+    )
+    if parse_errors:
+        return TestPlanResult(plan=None, errors=parse_errors)
+
+    # Attach modulation config if present
+    if plan is not None and modulation_config is not None:
+        plan = TestPlan(
+            name=plan.name,
+            plan_type=plan.plan_type,
+            steps=plan.steps,
+            description=plan.description,
+            modulation_config=modulation_config,
+        )
+
+    # Validate soft limits
+    warnings = (
+        _validate_soft_limits(plan, soft_limits) if plan and soft_limits else []
+    )
+    return TestPlanResult(plan=plan, errors=[], warnings=warnings)
 
 
 def _parse_metadata(file_content: str) -> tuple[dict[str, str], str]:
@@ -325,6 +319,50 @@ def _get_value(
     return row.get(actual_name, "").strip()
 
 
+def _parse_float_field(
+    row: dict[str, str],
+    column_map: dict[str, str],
+    field_name: str,
+    row_num: int,
+    errors: list[str],
+    *,
+    min_value: float | None = 0.0,
+    max_value: float | None = None,
+    unit: str = "",
+) -> float | None:
+    """Parse and validate a float field from a CSV row.
+
+    Returns the parsed value, or None if the value couldn't be parsed.
+    Range violations are appended to errors but the value is still returned.
+    """
+    raw = _get_value(row, column_map, field_name)
+    try:
+        value = float(raw)
+    except ValueError:
+        errors.append(f"Row {row_num}: invalid {field_name} value '{raw}'")
+        return None
+
+    if min_value is not None and value < min_value:
+        if min_value == 0:
+            errors.append(
+                f"Row {row_num}: {field_name} must be >= 0, got {value}"
+            )
+        else:
+            unit_str = f" {unit}" if unit else ""
+            errors.append(
+                f"Row {row_num}: {field_name} {value}{unit_str} below minimum "
+                f"({min_value}{unit_str})"
+            )
+    elif max_value is not None and value > max_value:
+        unit_str = f" {unit}" if unit else ""
+        errors.append(
+            f"Row {row_num}: {field_name} {value}{unit_str} exceeds maximum "
+            f"({max_value}{unit_str})"
+        )
+
+    return value
+
+
 def _parse_power_supply_row(
     row: dict[str, str],
     column_map: dict[str, str],
@@ -334,49 +372,24 @@ def _parse_power_supply_row(
     """Parse a single CSV row into a power supply TestStep."""
     errors: list[str] = []
 
-    # Parse duration
-    duration_str = _get_value(row, column_map, "duration")
-    try:
-        duration_seconds = float(duration_str)
-        if duration_seconds < 0:
-            errors.append(
-                f"Row {row_num}: duration must be >= 0, got {duration_seconds}"
-            )
-    except ValueError:
-        errors.append(f"Row {row_num}: invalid duration value '{duration_str}'")
+    duration_seconds = _parse_float_field(row, column_map, "duration", row_num, errors)
+    if duration_seconds is None:
         return None, errors
 
-    # Parse voltage
-    voltage_str = _get_value(row, column_map, "voltage")
-    try:
-        voltage = float(voltage_str)
-        if voltage < 0:
-            errors.append(f"Row {row_num}: voltage must be >= 0, got {voltage}")
-        elif voltage > HARD_LIMIT_VOLTAGE_MAX_V:
-            errors.append(
-                f"Row {row_num}: voltage {voltage} V exceeds maximum "
-                f"({HARD_LIMIT_VOLTAGE_MAX_V} V)"
-            )
-    except ValueError:
-        errors.append(f"Row {row_num}: invalid voltage value '{voltage_str}'")
+    voltage = _parse_float_field(
+        row, column_map, "voltage", row_num, errors,
+        max_value=HARD_LIMIT_VOLTAGE_MAX_V, unit="V",
+    )
+    if voltage is None:
         return None, errors
 
-    # Parse current
-    current_str = _get_value(row, column_map, "current")
-    try:
-        current = float(current_str)
-        if current < 0:
-            errors.append(f"Row {row_num}: current must be >= 0, got {current}")
-        elif current > HARD_LIMIT_CURRENT_MAX_A:
-            errors.append(
-                f"Row {row_num}: current {current} A exceeds maximum "
-                f"({HARD_LIMIT_CURRENT_MAX_A} A)"
-            )
-    except ValueError:
-        errors.append(f"Row {row_num}: invalid current value '{current_str}'")
+    current = _parse_float_field(
+        row, column_map, "current", row_num, errors,
+        max_value=HARD_LIMIT_CURRENT_MAX_A, unit="A",
+    )
+    if current is None:
         return None, errors
 
-    # Parse optional description
     description = _get_value(row, column_map, "description")
 
     if errors:
@@ -403,49 +416,23 @@ def _parse_signal_generator_row(
     """Parse a single CSV row into a signal generator TestStep."""
     errors: list[str] = []
 
-    # Parse duration
-    duration_str = _get_value(row, column_map, "duration")
-    try:
-        duration_seconds = float(duration_str)
-        if duration_seconds < 0:
-            errors.append(
-                f"Row {row_num}: duration must be >= 0, got {duration_seconds}"
-            )
-    except ValueError:
-        errors.append(f"Row {row_num}: invalid duration value '{duration_str}'")
+    duration_seconds = _parse_float_field(row, column_map, "duration", row_num, errors)
+    if duration_seconds is None:
         return None, errors
 
-    # Parse frequency
-    freq_str = _get_value(row, column_map, "frequency")
-    try:
-        frequency = float(freq_str)
-        if frequency < 0:
-            errors.append(f"Row {row_num}: frequency must be >= 0, got {frequency}")
-        elif frequency > HARD_LIMIT_FREQUENCY_MAX_HZ:
-            errors.append(
-                f"Row {row_num}: frequency {frequency} Hz exceeds maximum "
-                f"({HARD_LIMIT_FREQUENCY_MAX_HZ} Hz)"
-            )
-    except ValueError:
-        errors.append(f"Row {row_num}: invalid frequency value '{freq_str}'")
+    frequency = _parse_float_field(
+        row, column_map, "frequency", row_num, errors,
+        max_value=HARD_LIMIT_FREQUENCY_MAX_HZ, unit="Hz",
+    )
+    if frequency is None:
         return None, errors
 
-    # Parse power (can be negative for dBm, but within reasonable limits)
-    power_str = _get_value(row, column_map, "power")
-    try:
-        power = float(power_str)
-        if power < HARD_LIMIT_POWER_MIN_DBM:
-            errors.append(
-                f"Row {row_num}: power {power} dBm below minimum "
-                f"({HARD_LIMIT_POWER_MIN_DBM} dBm)"
-            )
-        elif power > HARD_LIMIT_POWER_MAX_DBM:
-            errors.append(
-                f"Row {row_num}: power {power} dBm exceeds maximum "
-                f"({HARD_LIMIT_POWER_MAX_DBM} dBm)"
-            )
-    except ValueError:
-        errors.append(f"Row {row_num}: invalid power value '{power_str}'")
+    power = _parse_float_field(
+        row, column_map, "power", row_num, errors,
+        min_value=HARD_LIMIT_POWER_MIN_DBM, max_value=HARD_LIMIT_POWER_MAX_DBM,
+        unit="dBm",
+    )
+    if power is None:
         return None, errors
 
     # Parse optional modulation_enabled
@@ -463,7 +450,6 @@ def _parse_signal_generator_row(
                 f"Use true/false, 1/0, or yes/no"
             )
 
-    # Parse optional description
     description = _get_value(row, column_map, "description")
 
     if errors:
