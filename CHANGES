@@ -1,6 +1,15 @@
 visa-vulture Changelog
 ================
 
+UNRELEASED
+----------------
+- Added AM and FM modulation to signal generator
+- Added user-defined soft validation
+- Added check that test plan type matches connected instrument type
+- Increase rate of plot refresh and made plot refresh rate user defined
+- Added user defined instrument
+- Various fixes (refer Github)
+
 0.1.0 (2026-01-31)
 ----------------
 - Initial Pypi release

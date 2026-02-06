@@ -15,15 +15,25 @@ class ResourceManagerDialog:
     - Connect: Connect to selected resource with specified instrument type
     """
 
-    def __init__(self, parent: tk.Tk):
+    # Default built-in instrument types
+    DEFAULT_INSTRUMENT_TYPES = ["Power Supply", "Signal Generator"]
+
+    def __init__(
+        self,
+        parent: tk.Tk,
+        instrument_types: list[str] | None = None,
+    ):
         """
         Initialize dialog window.
 
         Args:
             parent: Parent Tkinter window
+            instrument_types: List of instrument type display names for the
+                dropdown. Defaults to built-in types if not specified.
         """
         self._parent = parent
         self._result: tuple[str, str] | None = None
+        self._instrument_types = instrument_types or self.DEFAULT_INSTRUMENT_TYPES
 
         # Callbacks set by presenter
         self._on_scan: Callable[[], None] | None = None
@@ -116,13 +126,13 @@ class ResourceManagerDialog:
 
         ttk.Label(type_frame, text="Instrument Type:").pack(side=tk.LEFT, padx=(0, 5))
 
-        self._type_var = tk.StringVar(value="Power Supply")
+        self._type_var = tk.StringVar(value=self._instrument_types[0])
         self._type_combo = ttk.Combobox(
             type_frame,
             textvariable=self._type_var,
-            values=["Power Supply", "Signal Generator"],
+            values=self._instrument_types,
             state="readonly",
-            width=20,
+            width=25,
         )
         self._type_combo.pack(side=tk.LEFT)
 
@@ -301,11 +311,8 @@ class ResourceManagerDialog:
         return None
 
     def get_selected_instrument_type(self) -> str:
-        """Get selected instrument type as internal string."""
-        display_type = self._type_var.get()
-        if display_type == "Signal Generator":
-            return "signal_generator"
-        return "power_supply"
+        """Get selected instrument type display name."""
+        return self._type_var.get()
 
     def get_resources(self) -> list[str]:
         """Get list of all resource addresses."""

@@ -144,6 +144,7 @@ class EquipmentModel:
         resource_address: str,
         instrument_type: str,
         timeout_ms: int = 5000,
+        instrument_class: type[BaseInstrument] | None = None,
     ) -> None:
         """
         Connect to a single instrument.
@@ -154,6 +155,9 @@ class EquipmentModel:
             resource_address: VISA resource address string
             instrument_type: Type string ("power_supply" or "signal_generator")
             timeout_ms: Communication timeout in milliseconds
+            instrument_class: Optional custom instrument class to use instead
+                of the default. Must be a subclass of the appropriate base
+                type (PowerSupply or SignalGenerator).
 
         Raises:
             RuntimeError: If not in valid state for connection
@@ -172,7 +176,12 @@ class EquipmentModel:
                 self._visa.open()
 
             # Create appropriate instrument class
-            if instrument_type == "power_supply":
+            if instrument_class is not None:
+                name = getattr(instrument_class, "display_name", instrument_type)
+                self._instrument = instrument_class(
+                    name, resource_address, timeout_ms
+                )
+            elif instrument_type == "power_supply":
                 self._instrument = PowerSupply(
                     "Power Supply", resource_address, timeout_ms
                 )

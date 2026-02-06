@@ -352,7 +352,7 @@ class TestResourceManagerDialogFlow:
 
         mock_resource_manager_dialog._result = (
             "TCPIP::192.168.1.100::INSTR",
-            "power_supply",
+            "Power Supply",
         )
 
         with (
@@ -369,7 +369,9 @@ class TestResourceManagerDialogFlow:
             trigger_view_callback(mock_view, "on_connect")
 
             mock_model_for_presenter.connect_instrument.assert_called_once_with(
-                "TCPIP::192.168.1.100::INSTR", "power_supply"
+                "TCPIP::192.168.1.100::INSTR",
+                "power_supply",
+                instrument_class=None,
             )
 
     def test_connect_success_shows_power_supply_tab(
@@ -384,7 +386,7 @@ class TestResourceManagerDialogFlow:
 
         mock_resource_manager_dialog._result = (
             "TCPIP::192.168.1.100::INSTR",
-            "power_supply",
+            "Power Supply",
         )
 
         with (
@@ -414,7 +416,7 @@ class TestResourceManagerDialogFlow:
 
         mock_resource_manager_dialog._result = (
             "TCPIP::192.168.1.101::INSTR",
-            "signal_generator",
+            "Signal Generator",
         )
 
         with (
@@ -444,7 +446,7 @@ class TestResourceManagerDialogFlow:
 
         mock_resource_manager_dialog._result = (
             "TCPIP::192.168.1.100::INSTR",
-            "power_supply",
+            "Power Supply",
         )
         mock_model_for_presenter.get_instrument_identification.return_value = (
             "E36312A",
@@ -482,7 +484,7 @@ class TestResourceManagerDialogFlow:
 
         mock_resource_manager_dialog._result = (
             "TCPIP::192.168.1.100::INSTR",
-            "power_supply",
+            "Power Supply",
         )
         mock_model_for_presenter.connect_instrument.side_effect = Exception(
             "Connection refused"

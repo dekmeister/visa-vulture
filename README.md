@@ -182,6 +182,7 @@ The application follows the Model-View-Presenter (MVP) pattern:
 ## Project Structure
 
 ```
+instruments/                    # Custom instrument extensions (project root)
 visa_vulture/
 ├── main.py                 # Entry point
 ├── config/                 # Configuration loading
@@ -189,13 +190,21 @@ visa_vulture/
 ├── view/                   # Tkinter GUI components
 ├── presenter/              # MVP coordination
 ├── file_io/                # CSV parsing, results writing
-├── instruments/            # VISA instrument classes
+├── instruments/            # VISA instrument classes and loader
 ├── logging_config/         # Logging setup
 ├── simulation/             # PyVISA-sim configuration
 └── utils/                  # Threading helpers
 ```
 
-## Adding New Instruments
+## Custom Instruments
+
+You can extend existing instrument types with instrument-specific functionality by placing custom instrument modules in the `instruments/` directory at the project root.
+
+Custom instruments must extend `PowerSupply` or `SignalGenerator` (not `BaseInstrument` directly) and define a `display_name` class attribute. They are auto-discovered at startup and appear in the Resource Manager dialog.
+
+See [instruments/README.md](instruments/README.md) for full documentation and the [PSG E8257D example](instruments/psg_e8257d.py).
+
+## Adding New Built-in Instruments
 
 1. Create a new class in `visa_vulture/instruments/` inheriting from `BaseInstrument`
 2. Implement required methods: `connect`, `disconnect`, `get_status`

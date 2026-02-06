@@ -56,7 +56,8 @@ Arrows indicate "imports from" direction.
 | **view/** | utils (optional) | model, presenter, instruments, file_io, config |
 | **presenter/** | model, view, utils | instruments, file_io, config (go through model) |
 | **file_io/** | model (TestPlan, TestStep subclasses, plan type constants) | view, presenter, instruments, config |
-| **instruments/** | (pyvisa only) | All internal packages |
+| **instruments/** | (pyvisa, importlib) | All internal packages |
+| **instruments/ (root)** | visa_vulture.instruments | Internal packages (uses visa_vulture as a library) |
 | **utils/** | (standard library only) | All internal packages |
 
 ---
@@ -77,15 +78,17 @@ main.py
    │
    ├─2─► logging_config/setup.py ──► Configure handlers
    │
-   ├─3─► instruments/ ──► Create instrument objects (disconnected)
+   ├─3─► instruments/instrument_loader ──► Scan root instruments/ for custom types
    │
-   ├─4─► model/ ──► Create EquipmentModel with instruments
+   ├─4─► instruments/ ──► Create VISAConnection
    │
-   ├─5─► view/ ──► Create MainWindow
+   ├─5─► model/ ──► Create EquipmentModel with VISAConnection
    │
-   ├─6─► presenter/ ──► Create EquipmentPresenter, wire callbacks
+   ├─6─► view/ ──► Create MainWindow
    │
-   └─7─► root.mainloop() ──► Start GUI event loop
+   ├─7─► presenter/ ──► Create EquipmentPresenter with instrument registry, wire callbacks
+   │
+   └─8─► root.mainloop() ──► Start GUI event loop
 ```
 
 ### User Action: Connect to Instrument

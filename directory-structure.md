@@ -1,6 +1,11 @@
 # VISA Vulture - Directory Structure
 
 ```
+instruments/                    # User-defined custom instrument extensions (project root)
+├── __init__.py
+├── psg_e8257d.py               # Example: Keysight PSG E8257D signal generator
+└── README.md
+
 visa_vulture/
 │
 ├── main.py
@@ -133,17 +138,30 @@ File parsing and writing.
 
 ---
 
-### instruments/
+### instruments/ (project root)
+
+User-defined custom instrument extensions. Auto-scanned at startup.
+
+| File | Purpose |
+|------|---------|
+| `__init__.py` | Package init with extension documentation |
+| `psg_e8257d.py` | Example: Keysight PSG E8257D extending `SignalGenerator` |
+| `README.md` | Documentation for creating custom instruments |
+
+---
+
+### visa_vulture/instruments/
 
 VISA communication and instrument abstraction.
 
 | File | Purpose |
 |------|---------|
-| `__init__.py` | Exports: `VISAConnection`, `PowerSupply`, `SignalGenerator` |
+| `__init__.py` | Exports: `VISAConnection`, `PowerSupply`, `SignalGenerator`, loader functions |
 | `visa_connection.py` | `VISAConnection` class managing ResourceManager, resource discovery |
 | `base_instrument.py` | `BaseInstrument` abstract class with common interface and SCPI commands |
 | `power_supply.py` | `PowerSupply` class with voltage/current control commands |
 | `signal_generator.py` | `SignalGenerator` class with frequency/power control commands |
+| `instrument_loader.py` | Auto-scanning, registry building, and custom instrument loading |
 
 ---
 
@@ -212,6 +230,10 @@ from .visa_connection import VISAConnection
 from .base_instrument import BaseInstrument
 from .power_supply import PowerSupply
 from .signal_generator import SignalGenerator
+from .instrument_loader import (
+    InstrumentEntry, scan_custom_instruments,
+    build_instrument_registry, create_instrument,
+)
 
 # logging_config/__init__.py
 from .setup import setup_logging, GUILogHandler

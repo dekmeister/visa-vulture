@@ -8,7 +8,7 @@ import tkinter as tk
 from pathlib import Path
 
 from .config import load_config
-from .instruments import VISAConnection
+from .instruments import VISAConnection, scan_custom_instruments, build_instrument_registry
 from .logging_config import setup_logging
 from .model import EquipmentModel
 from .presenter import EquipmentPresenter
@@ -66,6 +66,16 @@ def main() -> int:
     logger.info("Starting VISA Vulture")
     logger.info("Simulation mode: %s", config.simulation_mode)
 
+    # Scan for custom instruments in the root instruments/ directory
+    custom_instruments = scan_custom_instruments(Path.cwd() / "instruments")
+    instrument_registry = build_instrument_registry(custom_instruments)
+    if custom_instruments:
+        logger.info(
+            "Loaded %d custom instrument(s): %s",
+            len(custom_instruments),
+            ", ".join(custom_instruments.keys()),
+        )
+
     # Create VISA connection
     visa_connection = VISAConnection(
         simulation_mode=config.simulation_mode,
@@ -96,6 +106,7 @@ def main() -> int:
         poll_interval_ms=config.poll_interval_ms,
         plot_refresh_interval_ms=config.plot_refresh_interval_ms,
         validation_limits=config.validation_limits,
+        instrument_registry=instrument_registry,
     )
 
     # Setup clean shutdown

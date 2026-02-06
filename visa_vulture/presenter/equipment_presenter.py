@@ -5,6 +5,7 @@ import time
 
 from ..config import ValidationLimits
 from ..file_io import read_test_plan
+from ..instruments import InstrumentEntry
 from ..model import (
     EquipmentModel,
     EquipmentState,
@@ -36,6 +37,7 @@ class EquipmentPresenter:
         poll_interval_ms: int = 100,
         plot_refresh_interval_ms: int = 1000,
         validation_limits: ValidationLimits | None = None,
+        instrument_registry: dict[str, InstrumentEntry] | None = None,
     ):
         """
         Initialize presenter.
@@ -47,12 +49,16 @@ class EquipmentPresenter:
             plot_refresh_interval_ms: Interval for plot position updates during test
             validation_limits: Optional soft validation limits for test plans.
                 If provided, values exceeding soft limits generate warnings.
+            instrument_registry: Optional registry of available instrument types.
+                Maps display names to InstrumentEntry objects. If not provided,
+                only built-in instrument types are available.
         """
         self._model = model
         self._view = view
         self._poll_interval_ms = poll_interval_ms
         self._plot_refresh_interval_ms = plot_refresh_interval_ms
         self._validation_limits = validation_limits
+        self._instrument_registry = instrument_registry
 
         # Background task runner
         self._task_runner = BackgroundTaskRunner(view.schedule)
@@ -113,8 +119,15 @@ class EquipmentPresenter:
 
         logger.info("Connect requested - opening resource manager")
 
+        # Build instrument type list for the dialog dropdown
+        instrument_types = None
+        if self._instrument_registry:
+            instrument_types = list(self._instrument_registry.keys())
+
         # Create and configure dialog
-        dialog = ResourceManagerDialog(self._view._root)
+        dialog = ResourceManagerDialog(
+            self._view._root, instrument_types=instrument_types
+        )
         dialog.set_on_scan(lambda: self._handle_dialog_scan(dialog))
         dialog.set_on_identify(lambda: self._handle_dialog_identify(dialog))
 
@@ -125,8 +138,24 @@ class EquipmentPresenter:
             logger.info("Connection cancelled")
             return
 
-        resource_address, instrument_type = result
-        self._connect_to_resource(resource_address, instrument_type)
+        resource_address, selected_display_name = result
+
+        # Resolve the selected instrument type through the registry
+        instrument_class = None
+        if self._instrument_registry and selected_display_name in self._instrument_registry:
+            entry = self._instrument_registry[selected_display_name]
+            instrument_type = entry.base_type
+            # Only pass custom class for non-built-in instruments
+            if selected_display_name not in ("Power Supply", "Signal Generator"):
+                instrument_class = entry.cls
+        else:
+            # Fallback for when no registry is available
+            if selected_display_name == "Signal Generator":
+                instrument_type = "signal_generator"
+            else:
+                instrument_type = "power_supply"
+
+        self._connect_to_resource(resource_address, instrument_type, instrument_class)
 
     def _handle_dialog_scan(self, dialog) -> None:
         """Handle Scan button in resource manager dialog."""
@@ -176,13 +205,22 @@ class EquipmentPresenter:
 
         self._task_runner.run_task(task, on_complete)
 
-    def _connect_to_resource(self, resource_address: str, instrument_type: str) -> None:
+    def _connect_to_resource(
+        self,
+        resource_address: str,
+        instrument_type: str,
+        instrument_class: type | None = None,
+    ) -> None:
         """Connect to selected resource."""
         logger.info("Connecting to %s as %s", resource_address, instrument_type)
         self._view.set_status(f"Connecting to {resource_address}...")
 
         def task():
-            self._model.connect_instrument(resource_address, instrument_type)
+            self._model.connect_instrument(
+                resource_address,
+                instrument_type,
+                instrument_class=instrument_class,
+            )
 
         def on_complete(result):
             if isinstance(result, TaskResult) and not result.success:
