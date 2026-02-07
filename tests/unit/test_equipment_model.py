@@ -1,5 +1,6 @@
 """Tests for the equipment model module."""
 
+import threading
 from unittest.mock import Mock, call, patch
 
 import pytest
@@ -1586,3 +1587,269 @@ class TestSignalGeneratorExecutionPath:
             call(am_config, False),  # Step 2
             call(am_config, True),  # Step 3
         ]
+
+
+class TestInterruptibleSleep:
+    """Tests for _interruptible_sleep() with actual timing.
+
+    These test the pause/resume/stop logic within the sleep loop itself,
+    which is not exercised by zero-duration plan tests.
+    """
+
+    def test_pause_during_sleep_transitions_to_paused(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Setting _pause_requested during a timed sleep transitions to PAUSED."""
+        plan = TestPlan(
+            name="Timed PS",
+            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            steps=[
+                PowerSupplyTestStep(
+                    step_number=1, duration_seconds=2.0, voltage=5.0, current=1.0
+                ),
+            ],
+        )
+        model, mock_ps = _make_model_with_power_supply(mock_visa_connection, plan)
+
+        state_changes: list[tuple[EquipmentState, EquipmentState]] = []
+        model.register_state_callback(lambda old, new: state_changes.append((old, new)))
+
+        paused_event = threading.Event()
+
+        original_to_paused = model._state_machine.to_paused
+
+        def track_paused() -> None:
+            original_to_paused()
+            paused_event.set()
+
+        model._state_machine.to_paused = track_paused
+
+        def pause_then_resume() -> None:
+            model._pause_requested = True
+            # Wait until the model actually enters PAUSED
+            paused_event.wait(timeout=2.0)
+            # Then resume after a short delay
+            model._pause_requested = False
+
+        timer = threading.Timer(0.15, pause_then_resume)
+        timer.start()
+
+        model.run_test()
+        timer.join()
+
+        assert (EquipmentState.RUNNING, EquipmentState.PAUSED) in state_changes
+        assert (EquipmentState.PAUSED, EquipmentState.RUNNING) in state_changes
+
+    def test_stop_while_paused_during_sleep_exits(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Setting _stop_requested while paused during sleep exits the loop."""
+        plan = TestPlan(
+            name="Timed PS",
+            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            steps=[
+                PowerSupplyTestStep(
+                    step_number=1, duration_seconds=5.0, voltage=5.0, current=1.0
+                ),
+            ],
+        )
+        model, mock_ps = _make_model_with_power_supply(mock_visa_connection, plan)
+
+        state_changes: list[tuple[EquipmentState, EquipmentState]] = []
+        model.register_state_callback(lambda old, new: state_changes.append((old, new)))
+
+        paused_event = threading.Event()
+
+        original_to_paused = model._state_machine.to_paused
+
+        def track_paused() -> None:
+            original_to_paused()
+            paused_event.set()
+
+        model._state_machine.to_paused = track_paused
+
+        def pause_then_stop() -> None:
+            model._pause_requested = True
+            paused_event.wait(timeout=2.0)
+            # Stop while paused
+            model._stop_requested = True
+            model._pause_requested = False
+
+        timer = threading.Timer(0.15, pause_then_stop)
+        timer.start()
+
+        model.run_test()
+        timer.join()
+
+        assert (EquipmentState.RUNNING, EquipmentState.PAUSED) in state_changes
+        # Should end in IDLE (finally block) not stay PAUSED
+        assert model.state == EquipmentState.IDLE
+
+    def test_remaining_time_tracked_during_pause(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """_time_remaining_in_step is set when paused and cleared after resume."""
+        plan = TestPlan(
+            name="Timed PS",
+            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            steps=[
+                PowerSupplyTestStep(
+                    step_number=1, duration_seconds=2.0, voltage=5.0, current=1.0
+                ),
+            ],
+        )
+        model, mock_ps = _make_model_with_power_supply(mock_visa_connection, plan)
+
+        remaining_captured: list[float | None] = []
+        paused_event = threading.Event()
+
+        original_to_paused = model._state_machine.to_paused
+
+        def track_paused() -> None:
+            original_to_paused()
+            paused_event.set()
+
+        model._state_machine.to_paused = track_paused
+
+        def pause_capture_resume() -> None:
+            model._pause_requested = True
+            paused_event.wait(timeout=2.0)
+            # Capture remaining time while paused
+            remaining_captured.append(model._time_remaining_in_step)
+            # Resume
+            model._pause_requested = False
+
+        timer = threading.Timer(0.15, pause_capture_resume)
+        timer.start()
+
+        model.run_test()
+        timer.join()
+
+        # Should have captured a remaining time value > 0 during pause
+        assert len(remaining_captured) == 1
+        assert remaining_captured[0] is not None
+        assert remaining_captured[0] > 0
+        # After completion, _time_remaining_in_step should be cleared
+        assert model._time_remaining_in_step is None
+
+
+class TestCallbackExceptionHandling:
+    """Tests verifying callback exceptions are caught and don't propagate."""
+
+    def test_progress_callback_exception_does_not_propagate(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Exception in progress callback is caught; execution still completes."""
+        plan = _make_zero_duration_power_supply_plan()
+        model, mock_ps = _make_model_with_power_supply(mock_visa_connection, plan)
+
+        def bad_callback(current: int, total: int, step: object) -> None:
+            raise RuntimeError("Callback exploded")
+
+        complete_results: list[tuple[bool, str]] = []
+        model.register_progress_callback(bad_callback)
+        model.register_complete_callback(
+            lambda success, msg: complete_results.append((success, msg))
+        )
+
+        # Should not raise despite bad callback
+        model.run_test()
+
+        assert len(complete_results) == 1
+        assert complete_results[0][0] is True
+
+    def test_complete_callback_exception_does_not_propagate(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Exception in complete callback is caught; run_test returns normally."""
+        plan = _make_zero_duration_power_supply_plan()
+        model, mock_ps = _make_model_with_power_supply(mock_visa_connection, plan)
+
+        def bad_callback(success: bool, message: str) -> None:
+            raise RuntimeError("Completion callback exploded")
+
+        model.register_complete_callback(bad_callback)
+
+        # Should not raise
+        model.run_test()
+
+        assert model.state == EquipmentState.IDLE
+
+
+class TestDisconnectNoInstrument:
+    """Tests for disconnect when no instrument is connected."""
+
+    def test_disconnect_with_no_instrument_resets_state(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Disconnect with no connected instrument still resets to UNKNOWN."""
+        model = EquipmentModel(mock_visa_connection)
+        assert model.instrument is None
+
+        model.disconnect()
+
+        assert model.state == EquipmentState.UNKNOWN
+        assert model.instrument is None
+        mock_visa_connection.close.assert_called()
+
+
+class TestIsConnectedSafetyGuard:
+    """Tests verifying disable_output is skipped when instrument disconnects mid-test."""
+
+    def test_power_supply_not_connected_skips_disable(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """disable_output is NOT called if instrument disconnected during execution."""
+        plan = _make_zero_duration_power_supply_plan()
+        model, mock_ps = _make_model_with_power_supply(mock_visa_connection, plan)
+
+        # Simulate instrument disconnect during execution
+        original_set_voltage = mock_ps.set_voltage
+
+        def disconnect_during_step(*args: object) -> None:
+            original_set_voltage(*args)
+            mock_ps.is_connected = False
+
+        mock_ps.set_voltage = disconnect_during_step
+
+        model.run_test()
+
+        mock_ps.disable_output.assert_not_called()
+
+    def test_signal_generator_not_connected_skips_disable(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """disable_output is NOT called if signal generator disconnected during execution."""
+        plan = _make_zero_duration_signal_generator_plan()
+        model, mock_sg = _make_model_with_signal_generator(mock_visa_connection, plan)
+
+        original_set_freq = mock_sg.set_frequency
+
+        def disconnect_during_step(*args: object) -> None:
+            original_set_freq(*args)
+            mock_sg.is_connected = False
+
+        mock_sg.set_frequency = disconnect_during_step
+
+        model.run_test()
+
+        mock_sg.disable_output.assert_not_called()
+
+
+class TestPlanTypeCompatibilityUnknownType:
+    """Tests for is_plan_type_compatible with unknown plan types."""
+
+    def test_unknown_plan_type_compatible_when_no_instrument(
+        self, equipment_model: EquipmentModel
+    ) -> None:
+        """Unknown plan type is compatible when no instrument is connected."""
+        assert equipment_model.is_plan_type_compatible("some_future_type") is True
+
+    def test_unknown_plan_type_compatible_with_connected_instrument(
+        self, equipment_model: EquipmentModel, mock_visa_connection: Mock
+    ) -> None:
+        """Unknown plan type returns True even with connected instrument (fallback)."""
+        equipment_model.connect_instrument(
+            "TCPIP::192.168.1.100::INSTR", "power_supply"
+        )
+        assert equipment_model.is_plan_type_compatible("some_future_type") is True

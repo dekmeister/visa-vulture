@@ -1035,3 +1035,73 @@ class TestTestPlanResult:
         assert result.plan is not None
         assert result.errors == []
         assert len(result.warnings) >= 1
+
+
+class TestFileIOEdgeCases:
+    """Tests for file I/O edge cases not covered by other test classes."""
+
+    def test_os_error_reading_file_returns_error(self, tmp_path: Path) -> None:
+        """OSError during file read returns appropriate error."""
+        from unittest.mock import patch
+
+        csv_path = tmp_path / "readable.csv"
+        csv_path.write_text("# instrument_type: power_supply\n")
+
+        with patch("builtins.open", side_effect=OSError("Permission denied")):
+            result = read_test_plan(csv_path)
+
+        assert result.plan is None
+        assert any("error reading file" in e.lower() for e in result.errors)
+
+    def test_non_numeric_fm_deviation_returns_error(self, tmp_path: Path) -> None:
+        """Non-numeric fm_deviation value returns parse error."""
+        csv_path = tmp_path / "bad_fm_dev.csv"
+        csv_path.write_text(
+            "# instrument_type: signal_generator\n"
+            "# modulation_type: fm\n"
+            "# modulation_frequency: 1000\n"
+            "# fm_deviation: not_a_number\n"
+            "duration,frequency,power\n"
+            "1.0,1000000,0\n"
+        )
+
+        result = read_test_plan(csv_path)
+
+        assert result.plan is None
+        assert any("invalid fm_deviation" in e.lower() for e in result.errors)
+
+    def test_frequency_above_soft_max_returns_warning(self, tmp_path: Path) -> None:
+        """Frequency above soft limit maximum generates warning."""
+        limits = ValidationLimits()
+        result = _parse_plan_csv(
+            tmp_path, _make_sg_csv(frequency=60e9), soft_limits=limits
+        )
+
+        assert result.errors == []
+        assert result.plan is not None
+        assert any("frequency" in w.lower() and "exceeds" in w.lower() for w in result.warnings)
+
+    def test_current_above_soft_max_returns_warning(self, tmp_path: Path) -> None:
+        """Current above soft limit generates warning."""
+        limits = ValidationLimits()
+        result = _parse_plan_csv(
+            tmp_path, _make_ps_csv(current=100), soft_limits=limits
+        )
+
+        assert result.errors == []
+        assert result.plan is not None
+        assert any("current" in w.lower() and "exceeds" in w.lower() for w in result.warnings)
+
+    def test_all_rows_invalid_returns_no_steps_error(self, tmp_path: Path) -> None:
+        """CSV with all invalid rows returns 'no valid steps' error."""
+        csv_path = tmp_path / "all_invalid.csv"
+        csv_path.write_text(
+            "# instrument_type: power_supply\n"
+            "duration,voltage,current\n"
+            "invalid,5.0,1.0\n"
+        )
+
+        result = read_test_plan(csv_path)
+
+        assert result.plan is None
+        assert len(result.errors) >= 1

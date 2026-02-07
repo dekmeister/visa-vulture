@@ -1373,3 +1373,257 @@ class TestStartFromHandler:
         # Execute any scheduled callbacks and verify no error dialog was shown
         execute_scheduled_callbacks(mock_view)
         mock_view.show_error.assert_not_called()
+
+
+class TestLoadTestPlanSoftLimitWarnings:
+    """Tests for soft limit warning display during test plan loading."""
+
+    def test_load_plan_with_soft_limit_warnings_shows_warning(
+        self,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        test_plan_fixtures_path,
+    ) -> None:
+        """Loading a plan that exceeds soft limits shows a warning dialog."""
+        from visa_vulture.config import (
+            CommonSoftLimits,
+            PowerSupplySoftLimits,
+            SignalGeneratorSoftLimits,
+            ValidationLimits,
+        )
+
+        # Set soft limits that the valid_power_supply.csv plan will exceed
+        # (plan has voltage=10.0V, current=2.0A)
+        limits = ValidationLimits(
+            signal_generator=SignalGeneratorSoftLimits(),
+            power_supply=PowerSupplySoftLimits(voltage_max_v=3.0, current_max_a=0.5),
+            common=CommonSoftLimits(),
+        )
+
+        with patch(
+            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+            __import__(
+                "tests.unit.presenter_test_helpers", fromlist=["SynchronousTaskRunner"]
+            ).SynchronousTaskRunner,
+        ):
+            presenter = EquipmentPresenter(
+                mock_model_for_presenter, mock_view, validation_limits=limits
+            )
+
+        file_path = str(test_plan_fixtures_path / "valid_power_supply.csv")
+
+        trigger_view_callback(mock_view, "on_load_test_plan", file_path)
+
+        mock_view.show_warning.assert_called_once()
+        assert "Warnings" in mock_view.show_warning.call_args[0][0]
+        # Plan should still be loaded despite warnings
+        mock_model_for_presenter.load_test_plan.assert_called_once()
+
+
+class TestRunWithInstrumentMismatch:
+    """Tests for run button with instrument type mismatch."""
+
+    def test_run_with_sg_plan_on_ps_instrument_shows_error(
+        self,
+        presenter: EquipmentPresenter,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+    ) -> None:
+        """Running a signal generator plan on power supply instrument shows error."""
+        set_model_state(mock_model_for_presenter, EquipmentState.IDLE)
+        mock_model_for_presenter._instrument_type = "power_supply"
+
+        sg_plan = TestPlan(
+            name="SG Plan",
+            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+            steps=[
+                SignalGeneratorTestStep(
+                    step_number=1, duration_seconds=1.0, frequency=1e6, power=0.0
+                ),
+            ],
+        )
+        mock_model_for_presenter._test_plan = sg_plan
+
+        trigger_view_callback(mock_view, "on_run")
+
+        mock_view.show_error.assert_called()
+        assert "Instrument Mismatch" in mock_view.show_error.call_args[0][0]
+        mock_model_for_presenter.run_test.assert_not_called()
+
+
+class TestTableSelectionCallback:
+    """Tests for table selection enabling/disabling Start From button."""
+
+    def test_selection_in_idle_with_plan_enables_start_from(
+        self,
+        presenter: EquipmentPresenter,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        sample_power_supply_plan: TestPlan,
+    ) -> None:
+        """Selecting a step in IDLE state with a plan loaded enables Start From."""
+        set_model_state(mock_model_for_presenter, EquipmentState.IDLE)
+        mock_model_for_presenter._test_plan = sample_power_supply_plan
+
+        presenter._on_table_selection_changed(2)
+
+        mock_view.set_start_from_enabled.assert_called_with(True)
+
+    def test_selection_in_running_disables_start_from(
+        self,
+        presenter: EquipmentPresenter,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        sample_power_supply_plan: TestPlan,
+    ) -> None:
+        """Selecting a step in RUNNING state disables Start From."""
+        set_model_state(mock_model_for_presenter, EquipmentState.RUNNING)
+        mock_model_for_presenter._test_plan = sample_power_supply_plan
+
+        presenter._on_table_selection_changed(2)
+
+        mock_view.set_start_from_enabled.assert_called_with(False)
+
+    def test_no_selection_disables_start_from(
+        self,
+        presenter: EquipmentPresenter,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        sample_power_supply_plan: TestPlan,
+    ) -> None:
+        """No selection (None) disables Start From regardless of state."""
+        set_model_state(mock_model_for_presenter, EquipmentState.IDLE)
+        mock_model_for_presenter._test_plan = sample_power_supply_plan
+
+        presenter._on_table_selection_changed(None)
+
+        mock_view.set_start_from_enabled.assert_called_with(False)
+
+    def test_selection_without_plan_disables_start_from(
+        self,
+        presenter: EquipmentPresenter,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+    ) -> None:
+        """Selecting a step without a loaded plan disables Start From."""
+        set_model_state(mock_model_for_presenter, EquipmentState.IDLE)
+        mock_model_for_presenter._test_plan = None
+
+        presenter._on_table_selection_changed(2)
+
+        mock_view.set_start_from_enabled.assert_called_with(False)
+
+    def test_selection_in_paused_with_plan_enables_start_from(
+        self,
+        presenter: EquipmentPresenter,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        sample_power_supply_plan: TestPlan,
+    ) -> None:
+        """Selecting a step in PAUSED state with a plan enables Start From."""
+        set_model_state(mock_model_for_presenter, EquipmentState.PAUSED)
+        mock_model_for_presenter._test_plan = sample_power_supply_plan
+
+        presenter._on_table_selection_changed(2)
+
+        mock_view.set_start_from_enabled.assert_called_with(True)
+
+
+class TestConnectWithCustomInstrument:
+    """Tests for connecting with a custom instrument from the registry."""
+
+    def test_custom_instrument_passes_class_to_model(
+        self,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        mock_resource_manager_dialog: Mock,
+    ) -> None:
+        """Connecting with a custom instrument passes the class to connect_instrument."""
+        from tests.unit.presenter_test_helpers import SynchronousTaskRunner
+        from visa_vulture.instruments import InstrumentEntry, PowerSupply
+
+        class CustomPowerSupply(PowerSupply):
+            display_name = "My Custom PS"
+
+        registry = {
+            "Power Supply": InstrumentEntry(
+                cls=PowerSupply, display_name="Power Supply", base_type="power_supply"
+            ),
+            "My Custom PS": InstrumentEntry(
+                cls=CustomPowerSupply,
+                display_name="My Custom PS",
+                base_type="power_supply",
+            ),
+        }
+
+        mock_resource_manager_dialog._result = (
+            "TCPIP::192.168.1.100::INSTR",
+            "My Custom PS",
+        )
+
+        with (
+            patch(
+                "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+                SynchronousTaskRunner,
+            ),
+            patch(
+                "visa_vulture.view.ResourceManagerDialog",
+                return_value=mock_resource_manager_dialog,
+            ),
+        ):
+            presenter = EquipmentPresenter(
+                mock_model_for_presenter,
+                mock_view,
+                instrument_registry=registry,
+            )
+            trigger_view_callback(mock_view, "on_connect")
+
+        mock_model_for_presenter.connect_instrument.assert_called_once_with(
+            "TCPIP::192.168.1.100::INSTR",
+            "power_supply",
+            instrument_class=CustomPowerSupply,
+        )
+
+    def test_builtin_instrument_does_not_pass_class(
+        self,
+        mock_model_for_presenter: Mock,
+        mock_view: Mock,
+        mock_resource_manager_dialog: Mock,
+    ) -> None:
+        """Connecting with built-in instrument does not pass instrument_class."""
+        from tests.unit.presenter_test_helpers import SynchronousTaskRunner
+        from visa_vulture.instruments import InstrumentEntry, PowerSupply
+
+        registry = {
+            "Power Supply": InstrumentEntry(
+                cls=PowerSupply, display_name="Power Supply", base_type="power_supply"
+            ),
+        }
+
+        mock_resource_manager_dialog._result = (
+            "TCPIP::192.168.1.100::INSTR",
+            "Power Supply",
+        )
+
+        with (
+            patch(
+                "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+                SynchronousTaskRunner,
+            ),
+            patch(
+                "visa_vulture.view.ResourceManagerDialog",
+                return_value=mock_resource_manager_dialog,
+            ),
+        ):
+            presenter = EquipmentPresenter(
+                mock_model_for_presenter,
+                mock_view,
+                instrument_registry=registry,
+            )
+            trigger_view_callback(mock_view, "on_connect")
+
+        mock_model_for_presenter.connect_instrument.assert_called_once_with(
+            "TCPIP::192.168.1.100::INSTR",
+            "power_supply",
+            instrument_class=None,
+        )
