@@ -18,6 +18,15 @@ from visa_vulture.model.test_plan import (
 # --- Shared helpers for execution tests ---
 
 
+def _force_model_state(model: EquipmentModel, state: EquipmentState) -> None:
+    """Force model into a specific state, bypassing transition validation.
+
+    Centralises the private attribute access needed for test setup so that
+    individual tests don't reach into internal state machine internals.
+    """
+    model._state_machine._state = state
+
+
 def _make_model_with_power_supply(
     mock_visa_connection: Mock, plan: TestPlan
 ) -> tuple[EquipmentModel, Mock]:
@@ -25,7 +34,7 @@ def _make_model_with_power_supply(
     from visa_vulture.instruments import PowerSupply
 
     model = EquipmentModel(mock_visa_connection)
-    model._state_machine._state = EquipmentState.IDLE
+    _force_model_state(model, EquipmentState.IDLE)
     model._test_plan = plan
 
     mock_ps = Mock(spec=PowerSupply)
@@ -43,7 +52,7 @@ def _make_model_with_signal_generator(
     from visa_vulture.instruments import SignalGenerator
 
     model = EquipmentModel(mock_visa_connection)
-    model._state_machine._state = EquipmentState.IDLE
+    _force_model_state(model, EquipmentState.IDLE)
     model._test_plan = plan
 
     mock_sg = Mock(spec=SignalGenerator)
@@ -292,7 +301,7 @@ class TestEquipmentModelConnectInstrument:
         """Connect is allowed from ERROR state."""
         model = EquipmentModel(mock_visa_connection)
         # Manually set to ERROR state
-        model._state_machine._state = EquipmentState.ERROR
+        _force_model_state(model, EquipmentState.ERROR)
 
         model.connect_instrument("TCPIP::192.168.1.100::INSTR", "power_supply")
 
@@ -316,7 +325,7 @@ class TestEquipmentModelConnectInstrument:
     ) -> None:
         """Connect from RUNNING state raises RuntimeError."""
         model = EquipmentModel(mock_visa_connection)
-        model._state_machine._state = EquipmentState.RUNNING
+        _force_model_state(model, EquipmentState.RUNNING)
 
         with pytest.raises(RuntimeError, match="Cannot connect"):
             model.connect_instrument("TCPIP::192.168.1.100::INSTR", "power_supply")
@@ -390,7 +399,36 @@ class TestEquipmentModelRunTest:
     """Tests for run_test method."""
 
     """Tests with default start-step (from beginning)"""
-    # TODO - add in test that verifies that without a startstep it starts at first step
+
+    def test_run_without_start_step_executes_all_steps_from_first(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """run_test() without start_step executes all steps from step 1."""
+        plan = TestPlan(
+            name="Test",
+            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            steps=[
+                PowerSupplyTestStep(
+                    step_number=1, duration_seconds=0.0, voltage=5.0, current=1.0
+                ),
+                PowerSupplyTestStep(
+                    step_number=2, duration_seconds=0.0, voltage=10.0, current=2.0
+                ),
+                PowerSupplyTestStep(
+                    step_number=3, duration_seconds=0.0, voltage=15.0, current=3.0
+                ),
+            ],
+        )
+        model, mock_ps = _make_model_with_power_supply(mock_visa_connection, plan)
+
+        progress_steps: list[int] = []
+        model.register_progress_callback(
+            lambda current, total, step: progress_steps.append(step.step_number)
+        )
+
+        model.run_test()
+
+        assert progress_steps == [1, 2, 3]
 
     def test_run_without_plan_raises(
         self, equipment_model: EquipmentModel, mock_visa_connection: Mock
@@ -418,7 +456,7 @@ class TestEquipmentModelRunTest:
         """Running from RUNNING state raises RuntimeError."""
         model = EquipmentModel(mock_visa_connection)
         model.load_test_plan(sample_power_supply_plan)
-        model._state_machine._state = EquipmentState.RUNNING
+        _force_model_state(model, EquipmentState.RUNNING)
 
         with pytest.raises(RuntimeError, match="Cannot run test"):
             model.run_test()
@@ -465,7 +503,7 @@ class TestEquipmentModelRunTest:
         from visa_vulture.instruments import PowerSupply
 
         model = EquipmentModel(mock_visa_connection)
-        model._state_machine._state = EquipmentState.RUNNING
+        _force_model_state(model, EquipmentState.RUNNING)
         model._test_plan = TestPlan(
             name="Test",
             plan_type=PLAN_TYPE_POWER_SUPPLY,
@@ -504,7 +542,7 @@ class TestEquipmentModelRunTest:
         from visa_vulture.instruments import PowerSupply
 
         model = EquipmentModel(mock_visa_connection)
-        model._state_machine._state = EquipmentState.RUNNING
+        _force_model_state(model, EquipmentState.RUNNING)
         model._test_plan = TestPlan(
             name="Test",
             plan_type=PLAN_TYPE_POWER_SUPPLY,
@@ -535,7 +573,7 @@ class TestEquipmentModelStopTest:
     def test_stop_sets_flag(self, mock_visa_connection: Mock) -> None:
         """stop_test sets the stop flag when running."""
         model = EquipmentModel(mock_visa_connection)
-        model._state_machine._state = EquipmentState.RUNNING
+        _force_model_state(model, EquipmentState.RUNNING)
 
         model.stop_test()
 
@@ -552,7 +590,7 @@ class TestEquipmentModelStopTest:
     def test_stop_from_paused_sets_flag(self, mock_visa_connection: Mock) -> None:
         """stop_test sets stop flag and clears pause flag when paused."""
         model = EquipmentModel(mock_visa_connection)
-        model._state_machine._state = EquipmentState.PAUSED
+        _force_model_state(model, EquipmentState.PAUSED)
         model._pause_requested = True
 
         model.stop_test()
@@ -572,7 +610,7 @@ class TestEquipmentModelStopTest:
         from visa_vulture.instruments import PowerSupply
 
         model = EquipmentModel(mock_visa_connection)
-        model._state_machine._state = EquipmentState.IDLE
+        _force_model_state(model, EquipmentState.IDLE)
         model._test_plan = sample_power_supply_plan
         # Set up mock power supply instrument
         mock_ps = Mock(spec=PowerSupply)
@@ -617,7 +655,7 @@ class TestEquipmentModelPauseTest:
     def test_pause_sets_flag_when_running(self, mock_visa_connection: Mock) -> None:
         """pause_test sets the pause flag when running."""
         model = EquipmentModel(mock_visa_connection)
-        model._state_machine._state = EquipmentState.RUNNING
+        _force_model_state(model, EquipmentState.RUNNING)
 
         model.pause_test()
 
@@ -632,7 +670,7 @@ class TestEquipmentModelPauseTest:
     def test_pause_from_idle_does_nothing(self, mock_visa_connection: Mock) -> None:
         """pause_test does nothing when in IDLE state."""
         model = EquipmentModel(mock_visa_connection)
-        model._state_machine._state = EquipmentState.IDLE
+        _force_model_state(model, EquipmentState.IDLE)
 
         model.pause_test()
 
@@ -645,7 +683,7 @@ class TestEquipmentModelResumeTest:
     def test_resume_clears_pause_flag(self, mock_visa_connection: Mock) -> None:
         """resume_test clears the pause flag when paused."""
         model = EquipmentModel(mock_visa_connection)
-        model._state_machine._state = EquipmentState.PAUSED
+        _force_model_state(model, EquipmentState.PAUSED)
         model._pause_requested = True
 
         model.resume_test()
@@ -655,7 +693,7 @@ class TestEquipmentModelResumeTest:
     def test_resume_only_when_paused(self, mock_visa_connection: Mock) -> None:
         """resume_test only clears flag when in PAUSED state."""
         model = EquipmentModel(mock_visa_connection)
-        model._state_machine._state = EquipmentState.RUNNING
+        _force_model_state(model, EquipmentState.RUNNING)
         model._pause_requested = True
 
         model.resume_test()
@@ -679,7 +717,7 @@ class TestEquipmentModelRunTestExecution:
         from visa_vulture.instruments import PowerSupply
 
         model = EquipmentModel(mock_visa_connection)
-        model._state_machine._state = EquipmentState.IDLE
+        _force_model_state(model, EquipmentState.IDLE)
         model._test_plan = sample_power_supply_plan
         # Set up mock power supply instrument
         mock_ps = Mock(spec=PowerSupply)

@@ -384,3 +384,35 @@ def mock_resource_manager_dialog() -> Mock:
     dialog.get_resources.side_effect = get_resources
 
     return dialog
+
+
+@pytest.fixture
+def presenter_with_dialog(
+    mock_model_for_presenter: Mock,
+    mock_view: Mock,
+    mock_resource_manager_dialog: Mock,
+):
+    """Create presenter with mocked dialog and synchronous task runner.
+
+    Patches both BackgroundTaskRunner and ResourceManagerDialog so that
+    tests can exercise the connect/scan/identify dialog flow without
+    repeating the patch boilerplate.
+
+    Yields:
+        (EquipmentPresenter, Mock) tuple of presenter and dialog mock.
+    """
+    from tests.unit.presenter_test_helpers import SynchronousTaskRunner
+    from visa_vulture.presenter import EquipmentPresenter
+
+    with (
+        patch(
+            "visa_vulture.presenter.equipment_presenter.BackgroundTaskRunner",
+            SynchronousTaskRunner,
+        ),
+        patch(
+            "visa_vulture.view.ResourceManagerDialog",
+            return_value=mock_resource_manager_dialog,
+        ),
+    ):
+        presenter = EquipmentPresenter(mock_model_for_presenter, mock_view)
+        yield presenter, mock_resource_manager_dialog

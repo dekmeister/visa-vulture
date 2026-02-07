@@ -108,6 +108,23 @@ def trigger_complete(model: Mock, success: bool, message: str) -> None:
         callback(success, message)
 
 
+def setup_timer_running(presenter: Any, elapsed_seconds: float) -> None:
+    """Set up presenter timer state as if a test has been running for elapsed_seconds.
+
+    Centralises private timer attribute access so individual tests don't
+    reach into timer internals.
+    """
+    import time
+
+    presenter._timer._run_start_time = time.time() - elapsed_seconds
+    presenter._timer._runtime_timer_id = "timer_active"
+
+
+def setup_timer_paused(presenter: Any, elapsed_seconds: float) -> None:
+    """Set up presenter timer state as if paused after running for elapsed_seconds."""
+    presenter._timer._elapsed_at_pause = elapsed_seconds
+
+
 def execute_scheduled_callbacks(view: Mock) -> None:
     """
     Execute all pending scheduled callbacks on the mock view.
@@ -122,8 +139,4 @@ def execute_scheduled_callbacks(view: Mock) -> None:
     callbacks = list(view._scheduled_callbacks.values())
     view._scheduled_callbacks.clear()
     for callback in callbacks:
-        try:
-            callback()
-        except Exception:
-            # Some callbacks may fail if state changed unexpectedly
-            pass
+        callback()
