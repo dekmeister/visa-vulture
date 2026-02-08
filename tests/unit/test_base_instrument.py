@@ -368,18 +368,12 @@ class TestBaseInstrumentConstructorDefaults:
         assert instrument._timeout_ms == 10000
 
     def test_custom_termination(self) -> None:
-        """Custom termination can be set on BaseInstrument.
-
-        Note: PowerSupply class currently doesn't pass termination params to parent.
-        This tests the BaseInstrument defaults are applied.
-        """
+        """Custom termination params are forwarded to BaseInstrument."""
         instrument = PowerSupply(
             name="Test PS",
             resource_address="TCPIP::192.168.1.100::INSTR",
             read_termination="\r\n",
             write_termination="\r\n",
         )
-        # PowerSupply doesn't forward termination args to BaseInstrument,
-        # so defaults are used
-        assert instrument._read_termination == "\n"
-        assert instrument._write_termination == "\n"
+        assert instrument._read_termination == "\r\n"
+        assert instrument._write_termination == "\r\n"

@@ -32,7 +32,9 @@ class PowerSupply(BaseInstrument):
             read_termination: Character(s) appended to reads, or None for no termination
             write_termination: Character(s) appended to writes, or None for no termination
         """
-        super().__init__(name, resource_address, timeout_ms)
+        super().__init__(
+            name, resource_address, timeout_ms, read_termination, write_termination
+        )
 
     def get_status(self) -> dict:
         """
