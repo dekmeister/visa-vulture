@@ -1733,6 +1733,93 @@ class TestInterruptibleSleep:
         assert model._time_remaining_in_step is None
 
 
+class TestInterruptibleSleepDirect:
+    """Tests for _interruptible_sleep() with mocked time.sleep.
+
+    These complement the threading-based TestInterruptibleSleep tests above
+    by testing loop termination logic directly, without real timing delays.
+    A safeguard side_effect prevents infinite loops from hanging the test suite.
+    """
+
+    @staticmethod
+    def _make_safeguard(model: EquipmentModel, limit: int = 20):
+        """Return a side_effect that stops the model after *limit* sleep calls."""
+        call_count = 0
+
+        def safeguard(duration: float) -> None:
+            nonlocal call_count
+            call_count += 1
+            if call_count >= limit:
+                model._stop_requested = True
+
+        return safeguard
+
+    def test_stop_requested_before_entry_returns_immediately(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Loop body never executes when _stop_requested is already True."""
+        model = EquipmentModel(mock_visa_connection)
+        _force_model_state(model, EquipmentState.RUNNING)
+        model._stop_requested = True
+
+        with patch("visa_vulture.model.equipment.time.sleep") as mock_sleep:
+            mock_sleep.side_effect = self._make_safeguard(model)
+            model._interruptible_sleep(1.0)
+
+        assert mock_sleep.call_count == 0
+
+    def test_remaining_decreases_each_iteration(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Loop terminates after expected number of 0.1s chunks."""
+        model = EquipmentModel(mock_visa_connection)
+        _force_model_state(model, EquipmentState.RUNNING)
+
+        with patch("visa_vulture.model.equipment.time.sleep") as mock_sleep:
+            mock_sleep.side_effect = self._make_safeguard(model)
+            model._interruptible_sleep(0.3)
+
+        # 0.3s / 0.1 chunk = ~3 iterations (float rounding may give 3 or 4)
+        assert mock_sleep.call_count <= 5
+
+    def test_zero_remaining_exits_loop(self, mock_visa_connection: Mock) -> None:
+        """duration=0.0 means the loop body never executes."""
+        model = EquipmentModel(mock_visa_connection)
+        _force_model_state(model, EquipmentState.RUNNING)
+
+        with patch("visa_vulture.model.equipment.time.sleep") as mock_sleep:
+            mock_sleep.side_effect = self._make_safeguard(model)
+            model._interruptible_sleep(0.0)
+
+        assert mock_sleep.call_count == 0
+
+    def test_resume_from_pause_exits_inner_loop(
+        self, mock_visa_connection: Mock
+    ) -> None:
+        """Clearing _pause_requested exits the inner wait loop."""
+        model = EquipmentModel(mock_visa_connection)
+        _force_model_state(model, EquipmentState.RUNNING)
+        model._pause_requested = True
+
+        with patch("visa_vulture.model.equipment.time.sleep") as mock_sleep:
+            call_count = 0
+
+            def resume_then_safeguard(duration: float) -> None:
+                nonlocal call_count
+                call_count += 1
+                if call_count == 1:
+                    # First sleep is in the inner pause loop; simulate resume
+                    model._pause_requested = False
+                if call_count >= 20:
+                    model._stop_requested = True
+
+            mock_sleep.side_effect = resume_then_safeguard
+            model._interruptible_sleep(0.15)
+
+        # Inner loop: 1 call (then resumed), outer loop: ~2 calls for 0.15s
+        assert mock_sleep.call_count < 10
+
+
 class TestCallbackExceptionHandling:
     """Tests verifying callback exceptions are caught and don't propagate."""
 
