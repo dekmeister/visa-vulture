@@ -1,5 +1,6 @@
 """GUI components, no business logic."""
 
+from .disclaimer_dialog import DisclaimerDialog
 from .main_window import MainWindow
 from .plot_panel import (
     AxisConfig,
@@ -12,6 +13,7 @@ from .test_points_table import TestPointsTable, InstrumentType
 
 __all__ = [
     "AxisConfig",
+    "DisclaimerDialog",
     "InstrumentType",
     "MainWindow",
     "PlotPanel",

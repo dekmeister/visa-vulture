@@ -12,7 +12,7 @@ from .instruments import VISAConnection, scan_custom_instruments, build_instrume
 from .logging_config import setup_logging
 from .model import EquipmentModel
 from .presenter import EquipmentPresenter
-from .view import MainWindow
+from .view import DisclaimerDialog, MainWindow
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +87,16 @@ def main() -> int:
 
     # Create GUI
     root = tk.Tk()
+    root.withdraw()
+
+    # Show safety disclaimer - exit if user declines
+    disclaimer = DisclaimerDialog(root)
+    if not disclaimer.show():
+        logger.info("User declined disclaimer, exiting")
+        root.destroy()
+        return 0
+
+    root.deiconify()
 
     view = MainWindow(
         root,
