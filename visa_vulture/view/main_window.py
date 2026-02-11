@@ -65,6 +65,7 @@ class MainWindow:
         title: str = "VISA Vulture",
         width: int = 1300,
         height: int = 800,
+        visa_backend_label: str = "default",
     ):
         """
         Initialize main window.
@@ -74,10 +75,12 @@ class MainWindow:
             title: Window title
             width: Window width
             height: Window height
+            visa_backend_label: VISA backend name to display in the connection panel
         """
         self._root = root
         self._root.title(title)
         self._root.geometry(f"{width}x{height}")
+        self._visa_backend_label = visa_backend_label
 
         # Callbacks set by presenter
         self._on_connect: Callable[[], None] | None = None
@@ -139,6 +142,14 @@ class MainWindow:
 
         self._conn_indicator = ttk.Label(conn_frame, text="\u25cf", foreground="gray")
         self._conn_indicator.pack(side=tk.LEFT, padx=5)
+
+        self._backend_label = ttk.Label(
+            conn_frame,
+            text=f"VISA: {self._visa_backend_label}",
+            foreground="gray",
+            font=("TkDefaultFont", 8),
+        )
+        self._backend_label.pack(side=tk.LEFT, padx=(5, 0))
 
     def _create_test_plan_section(self, panel: ttk.Frame) -> None:
         """Create test plan controls section."""

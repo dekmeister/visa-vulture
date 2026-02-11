@@ -16,23 +16,35 @@ class VISAConnection:
     """
 
     def __init__(
-        self, simulation_mode: bool = False, simulation_file: str | Path | None = None
+        self,
+        simulation_mode: bool = False,
+        simulation_file: str | Path | None = None,
+        visa_backend: str = "",
     ):
         """
         Initialize VISA connection manager.
 
         Args:
-            simulation_mode: If True, use PyVISA-sim backend
+            simulation_mode: If True, use PyVISA-sim backend (overrides visa_backend)
             simulation_file: Path to simulation YAML file (required if simulation_mode is True)
+            visa_backend: VISA backend name (e.g. "ivi", "py"). Empty string for auto-detect.
         """
         self._simulation_mode = simulation_mode
         self._simulation_file = simulation_file
+        self._visa_backend = visa_backend
         self._resource_manager: pyvisa.ResourceManager | None = None
 
     @property
     def is_open(self) -> bool:
         """Check if resource manager is open."""
         return self._resource_manager is not None
+
+    @property
+    def active_backend(self) -> str:
+        """Return the name of the active VISA backend."""
+        if self._simulation_mode:
+            return "sim"
+        return self._visa_backend if self._visa_backend else "default"
 
     def open(self) -> None:
         """
@@ -61,6 +73,11 @@ class VISAConnection:
             backend = f"{sim_path}@sim"
             logger.info(
                 "Opening VISA resource manager with simulation backend: %s", sim_path
+            )
+        elif self._visa_backend:
+            backend = f"@{self._visa_backend}"
+            logger.info(
+                "Opening VISA resource manager with backend: %s", self._visa_backend
             )
         else:
             backend = ""

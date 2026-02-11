@@ -16,6 +16,7 @@ class TestAppConfig:
         config = AppConfig()
         assert config.simulation_mode is False
         assert config.simulation_file == "simulation/instruments.yaml"
+        assert config.visa_backend == ""
         assert config.log_file == "equipment_controller.log"
         assert config.log_level == "INFO"
         assert config.window_title == "VISA Vulture"
@@ -91,6 +92,37 @@ class TestValidateConfigSimulationFile:
         config, errors = validate_config({"simulation_file": 123})
         assert config is None
         assert any("simulation_file must be string" in e for e in errors)
+
+
+class TestValidateConfigVisaBackend:
+    """Tests for visa_backend validation."""
+
+    def test_default_visa_backend_is_empty_string(self) -> None:
+        """Default visa_backend is empty string (auto-detect)."""
+        config, errors = validate_config({})
+        assert errors == []
+        assert config is not None
+        assert config.visa_backend == ""
+
+    def test_valid_visa_backend_string(self) -> None:
+        """String visa_backend is accepted."""
+        config, errors = validate_config({"visa_backend": "py"})
+        assert errors == []
+        assert config is not None
+        assert config.visa_backend == "py"
+
+    def test_empty_string_visa_backend_is_valid(self) -> None:
+        """Empty string visa_backend (auto-detect) is valid."""
+        config, errors = validate_config({"visa_backend": ""})
+        assert errors == []
+        assert config is not None
+        assert config.visa_backend == ""
+
+    def test_invalid_visa_backend_type_returns_error(self) -> None:
+        """Non-string visa_backend returns error."""
+        config, errors = validate_config({"visa_backend": 123})
+        assert config is None
+        assert any("visa_backend must be string" in e for e in errors)
 
 
 class TestValidateConfigLogFile:

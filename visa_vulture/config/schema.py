@@ -60,6 +60,7 @@ class AppConfig:
     window_title: str = "VISA Vulture"
     window_width: int = 1200
     window_height: int = 800
+    visa_backend: str = ""
     poll_interval_ms: int = 100
     plot_refresh_interval_ms: int = 1000
     validation_limits: ValidationLimits = field(default_factory=ValidationLimits)
@@ -168,6 +169,9 @@ def validate_config(config_dict: dict[str, Any]) -> tuple[AppConfig | None, list
     else:
         log_level = log_level.upper()
 
+    # Validate VISA backend
+    visa_backend = _validate_str_field(config_dict, "visa_backend", "", errors)
+
     # Validate window and interval settings
     window_title = _validate_str_field(
         config_dict, "window_title", "VISA Vulture", errors
@@ -197,6 +201,7 @@ def validate_config(config_dict: dict[str, Any]) -> tuple[AppConfig | None, list
         AppConfig(
             simulation_mode=simulation_mode,
             simulation_file=simulation_file,
+            visa_backend=visa_backend,
             log_file=log_file,
             log_level=log_level,
             window_title=window_title,

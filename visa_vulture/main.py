@@ -35,6 +35,28 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def validate_visa_backend(backend: str) -> str | None:
+    """Validate that a VISA backend is installed.
+
+    Args:
+        backend: Backend name (e.g. "ivi", "py")
+
+    Returns:
+        Error message if invalid, None if valid.
+    """
+    from pyvisa.highlevel import get_wrapper_class, list_backends
+
+    try:
+        get_wrapper_class(backend)
+        return None
+    except ValueError:
+        available = list_backends()
+        return (
+            f"Invalid VISA backend '{backend}'. "
+            f"Available backends: {available}"
+        )
+
+
 def main() -> int:
     """Main entry point."""
     args = parse_args()
@@ -56,6 +78,13 @@ def main() -> int:
     # Override simulation mode if requested
     if args.simulation:
         config.simulation_mode = True
+
+    # Validate VISA backend if specified and not in simulation mode
+    if config.visa_backend and not config.simulation_mode:
+        backend_error = validate_visa_backend(config.visa_backend)
+        if backend_error:
+            print(f"Configuration error: {backend_error}", file=sys.stderr)
+            return 1
 
     # Setup logging
     gui_handler = setup_logging(
@@ -80,7 +109,9 @@ def main() -> int:
     visa_connection = VISAConnection(
         simulation_mode=config.simulation_mode,
         simulation_file=config.simulation_file,
+        visa_backend=config.visa_backend,
     )
+    logger.info("VISA backend: %s", visa_connection.active_backend)
 
     # Create model
     model = EquipmentModel(visa_connection)
@@ -103,6 +134,7 @@ def main() -> int:
         title=config.window_title,
         width=config.window_width,
         height=config.window_height,
+        visa_backend_label=visa_connection.active_backend,
     )
 
     # Wire GUI log handler
