@@ -9,16 +9,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .base_instrument import BaseInstrument
-from .power_supply import PowerSupply
-from .signal_generator import SignalGenerator
 
 logger = logging.getLogger(__name__)
 
-# Maps base classes to their instrument_type strings
-_BASE_TYPE_MAP: dict[type[BaseInstrument], str] = {
-    PowerSupply: "power_supply",
-    SignalGenerator: "signal_generator",
-}
+# Maps base classes to their instrument_type strings. Supplied by the caller
+# (main.py derives it from the model registry) so this package never names
+# concrete instrument types and cannot form an import cycle with the model.
+BaseTypeMap = dict[type[BaseInstrument], str]
 
 
 @dataclass
@@ -27,21 +24,25 @@ class InstrumentEntry:
 
     cls: type[BaseInstrument]
     display_name: str
-    instrument_type: str  # "power_supply" or "signal_generator"
+    instrument_type: str
+    is_builtin: bool = False
 
 
 def scan_custom_instruments(
     instruments_dir: Path,
+    base_type_map: BaseTypeMap,
 ) -> dict[str, InstrumentEntry]:
     """
     Scan a directory for custom instrument modules.
 
-    Discovers classes that extend PowerSupply or SignalGenerator and have
-    a ``display_name`` class attribute. Classes that extend BaseInstrument
+    Discovers classes that extend one of the supplied base instrument types and
+    have a ``display_name`` class attribute. Classes that extend BaseInstrument
     directly are rejected with a warning.
 
     Args:
         instruments_dir: Path to the directory to scan
+        base_type_map: Maps each built-in base class to its instrument_type
+            string. A custom class must subclass one of these.
 
     Returns:
         Dictionary mapping display_name to InstrumentEntry
@@ -83,19 +84,19 @@ def scan_custom_instruments(
             if BaseInstrument in obj.__bases__:
                 logger.warning(
                     "Custom instrument '%s' in '%s' extends BaseInstrument "
-                    "directly. Custom instruments must extend PowerSupply or "
-                    "SignalGenerator. Skipping.",
+                    "directly. Custom instruments must extend a built-in "
+                    "instrument type. Skipping.",
                     name,
                     py_file.name,
                 )
                 continue
 
-            # Determine base type
-            instrument_type = _get_base_type(obj)
+            # Determine base type from the supplied base map
+            instrument_type = _get_base_type(obj, base_type_map)
             if instrument_type is None:
                 logger.warning(
-                    "Custom instrument '%s' in '%s' does not extend "
-                    "PowerSupply or SignalGenerator. Skipping.",
+                    "Custom instrument '%s' in '%s' does not extend a known "
+                    "built-in instrument type. Skipping.",
                     name,
                     py_file.name,
                 )
@@ -105,6 +106,7 @@ def scan_custom_instruments(
                 cls=obj,
                 display_name=display_name,
                 instrument_type=instrument_type,
+                is_builtin=False,
             )
             registry[display_name] = entry
             logger.info(
@@ -118,29 +120,21 @@ def scan_custom_instruments(
 
 
 def build_instrument_registry(
+    builtins: dict[str, InstrumentEntry],
     custom: dict[str, InstrumentEntry] | None = None,
 ) -> dict[str, InstrumentEntry]:
     """
-    Build the complete instrument registry with built-in and custom types.
+    Build the complete instrument registry from built-in and custom entries.
 
     Args:
-        custom: Custom instruments discovered by scan_custom_instruments
+        builtins: Built-in instrument entries (main.py derives these from the
+            model's instrument-type registry).
+        custom: Custom instruments discovered by scan_custom_instruments.
 
     Returns:
         Complete registry mapping display_name to InstrumentEntry
     """
-    registry: dict[str, InstrumentEntry] = {
-        "Power Supply": InstrumentEntry(
-            cls=PowerSupply,
-            display_name="Power Supply",
-            instrument_type="power_supply",
-        ),
-        "Signal Generator": InstrumentEntry(
-            cls=SignalGenerator,
-            display_name="Signal Generator",
-            instrument_type="signal_generator",
-        ),
-    }
+    registry: dict[str, InstrumentEntry] = dict(builtins)
 
     if custom:
         registry.update(custom)
@@ -204,14 +198,15 @@ def _load_module_from_file(module_name: str, file_path: Path) -> types.ModuleTyp
     return module
 
 
-def _get_base_type(cls: type) -> str | None:
+def _get_base_type(cls: type, base_type_map: BaseTypeMap) -> str | None:
     """
-    Determine the base instrument type for a class.
+    Determine the instrument_type for a class from the supplied base map.
 
     Returns:
-        "power_supply", "signal_generator", or None if not a valid subclass
+        The matching instrument_type string, or None if ``cls`` is not a
+        subclass of any base class in ``base_type_map``.
     """
-    for base_cls, type_str in _BASE_TYPE_MAP.items():
+    for base_cls, type_str in base_type_map.items():
         if issubclass(cls, base_cls):
             return type_str
     return None

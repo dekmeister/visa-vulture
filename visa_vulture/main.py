@@ -9,12 +9,17 @@ from pathlib import Path
 
 from .config import load_config
 from .instruments import (
+    InstrumentEntry,
     VISAConnection,
     scan_custom_instruments,
     build_instrument_registry,
 )
 from .logging_config import setup_logging
-from .model import EquipmentModel, validate_soft_limit_config
+from .model import (
+    INSTRUMENT_TYPE_REGISTRY,
+    EquipmentModel,
+    validate_soft_limit_config,
+)
 from .presenter import EquipmentPresenter
 from .view import DisclaimerDialog, MainWindow
 
@@ -107,9 +112,26 @@ def main() -> int:
             print(f"  - {error}", file=sys.stderr)
         return 1
 
+    # Derive the loader's base-type map and built-in entries from the model's
+    # instrument-type registry, so the instruments package never names types.
+    base_type_map = {
+        d.instrument_cls: d.instrument_type for d in INSTRUMENT_TYPE_REGISTRY.values()
+    }
+    builtin_entries = {
+        d.display_name: InstrumentEntry(
+            cls=d.instrument_cls,
+            display_name=d.display_name,
+            instrument_type=d.instrument_type,
+            is_builtin=True,
+        )
+        for d in INSTRUMENT_TYPE_REGISTRY.values()
+    }
+
     # Scan for custom instruments in the root instruments/ directory
-    custom_instruments = scan_custom_instruments(Path.cwd() / "instruments")
-    instrument_registry = build_instrument_registry(custom_instruments)
+    custom_instruments = scan_custom_instruments(
+        Path.cwd() / "instruments", base_type_map
+    )
+    instrument_registry = build_instrument_registry(builtin_entries, custom_instruments)
     if custom_instruments:
         logger.info(
             "Loaded %d custom instrument(s): %s",
