@@ -8,13 +8,9 @@ from typing import Sequence
 INSTRUMENT_TYPE_POWER_SUPPLY = "power_supply"
 INSTRUMENT_TYPE_SIGNAL_GENERATOR = "signal_generator"
 
-# Hard validation limits (values beyond these are physically unreasonable)
-# These cause errors and block test plan loading
-HARD_LIMIT_POWER_MIN_DBM = -200.0  # Below thermal noise floor
-HARD_LIMIT_POWER_MAX_DBM = 60.0  # 1 MW - beyond any practical equipment
-HARD_LIMIT_FREQUENCY_MAX_HZ = 100e12  # 100 THz - beyond RF/microwave range
-HARD_LIMIT_VOLTAGE_MAX_V = 10000.0  # Safety limit for lab equipment
-HARD_LIMIT_CURRENT_MAX_A = 1000.0  # Safety limit for lab equipment
+# Hard validation limits (values beyond these are physically unreasonable) live
+# in each instrument type's StepFieldSpec.hard_min/hard_max in instrument_specs;
+# the reader enforces them during CSV parsing.
 
 
 class ModulationType(Enum):

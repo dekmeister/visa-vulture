@@ -30,6 +30,10 @@ from ..instrument_specs import (
 from .test_plan import (
     INSTRUMENT_TYPE_POWER_SUPPLY,
     INSTRUMENT_TYPE_SIGNAL_GENERATOR,
+    AMModulationConfig,
+    FMModulationConfig,
+    ModulationConfig,
+    ModulationType,
     PowerSupplyTestStep,
     SignalGeneratorTestStep,
     TestPlan,
@@ -271,9 +275,123 @@ _SIGNAL_GENERATOR_VIEW = InstrumentViewSpec(
 
 
 # --------------------------------------------------------------------------- #
+# Built-in plan-metadata parsers (signal generator modulation).
+#
+# These live model-side so the SG descriptor can reference its own
+# parse_plan_metadata hook without the model importing file_io (the reader
+# imports the registry, not vice versa).
+# --------------------------------------------------------------------------- #
+
+_MODULATION_TYPE_KEY = "modulation_type"
+_MODULATION_FREQUENCY_KEY = "modulation_frequency"
+_AM_DEPTH_KEY = "am_depth"
+_FM_DEVIATION_KEY = "fm_deviation"
+_VALID_MODULATION_TYPES = {"am", "fm"}
+
+
+def _parse_am_config(
+    metadata: dict[str, str], mod_freq: float, errors: list[str]
+) -> AMModulationConfig | None:
+    """Parse AM-specific configuration from metadata."""
+    depth_str = metadata.get(_AM_DEPTH_KEY)
+    if not depth_str:
+        errors.append(f"Missing required metadata '{_AM_DEPTH_KEY}' for AM modulation")
+        return None
+
+    try:
+        depth = float(depth_str)
+        if not 0 <= depth <= 100:
+            errors.append(f"am_depth must be 0-100%, got {depth}")
+            return None
+    except ValueError:
+        errors.append(f"Invalid am_depth value '{depth_str}'")
+        return None
+
+    return AMModulationConfig(
+        modulation_type=ModulationType.AM,
+        modulation_frequency=mod_freq,
+        depth=depth,
+    )
+
+
+def _parse_fm_config(
+    metadata: dict[str, str], mod_freq: float, errors: list[str]
+) -> FMModulationConfig | None:
+    """Parse FM-specific configuration from metadata."""
+    deviation_str = metadata.get(_FM_DEVIATION_KEY)
+    if not deviation_str:
+        errors.append(
+            f"Missing required metadata '{_FM_DEVIATION_KEY}' for FM modulation"
+        )
+        return None
+
+    try:
+        deviation = float(deviation_str)
+        if deviation <= 0:
+            errors.append(f"fm_deviation must be > 0, got {deviation}")
+            return None
+    except ValueError:
+        errors.append(f"Invalid fm_deviation value '{deviation_str}'")
+        return None
+
+    return FMModulationConfig(
+        modulation_type=ModulationType.FM,
+        modulation_frequency=mod_freq,
+        deviation=deviation,
+    )
+
+
+def _parse_modulation_config(
+    metadata: dict[str, str], errors: list[str]
+) -> ModulationConfig | None:
+    """Parse modulation configuration from CSV metadata (None if unspecified)."""
+    mod_type_str = metadata.get(_MODULATION_TYPE_KEY)
+    if not mod_type_str:
+        return None
+
+    if mod_type_str not in _VALID_MODULATION_TYPES:
+        errors.append(
+            f"Invalid modulation_type '{mod_type_str}'. "
+            f"Must be one of: {', '.join(sorted(_VALID_MODULATION_TYPES))}"
+        )
+        return None
+
+    mod_freq_str = metadata.get(_MODULATION_FREQUENCY_KEY)
+    if not mod_freq_str:
+        errors.append(
+            f"Missing required metadata '{_MODULATION_FREQUENCY_KEY}' "
+            f"when modulation_type is '{mod_type_str}'"
+        )
+        return None
+
+    try:
+        mod_freq = float(mod_freq_str)
+        if mod_freq <= 0:
+            errors.append(f"modulation_frequency must be > 0, got {mod_freq}")
+            return None
+    except ValueError:
+        errors.append(f"Invalid modulation_frequency value '{mod_freq_str}'")
+        return None
+
+    if mod_type_str == "am":
+        return _parse_am_config(metadata, mod_freq, errors)
+    elif mod_type_str == "fm":
+        return _parse_fm_config(metadata, mod_freq, errors)
+
+    return None
+
+
+def parse_signal_generator_metadata(
+    metadata: dict[str, str], errors: list[str]
+) -> dict[str, Any]:
+    """SG plan-metadata hook: returns the modulation_config TestPlan kwarg."""
+    return {"modulation_config": _parse_modulation_config(metadata, errors)}
+
+
+# --------------------------------------------------------------------------- #
 # Built-in field specs. Hard-limit numeric values are inlined here (the
-# HARD_LIMIT_* constants in test_plan.py are removed once the reader consumes
-# these in Phase 4). Soft-limit JSON keys/defaults/messages match config + reader.
+# HARD_LIMIT_* constants in test_plan.py are removed now that the reader consumes
+# these). Soft-limit JSON keys/defaults/messages match config + reader.
 # --------------------------------------------------------------------------- #
 
 _POWER_SUPPLY_FIELDS: tuple[StepFieldSpec, ...] = (
@@ -367,6 +485,7 @@ _BUILTIN_DESCRIPTORS: tuple[InstrumentTypeDescriptor, ...] = (
         fields=_SIGNAL_GENERATOR_FIELDS,
         executor_cls=SignalGeneratorStepExecutor,
         view=_SIGNAL_GENERATOR_VIEW,
+        parse_plan_metadata=parse_signal_generator_metadata,
     ),
 )
 

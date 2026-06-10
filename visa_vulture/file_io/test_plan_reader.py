@@ -14,24 +14,12 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from typing import Any
+
 from ..config.schema import ValidationLimits
-from ..model.instrument_types import INSTRUMENT_TYPE_REGISTRY
-from ..model.test_plan import (
-    TestPlan,
-    PowerSupplyTestStep,
-    SignalGeneratorTestStep,
-    INSTRUMENT_TYPE_POWER_SUPPLY,
-    INSTRUMENT_TYPE_SIGNAL_GENERATOR,
-    ModulationType,
-    ModulationConfig,
-    AMModulationConfig,
-    FMModulationConfig,
-    HARD_LIMIT_POWER_MIN_DBM,
-    HARD_LIMIT_POWER_MAX_DBM,
-    HARD_LIMIT_FREQUENCY_MAX_HZ,
-    HARD_LIMIT_VOLTAGE_MAX_V,
-    HARD_LIMIT_CURRENT_MAX_A,
-)
+from ..instrument_specs import StepFieldSpec
+from ..model.instrument_types import INSTRUMENT_TYPE_REGISTRY, InstrumentTypeDescriptor
+from ..model.test_plan import TestPlan, TestStep
 
 
 @dataclass
@@ -51,28 +39,16 @@ class TestPlanResult:
 
 logger = logging.getLogger(__name__)
 
-# Column requirements by plan type
-POWER_SUPPLY_COLUMNS = {"duration", "voltage", "current"}
-SIGNAL_GENERATOR_COLUMNS = {"duration", "frequency", "power"}
-OPTIONAL_COLUMNS = {"description"}
+# Valid instrument types and their required CSV columns are derived from the
+# instrument-type registry: required columns are "duration" plus every required
+# field spec. Adding a new instrument type needs no edit here.
+_VALID_INSTRUMENT_TYPES = set(INSTRUMENT_TYPE_REGISTRY)
 
-# Valid instrument types for metadata
-_VALID_INSTRUMENT_TYPES = {INSTRUMENT_TYPE_POWER_SUPPLY, INSTRUMENT_TYPE_SIGNAL_GENERATOR}
-
-# Required columns by plan type
 _COLUMN_REQUIREMENTS: dict[str, set[str]] = {
-    INSTRUMENT_TYPE_POWER_SUPPLY: POWER_SUPPLY_COLUMNS,
-    INSTRUMENT_TYPE_SIGNAL_GENERATOR: SIGNAL_GENERATOR_COLUMNS,
+    instrument_type: {"duration"}
+    | {spec.name for spec in descriptor.fields if spec.required}
+    for instrument_type, descriptor in INSTRUMENT_TYPE_REGISTRY.items()
 }
-
-# Modulation metadata keys
-MODULATION_TYPE_KEY = "modulation_type"
-MODULATION_FREQUENCY_KEY = "modulation_frequency"
-AM_DEPTH_KEY = "am_depth"
-FM_DEVIATION_KEY = "fm_deviation"
-
-# Valid modulation type values
-VALID_MODULATION_TYPES = {"am", "fm"}
 
 
 def read_test_plan(
@@ -137,11 +113,11 @@ def read_test_plan(
 
     instrument_type = metadata["instrument_type"]
     if instrument_type not in _VALID_INSTRUMENT_TYPES:
+        valid = ", ".join(f"'{t}'" for t in sorted(_VALID_INSTRUMENT_TYPES))
         return TestPlanResult(
             plan=None,
             errors=[
-                f"Invalid instrument_type '{instrument_type}'. "
-                f"Must be '{INSTRUMENT_TYPE_POWER_SUPPLY}' or '{INSTRUMENT_TYPE_SIGNAL_GENERATOR}'"
+                f"Invalid instrument_type '{instrument_type}'. Must be one of: {valid}"
             ],
         )
 
@@ -177,6 +153,8 @@ def _parse_csv_content(
     if not rows:
         return TestPlanResult(plan=None, errors=["CSV file has no data rows"])
 
+    descriptor = INSTRUMENT_TYPE_REGISTRY[instrument_type]
+
     # Validate required columns
     required = _COLUMN_REQUIREMENTS[instrument_type]
     missing = required - columns
@@ -189,29 +167,20 @@ def _parse_csv_content(
             ],
         )
 
-    # Parse modulation config for signal generators
-    modulation_config = None
-    if instrument_type == INSTRUMENT_TYPE_SIGNAL_GENERATOR:
-        modulation_config = _parse_modulation_config(metadata, errors)
+    # Parse plan-level metadata (e.g. signal generator modulation) via the
+    # descriptor hook. Returns extra TestPlan kwargs.
+    plan_kwargs: dict[str, Any] = {}
+    if descriptor.parse_plan_metadata is not None:
+        plan_kwargs = descriptor.parse_plan_metadata(metadata, errors)
         if errors:
             return TestPlanResult(plan=None, errors=errors)
 
     # Parse rows into steps
     plan, parse_errors = _parse_test_plan(
-        file_path, rows, column_map, errors, instrument_type
+        file_path, rows, column_map, errors, descriptor, plan_kwargs
     )
     if parse_errors:
         return TestPlanResult(plan=None, errors=parse_errors)
-
-    # Attach modulation config if present
-    if plan is not None and modulation_config is not None:
-        plan = TestPlan(
-            name=plan.name,
-            instrument_type=plan.instrument_type,
-            steps=plan.steps,
-            description=plan.description,
-            modulation_config=modulation_config,
-        )
 
     # Validate soft limits
     warnings = _validate_soft_limits(plan, soft_limits) if plan and soft_limits else []
@@ -258,27 +227,18 @@ def _parse_test_plan(
     rows: list[dict[str, str]],
     column_map: dict[str, str],
     errors: list[str],
-    instrument_type: str,
+    descriptor: InstrumentTypeDescriptor,
+    plan_kwargs: dict[str, Any],
 ) -> tuple[TestPlan | None, list[str]]:
-    """Parse rows into a suitable type of TestPlan."""
-    if instrument_type not in (INSTRUMENT_TYPE_POWER_SUPPLY, INSTRUMENT_TYPE_SIGNAL_GENERATOR):
-        errors.append(f"Unknown plan type: '{instrument_type}'")
-        return None, errors
-
-    steps: list[PowerSupplyTestStep | SignalGeneratorTestStep] = []
+    """Parse rows into a TestPlan using the instrument-type descriptor."""
+    instrument_type = descriptor.instrument_type
+    steps: list[TestStep] = []
 
     for row_num, row in enumerate(rows, start=2):
         step_number = row_num - 1  # 1-based step number (row 2 = step 1)
-        step: PowerSupplyTestStep | SignalGeneratorTestStep | None = None
-        row_errors: list[str] = []
-        if instrument_type == INSTRUMENT_TYPE_POWER_SUPPLY:
-            step, row_errors = _parse_power_supply_row(
-                row, column_map, row_num, step_number
-            )
-        elif instrument_type == INSTRUMENT_TYPE_SIGNAL_GENERATOR:
-            step, row_errors = _parse_signal_generator_row(
-                row, column_map, row_num, step_number
-            )
+        step, row_errors = _parse_row(
+            row, column_map, row_num, step_number, descriptor
+        )
         if row_errors:
             errors.extend(row_errors)
         elif step is not None:
@@ -292,7 +252,12 @@ def _parse_test_plan(
         return None, errors
 
     plan_name = file_path.stem
-    test_plan = TestPlan(name=plan_name, steps=steps, instrument_type=instrument_type)
+    test_plan = TestPlan(
+        name=plan_name,
+        steps=steps,
+        instrument_type=instrument_type,
+        **plan_kwargs,
+    )
 
     validation_errors = test_plan.validate()
     if validation_errors:
@@ -361,241 +326,85 @@ def _parse_float_field(
     return value
 
 
-def _parse_power_supply_row(
+def _parse_bool_field(
+    row: dict[str, str],
+    column_map: dict[str, str],
+    spec: StepFieldSpec,
+    row_num: int,
+    errors: list[str],
+) -> bool:
+    """Parse an optional boolean field (e.g. modulation_enabled) from a row."""
+    default = bool(spec.default) if spec.default is not None else False
+    raw = _get_value(row, column_map, spec.name)
+    if not raw:
+        return default
+
+    lowered = raw.lower()
+    if lowered in ("true", "1", "yes"):
+        return True
+    if lowered in ("false", "0", "no", ""):
+        return False
+
+    errors.append(
+        f"Row {row_num}: invalid {spec.name} value '{raw}'. "
+        f"Use true/false, 1/0, or yes/no"
+    )
+    return default
+
+
+def _parse_row(
     row: dict[str, str],
     column_map: dict[str, str],
     row_num: int,
     step_number: int,
-) -> tuple[PowerSupplyTestStep | None, list[str]]:
-    """Parse a single CSV row into a power supply TestStep."""
+    descriptor: InstrumentTypeDescriptor,
+) -> tuple[TestStep | None, list[str]]:
+    """Parse a single CSV row into the descriptor's step dataclass.
+
+    Iterates the descriptor's field specs: float fields use the shared range
+    parser (hard min/max + unit from the spec), bool fields use _parse_bool_field.
+    An unparseable numeric value short-circuits the row; range/format violations
+    accumulate and fail the row at the end (preserving prior behaviour).
+    """
     errors: list[str] = []
 
     duration_seconds = _parse_float_field(row, column_map, "duration", row_num, errors)
     if duration_seconds is None:
         return None, errors
 
-    voltage = _parse_float_field(
-        row,
-        column_map,
-        "voltage",
-        row_num,
-        errors,
-        max_value=HARD_LIMIT_VOLTAGE_MAX_V,
-        unit="V",
-    )
-    if voltage is None:
-        return None, errors
-
-    current = _parse_float_field(
-        row,
-        column_map,
-        "current",
-        row_num,
-        errors,
-        max_value=HARD_LIMIT_CURRENT_MAX_A,
-        unit="A",
-    )
-    if current is None:
-        return None, errors
-
-    description = _get_value(row, column_map, "description")
-
-    if errors:
-        return None, errors
-
-    return (
-        PowerSupplyTestStep(
-            step_number=step_number,
-            duration_seconds=duration_seconds,
-            voltage=voltage,
-            current=current,
-            description=description,
-        ),
-        [],
-    )
-
-
-def _parse_signal_generator_row(
-    row: dict[str, str],
-    column_map: dict[str, str],
-    row_num: int,
-    step_number: int,
-) -> tuple[SignalGeneratorTestStep | None, list[str]]:
-    """Parse a single CSV row into a signal generator TestStep."""
-    errors: list[str] = []
-
-    duration_seconds = _parse_float_field(row, column_map, "duration", row_num, errors)
-    if duration_seconds is None:
-        return None, errors
-
-    frequency = _parse_float_field(
-        row,
-        column_map,
-        "frequency",
-        row_num,
-        errors,
-        max_value=HARD_LIMIT_FREQUENCY_MAX_HZ,
-        unit="Hz",
-    )
-    if frequency is None:
-        return None, errors
-
-    power = _parse_float_field(
-        row,
-        column_map,
-        "power",
-        row_num,
-        errors,
-        min_value=HARD_LIMIT_POWER_MIN_DBM,
-        max_value=HARD_LIMIT_POWER_MAX_DBM,
-        unit="dBm",
-    )
-    if power is None:
-        return None, errors
-
-    # Parse optional modulation_enabled
-    modulation_enabled = False
-    mod_enabled_str = _get_value(row, column_map, "modulation_enabled")
-    if mod_enabled_str:
-        mod_enabled_lower = mod_enabled_str.lower()
-        if mod_enabled_lower in ("true", "1", "yes"):
-            modulation_enabled = True
-        elif mod_enabled_lower in ("false", "0", "no", ""):
-            modulation_enabled = False
-        else:
-            errors.append(
-                f"Row {row_num}: invalid modulation_enabled value '{mod_enabled_str}'. "
-                f"Use true/false, 1/0, or yes/no"
+    field_values: dict[str, float | bool] = {}
+    for spec in descriptor.fields:
+        if spec.kind == "bool":
+            field_values[spec.name] = _parse_bool_field(
+                row, column_map, spec, row_num, errors
             )
+        else:
+            value = _parse_float_field(
+                row,
+                column_map,
+                spec.name,
+                row_num,
+                errors,
+                min_value=spec.hard_min,
+                max_value=spec.hard_max,
+                unit=spec.unit,
+            )
+            if value is None:
+                return None, errors
+            field_values[spec.name] = value
 
     description = _get_value(row, column_map, "description")
 
     if errors:
         return None, errors
 
-    return (
-        SignalGeneratorTestStep(
-            step_number=step_number,
-            duration_seconds=duration_seconds,
-            frequency=frequency,
-            power=power,
-            modulation_enabled=modulation_enabled,
-            description=description,
-        ),
-        [],
+    step = descriptor.step_cls(
+        step_number=step_number,
+        duration_seconds=duration_seconds,
+        description=description,
+        **field_values,
     )
-
-
-def _parse_modulation_config(
-    metadata: dict[str, str],
-    errors: list[str],
-) -> ModulationConfig | None:
-    """
-    Parse modulation configuration from metadata.
-
-    Returns None if no modulation type specified.
-    Appends to errors list if modulation type is specified but
-    required parameters are missing or invalid.
-
-    Args:
-        metadata: Parsed metadata dictionary
-        errors: List to accumulate error messages
-
-    Returns:
-        ModulationConfig or None if no modulation configured
-    """
-    mod_type_str = metadata.get(MODULATION_TYPE_KEY)
-    if not mod_type_str:
-        return None
-
-    if mod_type_str not in VALID_MODULATION_TYPES:
-        errors.append(
-            f"Invalid modulation_type '{mod_type_str}'. "
-            f"Must be one of: {', '.join(sorted(VALID_MODULATION_TYPES))}"
-        )
-        return None
-
-    # Parse common modulation_frequency
-    mod_freq_str = metadata.get(MODULATION_FREQUENCY_KEY)
-    if not mod_freq_str:
-        errors.append(
-            f"Missing required metadata '{MODULATION_FREQUENCY_KEY}' "
-            f"when modulation_type is '{mod_type_str}'"
-        )
-        return None
-
-    try:
-        mod_freq = float(mod_freq_str)
-        if mod_freq <= 0:
-            errors.append(f"modulation_frequency must be > 0, got {mod_freq}")
-            return None
-    except ValueError:
-        errors.append(f"Invalid modulation_frequency value '{mod_freq_str}'")
-        return None
-
-    # Parse type-specific parameters
-    if mod_type_str == "am":
-        return _parse_am_config(metadata, mod_freq, errors)
-    elif mod_type_str == "fm":
-        return _parse_fm_config(metadata, mod_freq, errors)
-
-    return None
-
-
-def _parse_am_config(
-    metadata: dict[str, str],
-    mod_freq: float,
-    errors: list[str],
-) -> AMModulationConfig | None:
-    """Parse AM-specific configuration from metadata."""
-    depth_str = metadata.get(AM_DEPTH_KEY)
-    if not depth_str:
-        errors.append(f"Missing required metadata '{AM_DEPTH_KEY}' for AM modulation")
-        return None
-
-    try:
-        depth = float(depth_str)
-        if not 0 <= depth <= 100:
-            errors.append(f"am_depth must be 0-100%, got {depth}")
-            return None
-    except ValueError:
-        errors.append(f"Invalid am_depth value '{depth_str}'")
-        return None
-
-    return AMModulationConfig(
-        modulation_type=ModulationType.AM,
-        modulation_frequency=mod_freq,
-        depth=depth,
-    )
-
-
-def _parse_fm_config(
-    metadata: dict[str, str],
-    mod_freq: float,
-    errors: list[str],
-) -> FMModulationConfig | None:
-    """Parse FM-specific configuration from metadata."""
-    deviation_str = metadata.get(FM_DEVIATION_KEY)
-    if not deviation_str:
-        errors.append(
-            f"Missing required metadata '{FM_DEVIATION_KEY}' for FM modulation"
-        )
-        return None
-
-    try:
-        deviation = float(deviation_str)
-        if deviation <= 0:
-            errors.append(f"fm_deviation must be > 0, got {deviation}")
-            return None
-    except ValueError:
-        errors.append(f"Invalid fm_deviation value '{deviation_str}'")
-        return None
-
-    return FMModulationConfig(
-        modulation_type=ModulationType.FM,
-        modulation_frequency=mod_freq,
-        deviation=deviation,
-    )
+    return step, []
 
 
 def _check_soft_limit(
