@@ -190,9 +190,7 @@ class EquipmentModel:
             # Create appropriate instrument class
             if instrument_class is not None:
                 name = getattr(instrument_class, "display_name", instrument_type)
-                self._instrument = instrument_class(
-                    name, resource_address, timeout_ms
-                )
+                self._instrument = instrument_class(name, resource_address, timeout_ms)
             elif instrument_type == "power_supply":
                 self._instrument = PowerSupply(
                     "Power Supply", resource_address, timeout_ms
@@ -451,9 +449,7 @@ class EquipmentModel:
         def apply_step(step: TestStep) -> None:
             nonlocal prev_mod_enabled
             if not isinstance(step, SignalGeneratorTestStep):
-                raise TypeError(
-                    f"Expected SignalGeneratorTestStep, got {type(step)}"
-                )
+                raise TypeError(f"Expected SignalGeneratorTestStep, got {type(step)}")
             logger.info(
                 "Executing step %d/%d: F=%.1f Hz, P=%.2f dBm, Mod=%s",
                 step.step_number,

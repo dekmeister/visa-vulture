@@ -44,9 +44,7 @@ def _make_sg_csv(
     )
 
 
-def _parse_plan_csv(
-    tmp_path: Path, content: str, **kwargs: Any
-) -> TestPlanResult:
+def _parse_plan_csv(tmp_path: Path, content: str, **kwargs: Any) -> TestPlanResult:
     """Write CSV content to a temp file and parse it."""
     csv_path = tmp_path / "test.csv"
     csv_path.write_text(content)
@@ -64,9 +62,7 @@ class TestReadTestPlanFileHandling:
         assert len(result.errors) == 1
         assert "not found" in result.errors[0].lower()
 
-    def test_empty_file_returns_error(
-        self, test_plan_fixtures_path: Path
-    ) -> None:
+    def test_empty_file_returns_error(self, test_plan_fixtures_path: Path) -> None:
         """Empty file returns error."""
         result = read_test_plan(test_plan_fixtures_path / "invalid_empty.csv")
 
@@ -77,7 +73,9 @@ class TestReadTestPlanFileHandling:
     def test_no_data_rows_returns_error(self, tmp_path: Path) -> None:
         """File with only header returns error."""
         csv_path = tmp_path / "header_only.csv"
-        csv_path.write_text("# instrument_type: power_supply\nduration,voltage,current\n")
+        csv_path.write_text(
+            "# instrument_type: power_supply\nduration,voltage,current\n"
+        )
 
         result = read_test_plan(csv_path)
 
@@ -88,13 +86,9 @@ class TestReadTestPlanFileHandling:
 class TestReadPowerSupplyPlan:
     """Tests for power supply plan parsing."""
 
-    def test_valid_power_supply_plan(
-        self, test_plan_fixtures_path: Path
-    ) -> None:
+    def test_valid_power_supply_plan(self, test_plan_fixtures_path: Path) -> None:
         """Valid power supply CSV is parsed correctly."""
-        result = read_test_plan(
-            test_plan_fixtures_path / "valid_power_supply.csv"
-        )
+        result = read_test_plan(test_plan_fixtures_path / "valid_power_supply.csv")
 
         assert result.errors == []
         assert result.plan is not None
@@ -102,13 +96,9 @@ class TestReadPowerSupplyPlan:
         assert result.plan.step_count == 3
         assert isinstance(result.plan.steps[0], PowerSupplyTestStep)
 
-    def test_power_supply_step_values(
-        self, test_plan_fixtures_path: Path
-    ) -> None:
+    def test_power_supply_step_values(self, test_plan_fixtures_path: Path) -> None:
         """Power supply step values are parsed correctly."""
-        result = read_test_plan(
-            test_plan_fixtures_path / "valid_power_supply.csv"
-        )
+        result = read_test_plan(test_plan_fixtures_path / "valid_power_supply.csv")
 
         assert result.errors == []
         assert result.plan is not None
@@ -126,9 +116,7 @@ class TestReadPowerSupplyPlan:
         self, test_plan_fixtures_path: Path
     ) -> None:
         """Missing required columns returns error."""
-        result = read_test_plan(
-            test_plan_fixtures_path / "invalid_missing_columns.csv"
-        )
+        result = read_test_plan(test_plan_fixtures_path / "invalid_missing_columns.csv")
 
         assert result.plan is None
         assert any("missing required columns" in e.lower() for e in result.errors)
@@ -137,13 +125,9 @@ class TestReadPowerSupplyPlan:
 class TestReadSignalGeneratorPlan:
     """Tests for signal generator plan parsing."""
 
-    def test_valid_signal_generator_plan(
-        self, test_plan_fixtures_path: Path
-    ) -> None:
+    def test_valid_signal_generator_plan(self, test_plan_fixtures_path: Path) -> None:
         """Valid signal generator CSV is parsed correctly."""
-        result = read_test_plan(
-            test_plan_fixtures_path / "valid_signal_generator.csv"
-        )
+        result = read_test_plan(test_plan_fixtures_path / "valid_signal_generator.csv")
 
         assert result.errors == []
         assert result.plan is not None
@@ -151,13 +135,9 @@ class TestReadSignalGeneratorPlan:
         assert result.plan.step_count == 3
         assert isinstance(result.plan.steps[0], SignalGeneratorTestStep)
 
-    def test_signal_generator_step_values(
-        self, test_plan_fixtures_path: Path
-    ) -> None:
+    def test_signal_generator_step_values(self, test_plan_fixtures_path: Path) -> None:
         """Signal generator step values are parsed correctly."""
-        result = read_test_plan(
-            test_plan_fixtures_path / "valid_signal_generator.csv"
-        )
+        result = read_test_plan(test_plan_fixtures_path / "valid_signal_generator.csv")
 
         assert result.errors == []
         assert result.plan is not None
@@ -175,9 +155,7 @@ class TestReadSignalGeneratorPlan:
         self, test_plan_fixtures_path: Path
     ) -> None:
         """Negative power (dBm) values are valid."""
-        result = read_test_plan(
-            test_plan_fixtures_path / "valid_signal_generator.csv"
-        )
+        result = read_test_plan(test_plan_fixtures_path / "valid_signal_generator.csv")
 
         assert result.errors == []
         assert result.plan is not None
@@ -195,9 +173,7 @@ class TestReadTestPlanValueValidation:
         self, test_plan_fixtures_path: Path
     ) -> None:
         """Invalid duration value returns error."""
-        result = read_test_plan(
-            test_plan_fixtures_path / "invalid_bad_values.csv"
-        )
+        result = read_test_plan(test_plan_fixtures_path / "invalid_bad_values.csv")
 
         assert result.plan is None
         assert any("invalid duration value" in e.lower() for e in result.errors)
@@ -206,9 +182,7 @@ class TestReadTestPlanValueValidation:
         self, test_plan_fixtures_path: Path
     ) -> None:
         """Invalid voltage value returns error."""
-        result = read_test_plan(
-            test_plan_fixtures_path / "invalid_bad_values.csv"
-        )
+        result = read_test_plan(test_plan_fixtures_path / "invalid_bad_values.csv")
 
         assert result.plan is None
         assert any("invalid voltage value" in e.lower() for e in result.errors)
@@ -217,9 +191,7 @@ class TestReadTestPlanValueValidation:
         self, test_plan_fixtures_path: Path
     ) -> None:
         """Invalid current value returns error."""
-        result = read_test_plan(
-            test_plan_fixtures_path / "invalid_bad_values.csv"
-        )
+        result = read_test_plan(test_plan_fixtures_path / "invalid_bad_values.csv")
 
         assert result.plan is None
         assert any("invalid current value" in e.lower() for e in result.errors)
@@ -280,18 +252,17 @@ class TestReadTestPlanTypeDetection:
         """Metadata present but missing instrument_type returns error."""
         csv_path = tmp_path / "wrong_metadata.csv"
         csv_path.write_text(
-            "# description: some test plan\n"
-            "duration,voltage,current\n0.0,5.0,1.0\n"
+            "# description: some test plan\n" "duration,voltage,current\n0.0,5.0,1.0\n"
         )
 
         result = read_test_plan(csv_path)
 
         assert result.plan is None
-        assert any("missing required metadata field" in e.lower() for e in result.errors)
+        assert any(
+            "missing required metadata field" in e.lower() for e in result.errors
+        )
 
-    def test_invalid_instrument_type_returns_error(
-        self, tmp_path: Path
-    ) -> None:
+    def test_invalid_instrument_type_returns_error(self, tmp_path: Path) -> None:
         """Invalid instrument_type value returns error with no fallback."""
         csv_path = tmp_path / "bad_type.csv"
         csv_path.write_text(
@@ -350,26 +321,18 @@ class TestReadTestPlanColumnNormalization:
 class TestReadTestPlanStepNumbering:
     """Tests for step numbering."""
 
-    def test_step_numbers_are_1_based(
-        self, test_plan_fixtures_path: Path
-    ) -> None:
+    def test_step_numbers_are_1_based(self, test_plan_fixtures_path: Path) -> None:
         """Step numbers start at 1."""
-        result = read_test_plan(
-            test_plan_fixtures_path / "valid_power_supply.csv"
-        )
+        result = read_test_plan(test_plan_fixtures_path / "valid_power_supply.csv")
 
         assert result.errors == []
         assert result.plan is not None
         assert result.plan.get_step(1) is not None
         assert result.plan.get_step(0) is None
 
-    def test_step_numbers_follow_row_order(
-        self, test_plan_fixtures_path: Path
-    ) -> None:
+    def test_step_numbers_follow_row_order(self, test_plan_fixtures_path: Path) -> None:
         """Step numbers follow CSV row order."""
-        result = read_test_plan(
-            test_plan_fixtures_path / "valid_power_supply.csv"
-        )
+        result = read_test_plan(test_plan_fixtures_path / "valid_power_supply.csv")
 
         assert result.errors == []
         assert result.plan is not None
@@ -381,13 +344,9 @@ class TestReadTestPlanStepNumbering:
 class TestReadTestPlanName:
     """Tests for plan name derivation."""
 
-    def test_plan_name_from_filename(
-        self, test_plan_fixtures_path: Path
-    ) -> None:
+    def test_plan_name_from_filename(self, test_plan_fixtures_path: Path) -> None:
         """Plan name is derived from filename."""
-        result = read_test_plan(
-            test_plan_fixtures_path / "valid_power_supply.csv"
-        )
+        result = read_test_plan(test_plan_fixtures_path / "valid_power_supply.csv")
 
         assert result.errors == []
         assert result.plan is not None
@@ -401,9 +360,7 @@ class TestReadTestPlanErrorAccumulation:
         self, test_plan_fixtures_path: Path
     ) -> None:
         """Multiple row errors are all reported."""
-        result = read_test_plan(
-            test_plan_fixtures_path / "invalid_bad_values.csv"
-        )
+        result = read_test_plan(test_plan_fixtures_path / "invalid_bad_values.csv")
 
         assert result.plan is None
         # Should have errors for multiple rows with bad values
@@ -415,18 +372,14 @@ class TestReadTestPlanPathTypes:
 
     def test_string_path_works(self, test_plan_fixtures_path: Path) -> None:
         """String path is accepted."""
-        result = read_test_plan(
-            str(test_plan_fixtures_path / "valid_power_supply.csv")
-        )
+        result = read_test_plan(str(test_plan_fixtures_path / "valid_power_supply.csv"))
 
         assert result.errors == []
         assert result.plan is not None
 
     def test_path_object_works(self, test_plan_fixtures_path: Path) -> None:
         """Path object is accepted."""
-        result = read_test_plan(
-            test_plan_fixtures_path / "valid_power_supply.csv"
-        )
+        result = read_test_plan(test_plan_fixtures_path / "valid_power_supply.csv")
 
         assert result.errors == []
         assert result.plan is not None
@@ -556,9 +509,7 @@ class TestReadSignalGeneratorPlanWithModulation:
         assert result.plan is None
         assert any("invalid modulation_type" in e.lower() for e in result.errors)
 
-    def test_modulation_enabled_column_parsed_true_values(
-        self, tmp_path: Path
-    ) -> None:
+    def test_modulation_enabled_column_parsed_true_values(self, tmp_path: Path) -> None:
         """modulation_enabled column parses true values correctly."""
         csv_path = tmp_path / "mod_enabled.csv"
         csv_path.write_text(
@@ -858,21 +809,27 @@ class TestHardLimitValidation:
         result = _parse_plan_csv(tmp_path, _make_sg_csv(frequency=200000000000000))
 
         assert result.plan is None
-        assert any("frequency" in e.lower() and "exceeds" in e.lower() for e in result.errors)
+        assert any(
+            "frequency" in e.lower() and "exceeds" in e.lower() for e in result.errors
+        )
 
     def test_voltage_above_hard_maximum_returns_error(self, tmp_path: Path) -> None:
         """Voltage above 10kV returns error."""
         result = _parse_plan_csv(tmp_path, _make_ps_csv(voltage=15000))
 
         assert result.plan is None
-        assert any("voltage" in e.lower() and "exceeds" in e.lower() for e in result.errors)
+        assert any(
+            "voltage" in e.lower() and "exceeds" in e.lower() for e in result.errors
+        )
 
     def test_current_above_hard_maximum_returns_error(self, tmp_path: Path) -> None:
         """Current above 1000A returns error."""
         result = _parse_plan_csv(tmp_path, _make_ps_csv(current=1500))
 
         assert result.plan is None
-        assert any("current" in e.lower() and "exceeds" in e.lower() for e in result.errors)
+        assert any(
+            "current" in e.lower() and "exceeds" in e.lower() for e in result.errors
+        )
 
     def test_power_at_hard_minimum_is_valid(self, tmp_path: Path) -> None:
         """Power exactly at -200 dBm is valid."""
@@ -895,26 +852,26 @@ class TestSoftLimitValidation:
     def test_power_below_soft_minimum_returns_warning(self, tmp_path: Path) -> None:
         """Power below soft limit generates warning but plan loads."""
         limits = ValidationLimits()
-        result = _parse_plan_csv(
-            tmp_path, _make_sg_csv(power=-150), soft_limits=limits
-        )
+        result = _parse_plan_csv(tmp_path, _make_sg_csv(power=-150), soft_limits=limits)
 
         assert result.errors == []
         assert result.plan is not None
         assert len(result.warnings) >= 1
-        assert any("power" in w.lower() and "noise floor" in w.lower() for w in result.warnings)
+        assert any(
+            "power" in w.lower() and "noise floor" in w.lower() for w in result.warnings
+        )
 
     def test_power_above_soft_maximum_returns_warning(self, tmp_path: Path) -> None:
         """Power above soft limit generates warning but plan loads."""
         limits = ValidationLimits()
-        result = _parse_plan_csv(
-            tmp_path, _make_sg_csv(power=50), soft_limits=limits
-        )
+        result = _parse_plan_csv(tmp_path, _make_sg_csv(power=50), soft_limits=limits)
 
         assert result.errors == []
         assert result.plan is not None
         assert len(result.warnings) >= 1
-        assert any("power" in w.lower() and "exceeds" in w.lower() for w in result.warnings)
+        assert any(
+            "power" in w.lower() and "exceeds" in w.lower() for w in result.warnings
+        )
 
     def test_frequency_below_soft_minimum_returns_warning(self, tmp_path: Path) -> None:
         """Frequency below soft limit generates warning but plan loads."""
@@ -926,7 +883,9 @@ class TestSoftLimitValidation:
         assert result.errors == []
         assert result.plan is not None
         assert len(result.warnings) >= 1
-        assert any("frequency" in w.lower() and "low" in w.lower() for w in result.warnings)
+        assert any(
+            "frequency" in w.lower() and "low" in w.lower() for w in result.warnings
+        )
 
     def test_voltage_above_soft_maximum_returns_warning(self, tmp_path: Path) -> None:
         """Voltage above soft limit generates warning but plan loads."""
@@ -938,7 +897,9 @@ class TestSoftLimitValidation:
         assert result.errors == []
         assert result.plan is not None
         assert len(result.warnings) >= 1
-        assert any("voltage" in w.lower() and "exceeds" in w.lower() for w in result.warnings)
+        assert any(
+            "voltage" in w.lower() and "exceeds" in w.lower() for w in result.warnings
+        )
 
     def test_duration_above_soft_maximum_returns_warning(self, tmp_path: Path) -> None:
         """Duration above soft limit generates warning but plan loads."""
@@ -956,9 +917,7 @@ class TestSoftLimitValidation:
         """Custom soft limits from config are used."""
         custom_sg_limits = SignalGeneratorSoftLimits(power_max_dbm=10.0)
         limits = ValidationLimits(signal_generator=custom_sg_limits)
-        result = _parse_plan_csv(
-            tmp_path, _make_sg_csv(power=15), soft_limits=limits
-        )
+        result = _parse_plan_csv(tmp_path, _make_sg_csv(power=15), soft_limits=limits)
 
         assert result.errors == []
         assert result.plan is not None
@@ -1028,9 +987,7 @@ class TestTestPlanResult:
     def test_result_with_warnings_has_plan(self, tmp_path: Path) -> None:
         """Result with warnings still has valid plan."""
         limits = ValidationLimits()
-        result = _parse_plan_csv(
-            tmp_path, _make_sg_csv(power=-150), soft_limits=limits
-        )
+        result = _parse_plan_csv(tmp_path, _make_sg_csv(power=-150), soft_limits=limits)
 
         assert result.plan is not None
         assert result.errors == []
@@ -1079,7 +1036,9 @@ class TestFileIOEdgeCases:
 
         assert result.errors == []
         assert result.plan is not None
-        assert any("frequency" in w.lower() and "exceeds" in w.lower() for w in result.warnings)
+        assert any(
+            "frequency" in w.lower() and "exceeds" in w.lower() for w in result.warnings
+        )
 
     def test_current_above_soft_max_returns_warning(self, tmp_path: Path) -> None:
         """Current above soft limit generates warning."""
@@ -1090,7 +1049,9 @@ class TestFileIOEdgeCases:
 
         assert result.errors == []
         assert result.plan is not None
-        assert any("current" in w.lower() and "exceeds" in w.lower() for w in result.warnings)
+        assert any(
+            "current" in w.lower() and "exceeds" in w.lower() for w in result.warnings
+        )
 
     def test_all_rows_invalid_returns_no_steps_error(self, tmp_path: Path) -> None:
         """CSV with all invalid rows returns 'no valid steps' error."""

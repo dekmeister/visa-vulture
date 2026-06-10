@@ -8,7 +8,11 @@ import tkinter as tk
 from pathlib import Path
 
 from .config import load_config
-from .instruments import VISAConnection, scan_custom_instruments, build_instrument_registry
+from .instruments import (
+    VISAConnection,
+    scan_custom_instruments,
+    build_instrument_registry,
+)
 from .logging_config import setup_logging
 from .model import EquipmentModel
 from .presenter import EquipmentPresenter
@@ -51,10 +55,7 @@ def validate_visa_backend(backend: str) -> str | None:
         return None
     except ValueError:
         available = list_backends()
-        return (
-            f"Invalid VISA backend '{backend}'. "
-            f"Available backends: {available}"
-        )
+        return f"Invalid VISA backend '{backend}'. " f"Available backends: {available}"
 
 
 def main() -> int:

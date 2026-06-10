@@ -74,8 +74,13 @@ class TestGUILogHandler:
         records = []
         handler = GUILogHandler(callback=records.append)
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="", lineno=0,
-            msg="test message", args=(), exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="test message",
+            args=(),
+            exc_info=None,
         )
         handler.emit(record)
         assert len(records) == 1
@@ -85,8 +90,13 @@ class TestGUILogHandler:
         """GUILogHandler with no callback does not raise on emit."""
         handler = GUILogHandler()
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="", lineno=0,
-            msg="test message", args=(), exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="test message",
+            args=(),
+            exc_info=None,
         )
         handler.emit(record)  # Should not raise
 
@@ -96,8 +106,13 @@ class TestGUILogHandler:
         handler = GUILogHandler()
         handler.set_callback(records.append)
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="", lineno=0,
-            msg="test message", args=(), exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="test message",
+            args=(),
+            exc_info=None,
         )
         handler.emit(record)
         assert len(records) == 1
@@ -114,9 +129,7 @@ class TestSetupLogging:
     def test_uses_provided_gui_handler(self, tmp_path: Path) -> None:
         """setup_logging uses an existing GUILogHandler if provided."""
         existing = GUILogHandler()
-        result = setup_logging(
-            log_file=tmp_path / "test.log", gui_handler=existing
-        )
+        result = setup_logging(log_file=tmp_path / "test.log", gui_handler=existing)
         assert result is existing
 
     def test_root_logger_level_set(self, tmp_path: Path) -> None:

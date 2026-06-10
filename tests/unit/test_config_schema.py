@@ -344,7 +344,9 @@ class TestValidationLimitsConfig:
         assert errors == []
         assert config is not None
         assert config.validation_limits.signal_generator.power_min_dbm == -50.0
-        assert config.validation_limits.signal_generator.power_max_dbm == 30.0  # default
+        assert (
+            config.validation_limits.signal_generator.power_max_dbm == 30.0
+        )  # default
 
     def test_invalid_limit_type_returns_error(self) -> None:
         """Non-numeric limit values return error."""
@@ -420,5 +422,7 @@ class TestValidationLimitsConfig:
 
         assert errors == []
         assert config is not None
-        assert isinstance(config.validation_limits.signal_generator.power_min_dbm, float)
+        assert isinstance(
+            config.validation_limits.signal_generator.power_min_dbm, float
+        )
         assert config.validation_limits.signal_generator.power_min_dbm == -100.0

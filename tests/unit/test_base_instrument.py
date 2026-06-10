@@ -161,9 +161,7 @@ class TestBaseInstrumentConnection:
 
         mock_visa_resource.close.assert_called_once()
 
-    def test_disconnect_sets_resource_none(
-        self, mock_visa_resource: Mock
-    ) -> None:
+    def test_disconnect_sets_resource_none(self, mock_visa_resource: Mock) -> None:
         """disconnect sets resource to None."""
         instrument = PowerSupply(
             name="Test PS",
@@ -292,9 +290,7 @@ class TestBaseInstrumentScpiCommands:
 
         mock_visa_resource.write.assert_called_with("*CLS")
 
-    def test_operation_complete_returns_bool(
-        self, mock_visa_resource: Mock
-    ) -> None:
+    def test_operation_complete_returns_bool(self, mock_visa_resource: Mock) -> None:
         """operation_complete() returns boolean."""
         mock_visa_resource.query.return_value = "1"
         instrument = PowerSupply(
@@ -308,9 +304,7 @@ class TestBaseInstrumentScpiCommands:
         assert result is True
         mock_visa_resource.query.assert_called_with("*OPC?")
 
-    def test_operation_complete_returns_false(
-        self, mock_visa_resource: Mock
-    ) -> None:
+    def test_operation_complete_returns_false(self, mock_visa_resource: Mock) -> None:
         """operation_complete() returns False when not complete."""
         mock_visa_resource.query.return_value = "0"
         instrument = PowerSupply(
@@ -323,9 +317,7 @@ class TestBaseInstrumentScpiCommands:
 
         assert result is False
 
-    def test_wait_operation_complete_writes_wai(
-        self, mock_visa_resource: Mock
-    ) -> None:
+    def test_wait_operation_complete_writes_wai(self, mock_visa_resource: Mock) -> None:
         """wait_operation_complete() sends *WAI command."""
         instrument = PowerSupply(
             name="Test PS",

@@ -6,7 +6,6 @@ from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
 
-
 # === Path Fixtures ===
 
 
@@ -295,7 +294,9 @@ def mock_model_for_presenter() -> Mock:
 
     # Instrument type tracking via property (for single-instrument mode)
     model._instrument_type = None
-    type(model).instrument_type = PropertyMock(side_effect=lambda: model._instrument_type)
+    type(model).instrument_type = PropertyMock(
+        side_effect=lambda: model._instrument_type
+    )
 
     # Callback storage
     model._state_callbacks = []

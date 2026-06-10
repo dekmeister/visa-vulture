@@ -19,7 +19,6 @@ from visa_vulture.instruments.instrument_loader import (
     _get_base_type,
 )
 
-
 # === Helper classes for testing ===
 
 
@@ -164,9 +163,7 @@ class TestCreateInstrument:
     def test_unknown_display_name_raises(self):
         registry = build_instrument_registry()
         with pytest.raises(ValueError, match="Unknown instrument"):
-            create_instrument(
-                registry, "Nonexistent", "TCPIP::1.2.3.4::INSTR", 5000
-            )
+            create_instrument(registry, "Nonexistent", "TCPIP::1.2.3.4::INSTR", 5000)
 
 
 # === Tests for scan_custom_instruments ===

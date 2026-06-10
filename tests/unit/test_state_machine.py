@@ -42,7 +42,9 @@ class TestStateMachineInitialization:
         sm = StateMachine(initial_state=EquipmentState.IDLE)
         assert sm.state == EquipmentState.IDLE
 
-    def test_state_property_returns_current_state(self, state_machine: StateMachine) -> None:
+    def test_state_property_returns_current_state(
+        self, state_machine: StateMachine
+    ) -> None:
         """state property returns the current state."""
         assert state_machine.state == EquipmentState.UNKNOWN
 

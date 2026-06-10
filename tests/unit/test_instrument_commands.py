@@ -68,9 +68,7 @@ class TestPowerSupplyMeasurements:
 
         assert result == pytest.approx(10.0)
 
-    def test_get_status_returns_complete_dict(
-        self, mock_visa_resource: Mock
-    ) -> None:
+    def test_get_status_returns_complete_dict(self, mock_visa_resource: Mock) -> None:
         """get_status returns dict with voltage, current, and output state."""
         mock_visa_resource.query.side_effect = lambda cmd: {
             "VOLT?": "12.0\n",
@@ -104,9 +102,7 @@ class TestSignalGeneratorAMModulation:
         assert call("AM:INT:FREQ 1000.0") in am_calls
         assert call("AM:DEPT 50.0") in am_calls
 
-    def test_enable_am_modulation_sends_command(
-        self, mock_visa_resource: Mock
-    ) -> None:
+    def test_enable_am_modulation_sends_command(self, mock_visa_resource: Mock) -> None:
         """enable_am_modulation sends AM:STAT 1."""
         sg = _make_connected_signal_generator(mock_visa_resource)
 
@@ -124,27 +120,21 @@ class TestSignalGeneratorAMModulation:
 
         mock_visa_resource.write.assert_called_with("AM:STAT 0")
 
-    def test_is_am_enabled_returns_true_for_1(
-        self, mock_visa_resource: Mock
-    ) -> None:
+    def test_is_am_enabled_returns_true_for_1(self, mock_visa_resource: Mock) -> None:
         """is_am_enabled returns True when response is '1'."""
         mock_visa_resource.query.return_value = "1\n"
         sg = _make_connected_signal_generator(mock_visa_resource)
 
         assert sg.is_am_enabled() is True
 
-    def test_is_am_enabled_returns_true_for_on(
-        self, mock_visa_resource: Mock
-    ) -> None:
+    def test_is_am_enabled_returns_true_for_on(self, mock_visa_resource: Mock) -> None:
         """is_am_enabled returns True when response is 'ON'."""
         mock_visa_resource.query.return_value = "ON\n"
         sg = _make_connected_signal_generator(mock_visa_resource)
 
         assert sg.is_am_enabled() is True
 
-    def test_is_am_enabled_returns_false_for_0(
-        self, mock_visa_resource: Mock
-    ) -> None:
+    def test_is_am_enabled_returns_false_for_0(self, mock_visa_resource: Mock) -> None:
         """is_am_enabled returns False when response is '0'."""
         mock_visa_resource.query.return_value = "0\n"
         sg = _make_connected_signal_generator(mock_visa_resource)
@@ -169,9 +159,7 @@ class TestSignalGeneratorFMModulation:
         assert call("FM:INT:FREQ 500.0") in fm_calls
         assert call("FM:DEV 10000.0") in fm_calls
 
-    def test_enable_fm_modulation_sends_command(
-        self, mock_visa_resource: Mock
-    ) -> None:
+    def test_enable_fm_modulation_sends_command(self, mock_visa_resource: Mock) -> None:
         """enable_fm_modulation sends FM:STAT 1."""
         sg = _make_connected_signal_generator(mock_visa_resource)
 
@@ -189,18 +177,14 @@ class TestSignalGeneratorFMModulation:
 
         mock_visa_resource.write.assert_called_with("FM:STAT 0")
 
-    def test_is_fm_enabled_returns_true_for_1(
-        self, mock_visa_resource: Mock
-    ) -> None:
+    def test_is_fm_enabled_returns_true_for_1(self, mock_visa_resource: Mock) -> None:
         """is_fm_enabled returns True when response is '1'."""
         mock_visa_resource.query.return_value = "1\n"
         sg = _make_connected_signal_generator(mock_visa_resource)
 
         assert sg.is_fm_enabled() is True
 
-    def test_is_fm_enabled_returns_false_for_0(
-        self, mock_visa_resource: Mock
-    ) -> None:
+    def test_is_fm_enabled_returns_false_for_0(self, mock_visa_resource: Mock) -> None:
         """is_fm_enabled returns False when response is '0'."""
         mock_visa_resource.query.return_value = "0\n"
         sg = _make_connected_signal_generator(mock_visa_resource)
@@ -211,9 +195,7 @@ class TestSignalGeneratorFMModulation:
 class TestSignalGeneratorModulationDispatch:
     """Tests for generic modulation dispatch methods."""
 
-    def test_configure_modulation_dispatches_am(
-        self, mock_visa_resource: Mock
-    ) -> None:
+    def test_configure_modulation_dispatches_am(self, mock_visa_resource: Mock) -> None:
         """configure_modulation calls configure_am_modulation for AM config."""
         from visa_vulture.model.test_plan import AMModulationConfig, ModulationType
 
@@ -230,9 +212,7 @@ class TestSignalGeneratorModulationDispatch:
         assert any("AM:SOUR INT" in c for c in write_calls)
         assert any("AM:DEPT 50.0" in c for c in write_calls)
 
-    def test_configure_modulation_dispatches_fm(
-        self, mock_visa_resource: Mock
-    ) -> None:
+    def test_configure_modulation_dispatches_fm(self, mock_visa_resource: Mock) -> None:
         """configure_modulation calls configure_fm_modulation for FM config."""
         from visa_vulture.model.test_plan import FMModulationConfig, ModulationType
 
@@ -249,9 +229,7 @@ class TestSignalGeneratorModulationDispatch:
         assert any("FM:SOUR INT" in c for c in write_calls)
         assert any("FM:DEV 10000.0" in c for c in write_calls)
 
-    def test_set_modulation_enabled_am_enable(
-        self, mock_visa_resource: Mock
-    ) -> None:
+    def test_set_modulation_enabled_am_enable(self, mock_visa_resource: Mock) -> None:
         """set_modulation_enabled enables AM modulation."""
         from visa_vulture.model.test_plan import AMModulationConfig, ModulationType
 
@@ -266,9 +244,7 @@ class TestSignalGeneratorModulationDispatch:
 
         mock_visa_resource.write.assert_called_with("AM:STAT 1")
 
-    def test_set_modulation_enabled_am_disable(
-        self, mock_visa_resource: Mock
-    ) -> None:
+    def test_set_modulation_enabled_am_disable(self, mock_visa_resource: Mock) -> None:
         """set_modulation_enabled disables AM modulation."""
         from visa_vulture.model.test_plan import AMModulationConfig, ModulationType
 
@@ -283,9 +259,7 @@ class TestSignalGeneratorModulationDispatch:
 
         mock_visa_resource.write.assert_called_with("AM:STAT 0")
 
-    def test_set_modulation_enabled_fm_enable(
-        self, mock_visa_resource: Mock
-    ) -> None:
+    def test_set_modulation_enabled_fm_enable(self, mock_visa_resource: Mock) -> None:
         """set_modulation_enabled enables FM modulation."""
         from visa_vulture.model.test_plan import FMModulationConfig, ModulationType
 
@@ -300,9 +274,7 @@ class TestSignalGeneratorModulationDispatch:
 
         mock_visa_resource.write.assert_called_with("FM:STAT 1")
 
-    def test_set_modulation_enabled_fm_disable(
-        self, mock_visa_resource: Mock
-    ) -> None:
+    def test_set_modulation_enabled_fm_disable(self, mock_visa_resource: Mock) -> None:
         """set_modulation_enabled disables FM modulation."""
         from visa_vulture.model.test_plan import FMModulationConfig, ModulationType
 
@@ -333,9 +305,7 @@ class TestSignalGeneratorModulationDispatch:
 class TestSignalGeneratorGetStatus:
     """Tests for signal generator get_status method."""
 
-    def test_get_status_returns_complete_dict(
-        self, mock_visa_resource: Mock
-    ) -> None:
+    def test_get_status_returns_complete_dict(self, mock_visa_resource: Mock) -> None:
         """get_status returns dict with frequency, power, output, and modulation state."""
         mock_visa_resource.query.side_effect = lambda cmd: {
             "FREQ?": "1000000.0\n",

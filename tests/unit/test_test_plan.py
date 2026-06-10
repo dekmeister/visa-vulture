@@ -126,9 +126,7 @@ class TestSignalGeneratorTestStep:
     def test_inherits_duration_validation(self) -> None:
         """Inherits negative duration validation from parent."""
         with pytest.raises(ValueError, match="duration_seconds must be >= 0"):
-            SignalGeneratorTestStep(
-                step_number=1, duration_seconds=-1.0, frequency=1e6
-            )
+            SignalGeneratorTestStep(step_number=1, duration_seconds=-1.0, frequency=1e6)
 
     def test_default_modulation_enabled_is_false(self) -> None:
         """Default modulation_enabled is False."""

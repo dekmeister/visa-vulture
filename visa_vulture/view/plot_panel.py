@@ -283,7 +283,9 @@ class PlotPanel(ttk.Frame):
                 if self._secondary_scale == "linear"
                 else f"{self._secondary.legend_label} Y-Axis: Switch to Linear"
             )
-            menu.add_command(label=secondary_label, command=self._toggle_secondary_scale)
+            menu.add_command(
+                label=secondary_label, command=self._toggle_secondary_scale
+            )
 
         menu.tk_popup(event.x_root, event.y_root)
 
@@ -295,9 +297,7 @@ class PlotPanel(ttk.Frame):
 
     def _toggle_secondary_scale(self) -> None:
         """Toggle secondary Y-axis between linear and log scale."""
-        self._secondary_scale = (
-            "log" if self._secondary_scale == "linear" else "linear"
-        )
+        self._secondary_scale = "log" if self._secondary_scale == "linear" else "linear"
         self._apply_scales()
         self._update_plot()
 

@@ -47,6 +47,7 @@ class TestPlanResult:
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
+
 logger = logging.getLogger(__name__)
 
 # Column requirements by plan type
@@ -212,9 +213,7 @@ def _parse_csv_content(
         )
 
     # Validate soft limits
-    warnings = (
-        _validate_soft_limits(plan, soft_limits) if plan and soft_limits else []
-    )
+    warnings = _validate_soft_limits(plan, soft_limits) if plan and soft_limits else []
     return TestPlanResult(plan=plan, errors=[], warnings=warnings)
 
 
@@ -344,9 +343,7 @@ def _parse_float_field(
 
     if min_value is not None and value < min_value:
         if min_value == 0:
-            errors.append(
-                f"Row {row_num}: {field_name} must be >= 0, got {value}"
-            )
+            errors.append(f"Row {row_num}: {field_name} must be >= 0, got {value}")
         else:
             unit_str = f" {unit}" if unit else ""
             errors.append(
@@ -377,15 +374,25 @@ def _parse_power_supply_row(
         return None, errors
 
     voltage = _parse_float_field(
-        row, column_map, "voltage", row_num, errors,
-        max_value=HARD_LIMIT_VOLTAGE_MAX_V, unit="V",
+        row,
+        column_map,
+        "voltage",
+        row_num,
+        errors,
+        max_value=HARD_LIMIT_VOLTAGE_MAX_V,
+        unit="V",
     )
     if voltage is None:
         return None, errors
 
     current = _parse_float_field(
-        row, column_map, "current", row_num, errors,
-        max_value=HARD_LIMIT_CURRENT_MAX_A, unit="A",
+        row,
+        column_map,
+        "current",
+        row_num,
+        errors,
+        max_value=HARD_LIMIT_CURRENT_MAX_A,
+        unit="A",
     )
     if current is None:
         return None, errors
@@ -421,15 +428,25 @@ def _parse_signal_generator_row(
         return None, errors
 
     frequency = _parse_float_field(
-        row, column_map, "frequency", row_num, errors,
-        max_value=HARD_LIMIT_FREQUENCY_MAX_HZ, unit="Hz",
+        row,
+        column_map,
+        "frequency",
+        row_num,
+        errors,
+        max_value=HARD_LIMIT_FREQUENCY_MAX_HZ,
+        unit="Hz",
     )
     if frequency is None:
         return None, errors
 
     power = _parse_float_field(
-        row, column_map, "power", row_num, errors,
-        min_value=HARD_LIMIT_POWER_MIN_DBM, max_value=HARD_LIMIT_POWER_MAX_DBM,
+        row,
+        column_map,
+        "power",
+        row_num,
+        errors,
+        min_value=HARD_LIMIT_POWER_MIN_DBM,
+        max_value=HARD_LIMIT_POWER_MAX_DBM,
         unit="dBm",
     )
     if power is None:
@@ -592,12 +609,17 @@ def _check_soft_limit(
 ) -> None:
     """Append a soft-limit warning and log it."""
     warnings.append(
-        f"Step {step_number}: {field} {value} {unit} "
-        f"{description} ({limit} {unit})"
+        f"Step {step_number}: {field} {value} {unit} " f"{description} ({limit} {unit})"
     )
     logger.warning(
         "Step %d: %s %.1f %s %s soft limit of %.1f %s",
-        step_number, field, value, unit, direction, limit, unit,
+        step_number,
+        field,
+        value,
+        unit,
+        direction,
+        limit,
+        unit,
     )
 
 
@@ -624,49 +646,79 @@ def _validate_soft_limits(
     for step in plan.steps:
         if step.duration_seconds > limits.common.duration_max_s:
             _check_soft_limit(
-                warnings, step.step_number, "duration",
-                step.duration_seconds, limits.common.duration_max_s,
-                "s", "exceeds typical maximum",
+                warnings,
+                step.step_number,
+                "duration",
+                step.duration_seconds,
+                limits.common.duration_max_s,
+                "s",
+                "exceeds typical maximum",
             )
 
         if isinstance(step, SignalGeneratorTestStep):
             if step.power < limits.signal_generator.power_min_dbm:
                 _check_soft_limit(
-                    warnings, step.step_number, "power",
-                    step.power, limits.signal_generator.power_min_dbm,
-                    "dBm", "below typical noise floor", "below",
+                    warnings,
+                    step.step_number,
+                    "power",
+                    step.power,
+                    limits.signal_generator.power_min_dbm,
+                    "dBm",
+                    "below typical noise floor",
+                    "below",
                 )
             if step.power > limits.signal_generator.power_max_dbm:
                 _check_soft_limit(
-                    warnings, step.step_number, "power",
-                    step.power, limits.signal_generator.power_max_dbm,
-                    "dBm", "exceeds typical equipment limits",
+                    warnings,
+                    step.step_number,
+                    "power",
+                    step.power,
+                    limits.signal_generator.power_max_dbm,
+                    "dBm",
+                    "exceeds typical equipment limits",
                 )
             if step.frequency < limits.signal_generator.frequency_min_hz:
                 _check_soft_limit(
-                    warnings, step.step_number, "frequency",
-                    step.frequency, limits.signal_generator.frequency_min_hz,
-                    "Hz", "below typical minimum", "below",
+                    warnings,
+                    step.step_number,
+                    "frequency",
+                    step.frequency,
+                    limits.signal_generator.frequency_min_hz,
+                    "Hz",
+                    "below typical minimum",
+                    "below",
                 )
             if step.frequency > limits.signal_generator.frequency_max_hz:
                 _check_soft_limit(
-                    warnings, step.step_number, "frequency",
-                    step.frequency, limits.signal_generator.frequency_max_hz,
-                    "Hz", "exceeds typical equipment limits",
+                    warnings,
+                    step.step_number,
+                    "frequency",
+                    step.frequency,
+                    limits.signal_generator.frequency_max_hz,
+                    "Hz",
+                    "exceeds typical equipment limits",
                 )
 
         elif isinstance(step, PowerSupplyTestStep):
             if step.voltage > limits.power_supply.voltage_max_v:
                 _check_soft_limit(
-                    warnings, step.step_number, "voltage",
-                    step.voltage, limits.power_supply.voltage_max_v,
-                    "V", "exceeds typical lab supply limits",
+                    warnings,
+                    step.step_number,
+                    "voltage",
+                    step.voltage,
+                    limits.power_supply.voltage_max_v,
+                    "V",
+                    "exceeds typical lab supply limits",
                 )
             if step.current > limits.power_supply.current_max_a:
                 _check_soft_limit(
-                    warnings, step.step_number, "current",
-                    step.current, limits.power_supply.current_max_a,
-                    "A", "exceeds typical lab supply limits",
+                    warnings,
+                    step.step_number,
+                    "current",
+                    step.current,
+                    limits.power_supply.current_max_a,
+                    "A",
+                    "exceeds typical lab supply limits",
                 )
 
     return warnings

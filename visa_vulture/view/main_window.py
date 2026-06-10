@@ -11,24 +11,49 @@ from .test_points_table import TestPointsTable, InstrumentType
 # Button enable/disable configuration per equipment state.
 _BUTTON_STATES: dict[str, dict[str, str]] = {
     "UNKNOWN": {
-        "connect": tk.NORMAL, "disconnect": tk.DISABLED, "load": tk.NORMAL,
-        "run": tk.DISABLED, "stop": tk.DISABLED, "pause": tk.DISABLED, "start_from": tk.DISABLED,
+        "connect": tk.NORMAL,
+        "disconnect": tk.DISABLED,
+        "load": tk.NORMAL,
+        "run": tk.DISABLED,
+        "stop": tk.DISABLED,
+        "pause": tk.DISABLED,
+        "start_from": tk.DISABLED,
     },
     "IDLE": {
-        "connect": tk.DISABLED, "disconnect": tk.NORMAL, "load": tk.NORMAL,
-        "run": tk.NORMAL, "stop": tk.DISABLED, "pause": tk.DISABLED, "start_from": tk.DISABLED,
+        "connect": tk.DISABLED,
+        "disconnect": tk.NORMAL,
+        "load": tk.NORMAL,
+        "run": tk.NORMAL,
+        "stop": tk.DISABLED,
+        "pause": tk.DISABLED,
+        "start_from": tk.DISABLED,
     },
     "RUNNING": {
-        "connect": tk.DISABLED, "disconnect": tk.DISABLED, "load": tk.DISABLED,
-        "run": tk.DISABLED, "stop": tk.NORMAL, "pause": tk.NORMAL, "start_from": tk.DISABLED,
+        "connect": tk.DISABLED,
+        "disconnect": tk.DISABLED,
+        "load": tk.DISABLED,
+        "run": tk.DISABLED,
+        "stop": tk.NORMAL,
+        "pause": tk.NORMAL,
+        "start_from": tk.DISABLED,
     },
     "PAUSED": {
-        "connect": tk.DISABLED, "disconnect": tk.DISABLED, "load": tk.DISABLED,
-        "run": tk.NORMAL, "stop": tk.NORMAL, "pause": tk.DISABLED, "start_from": tk.DISABLED,
+        "connect": tk.DISABLED,
+        "disconnect": tk.DISABLED,
+        "load": tk.DISABLED,
+        "run": tk.NORMAL,
+        "stop": tk.NORMAL,
+        "pause": tk.DISABLED,
+        "start_from": tk.DISABLED,
     },
     "ERROR": {
-        "connect": tk.NORMAL, "disconnect": tk.NORMAL, "load": tk.NORMAL,
-        "run": tk.DISABLED, "stop": tk.DISABLED, "pause": tk.DISABLED, "start_from": tk.DISABLED,
+        "connect": tk.NORMAL,
+        "disconnect": tk.NORMAL,
+        "load": tk.NORMAL,
+        "run": tk.DISABLED,
+        "stop": tk.DISABLED,
+        "pause": tk.DISABLED,
+        "start_from": tk.DISABLED,
     },
 }
 
@@ -661,9 +686,7 @@ class MainWindow:
         self._ps_tab_visible = self._show_tab(
             self._ps_container, "Power Supply", self._ps_tab_visible
         )
-        self._sg_tab_visible = self._hide_tab(
-            self._sg_container, self._sg_tab_visible
-        )
+        self._sg_tab_visible = self._hide_tab(self._sg_container, self._sg_tab_visible)
         self._plot_notebook.select(self._ps_container)
 
     def show_signal_generator_tab_only(self) -> None:
@@ -671,9 +694,7 @@ class MainWindow:
         self._sg_tab_visible = self._show_tab(
             self._sg_container, "Signal Generator", self._sg_tab_visible
         )
-        self._ps_tab_visible = self._hide_tab(
-            self._ps_container, self._ps_tab_visible
-        )
+        self._ps_tab_visible = self._hide_tab(self._ps_container, self._ps_tab_visible)
         self._plot_notebook.select(self._sg_container)
 
     def show_all_tabs(self) -> None:

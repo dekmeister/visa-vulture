@@ -15,7 +15,6 @@ from visa_vulture.model.test_plan import (
     TestPlan,
 )
 
-
 # --- Shared helpers for execution tests ---
 
 
@@ -1094,9 +1093,7 @@ class TestOutputDisabledOnStopAndPause:
     ) -> None:
         """Stopping from RUNNING state disables signal generator output (safety test)."""
         plan = _make_zero_duration_signal_generator_plan()
-        model, mock_sg = _make_model_with_signal_generator(
-            mock_visa_connection, plan
-        )
+        model, mock_sg = _make_model_with_signal_generator(mock_visa_connection, plan)
 
         # Request stop before step 1 completes
         original_set_frequency = mock_sg.set_frequency
@@ -1125,9 +1122,7 @@ class TestOutputDisabledOnStopAndPause:
                 ),
             ],
         )
-        model, mock_sg = _make_model_with_signal_generator(
-            mock_visa_connection, plan
-        )
+        model, mock_sg = _make_model_with_signal_generator(mock_visa_connection, plan)
 
         # Request pause during execution
         original_set_frequency = mock_sg.set_frequency
@@ -1235,9 +1230,7 @@ class TestOutputDisabledOnStopAndPause:
 class TestExecutePlanLoop:
     """Tests for the extracted _execute_plan_loop helper method."""
 
-    def test_sorts_steps_by_step_number(
-        self, mock_visa_connection: Mock
-    ) -> None:
+    def test_sorts_steps_by_step_number(self, mock_visa_connection: Mock) -> None:
         """Steps are executed in step_number order regardless of input order."""
         model = EquipmentModel(mock_visa_connection)
         executed: list[int] = []
@@ -1254,9 +1247,7 @@ class TestExecutePlanLoop:
 
         assert executed == [1, 2, 3]
 
-    def test_skips_steps_before_start_step(
-        self, mock_visa_connection: Mock
-    ) -> None:
+    def test_skips_steps_before_start_step(self, mock_visa_connection: Mock) -> None:
         """Steps before start_step are not executed."""
         model = EquipmentModel(mock_visa_connection)
         executed: list[int] = []
@@ -1293,9 +1284,7 @@ class TestExecutePlanLoop:
 
         assert executed == [1, 2]
 
-    def test_enables_output_on_start_step(
-        self, mock_visa_connection: Mock
-    ) -> None:
+    def test_enables_output_on_start_step(self, mock_visa_connection: Mock) -> None:
         """enable_output is called exactly once, on the start_step."""
         model = EquipmentModel(mock_visa_connection)
         enable_mock = Mock()
@@ -1309,9 +1298,7 @@ class TestExecutePlanLoop:
 
         enable_mock.assert_called_once()
 
-    def test_notifies_progress_for_each_step(
-        self, mock_visa_connection: Mock
-    ) -> None:
+    def test_notifies_progress_for_each_step(self, mock_visa_connection: Mock) -> None:
         """_notify_progress is called for each executed step."""
         model = EquipmentModel(mock_visa_connection)
         progress_steps: list[int] = []
