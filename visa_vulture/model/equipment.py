@@ -2,18 +2,12 @@
 
 import logging
 import time
-from typing import Callable, Sequence
+from typing import Callable, Mapping, Sequence
 
-from ..instruments import BaseInstrument, PowerSupply, SignalGenerator, VISAConnection
+from ..instruments import BaseInstrument, VISAConnection
+from .instrument_types import InstrumentTypeDescriptor, INSTRUMENT_TYPE_REGISTRY
 from .state_machine import EquipmentState, StateMachine
-from .test_plan import (
-    TestPlan,
-    TestStep,
-    PowerSupplyTestStep,
-    SignalGeneratorTestStep,
-    INSTRUMENT_TYPE_POWER_SUPPLY,
-    INSTRUMENT_TYPE_SIGNAL_GENERATOR,
-)
+from .test_plan import TestPlan, TestStep
 
 logger = logging.getLogger(__name__)
 
@@ -30,14 +24,23 @@ class EquipmentModel:
     Does not know about the GUI.
     """
 
-    def __init__(self, visa_connection: VISAConnection):
+    def __init__(
+        self,
+        visa_connection: VISAConnection,
+        instrument_types: Mapping[str, InstrumentTypeDescriptor] | None = None,
+    ):
         """
         Initialize equipment model.
 
         Args:
             visa_connection: VISA connection manager
+            instrument_types: Registry of instrument-type descriptors. Defaults
+                to the built-in registry.
         """
         self._visa = visa_connection
+        self._instrument_types = (
+            instrument_types if instrument_types is not None else INSTRUMENT_TYPE_REGISTRY
+        )
         self._state_machine = StateMachine()
         self._instrument: BaseInstrument | None = None
         self._instrument_type: str | None = None
@@ -73,14 +76,13 @@ class EquipmentModel:
     def is_instrument_type_compatible(self, instrument_type: str) -> bool:
         """Check if a plan type is compatible with the connected instrument.
 
-        Returns True if compatible or if no instrument is connected.
+        Returns True if compatible or if no instrument is connected. Unknown
+        instrument types are treated as compatible (loading is not blocked).
         """
         if self._instrument_type is None:
             return True
-        if instrument_type == INSTRUMENT_TYPE_POWER_SUPPLY:
-            return self._instrument_type == "power_supply"
-        if instrument_type == INSTRUMENT_TYPE_SIGNAL_GENERATOR:
-            return self._instrument_type == "signal_generator"
+        if instrument_type in self._instrument_types:
+            return self._instrument_type == instrument_type
         return True
 
     def register_state_callback(
@@ -191,16 +193,13 @@ class EquipmentModel:
             if instrument_class is not None:
                 name = getattr(instrument_class, "display_name", instrument_type)
                 self._instrument = instrument_class(name, resource_address, timeout_ms)
-            elif instrument_type == "power_supply":
-                self._instrument = PowerSupply(
-                    "Power Supply", resource_address, timeout_ms
-                )
-            elif instrument_type == "signal_generator":
-                self._instrument = SignalGenerator(
-                    "Signal Generator", resource_address, timeout_ms
-                )
             else:
-                raise ValueError(f"Unknown instrument type: {instrument_type}")
+                descriptor = self._instrument_types.get(instrument_type)
+                if descriptor is None:
+                    raise ValueError(f"Unknown instrument type: {instrument_type}")
+                self._instrument = descriptor.instrument_cls(
+                    descriptor.display_name, resource_address, timeout_ms
+                )
 
             self._instrument_type = instrument_type
 
@@ -287,13 +286,7 @@ class EquipmentModel:
         self._state_machine.to_running()
 
         try:
-            # Dispatch based on plan type
-            if self._test_plan.instrument_type == INSTRUMENT_TYPE_POWER_SUPPLY:
-                self._execute_power_supply_plan(start_step=start_step)
-            elif self._test_plan.instrument_type == INSTRUMENT_TYPE_SIGNAL_GENERATOR:
-                self._execute_signal_generator_plan(start_step=start_step)
-            else:
-                raise RuntimeError(f"Unknown plan type: {self._test_plan.instrument_type}")
+            self._execute_plan(start_step=start_step)
 
             success = not self._stop_requested
             message = "Test completed" if success else "Test stopped by user"
@@ -340,13 +333,14 @@ class EquipmentModel:
         start_step: int,
         apply_step: Callable[[TestStep], None],
         enable_output: Callable[[], None],
+        dwell: Callable[[TestStep], None] | None = None,
     ) -> None:
         """Execute the common test plan step iteration loop.
 
         Iterates over sorted steps, skipping steps before start_step.
         For each step, calls apply_step to send instrument-specific commands,
         enables output on the first executed step, notifies progress, and
-        sleeps for the step duration. Stops early if _stop_requested is set.
+        dwells for the step duration. Stops early if _stop_requested is set.
 
         Args:
             steps: Sequence of test steps to iterate over
@@ -356,6 +350,9 @@ class EquipmentModel:
                 for a step. Should perform type narrowing, logging, and
                 instrument commands.
             enable_output: Callable that enables the instrument output.
+            dwell: Callable invoked with the step to wait for its duration.
+                Defaults to an interruptible sleep of the step duration; an
+                executor may supply its own (e.g. a sink sampling during dwell).
         """
         sorted_steps = sorted(steps, key=lambda s: s.step_number)
 
@@ -374,112 +371,69 @@ class EquipmentModel:
 
             self._notify_progress(step.step_number, total_steps, step)
 
-            if step.duration_seconds > 0:
+            if dwell is not None:
+                dwell(step)
+            elif step.duration_seconds > 0:
                 self._interruptible_sleep(step.duration_seconds)
 
-    def _execute_power_supply_plan(self, start_step: int = 1) -> None:
-        """Execute power supply test plan steps.
+    def _execute_plan(self, start_step: int = 1) -> None:
+        """Execute the loaded test plan via its instrument-type executor.
+
+        Looks up the descriptor for the plan's instrument type, verifies the
+        connected instrument matches, then runs setup → step loop → teardown.
+        The per-step ordering (apply → enable output on first step → notify
+        progress → dwell) is identical for every instrument type; behaviour
+        differences live in the executor.
 
         Args:
             start_step: 1-based step number to start from (default: 1)
         """
-        if (
-            self._test_plan is None
-            or self._test_plan.instrument_type != INSTRUMENT_TYPE_POWER_SUPPLY
-        ):
+        if self._test_plan is None:
             return
 
-        if not isinstance(self._instrument, PowerSupply):
-            raise RuntimeError("Connected instrument is not a power supply")
-        power_supply = self._instrument
-        total_steps = self._test_plan.step_count
+        descriptor = self._instrument_types.get(self._test_plan.instrument_type)
+        if descriptor is None:
+            raise RuntimeError(f"Unknown plan type: {self._test_plan.instrument_type}")
+
+        if not isinstance(self._instrument, descriptor.instrument_cls):
+            raise RuntimeError(
+                f"Connected instrument is not a {descriptor.display_name.lower()}"
+            )
+
+        instrument = self._instrument
+        plan = self._test_plan
+        executor = descriptor.executor_cls()
+
+        executor.setup(instrument, plan)
 
         def apply_step(step: TestStep) -> None:
-            if not isinstance(step, PowerSupplyTestStep):
-                raise TypeError(f"Expected PowerSupplyTestStep, got {type(step)}")
-            logger.info(
-                "Executing step %d/%d: V=%.3f, I=%.3f",
-                step.step_number,
-                total_steps,
-                step.voltage,
-                step.current,
-            )
-            power_supply.set_voltage(step.voltage)
-            power_supply.set_current(step.current)
+            executor.apply_step(instrument, step)
+
+        def enable_output() -> None:
+            executor.on_first_step(instrument)
+
+        def dwell(step: TestStep) -> None:
+            executor.dwell(instrument, step, self)
 
         self._execute_plan_loop(
-            self._test_plan.steps,
-            total_steps,
+            plan.steps,
+            plan.step_count,
             start_step,
             apply_step,
-            power_supply.enable_output,
+            enable_output,
+            dwell,
         )
 
-        if power_supply.is_connected:
-            power_supply.disable_output()
+        executor.teardown(instrument, plan)
 
-    def _execute_signal_generator_plan(self, start_step: int = 1) -> None:
-        """Execute signal generator test plan steps.
+    @property
+    def stop_requested(self) -> bool:
+        """Whether a stop has been requested (StepContext protocol)."""
+        return self._stop_requested
 
-        Args:
-            start_step: 1-based step number to start from (default: 1)
-        """
-        if (
-            self._test_plan is None
-            or self._test_plan.instrument_type != INSTRUMENT_TYPE_SIGNAL_GENERATOR
-        ):
-            return
-
-        if not isinstance(self._instrument, SignalGenerator):
-            raise RuntimeError("Connected instrument is not a signal generator")
-        signal_gen = self._instrument
-
-        # Configure modulation once at start if specified
-        modulation_config = self._test_plan.modulation_config
-        if modulation_config is not None:
-            logger.info(
-                "Configuring modulation: %s", modulation_config.modulation_type.value
-            )
-            signal_gen.configure_modulation(modulation_config)
-            signal_gen.set_modulation_enabled(modulation_config, False)
-
-        total_steps = self._test_plan.step_count
-        prev_mod_enabled: bool | None = None
-
-        def apply_step(step: TestStep) -> None:
-            nonlocal prev_mod_enabled
-            if not isinstance(step, SignalGeneratorTestStep):
-                raise TypeError(f"Expected SignalGeneratorTestStep, got {type(step)}")
-            logger.info(
-                "Executing step %d/%d: F=%.1f Hz, P=%.2f dBm, Mod=%s",
-                step.step_number,
-                total_steps,
-                step.frequency,
-                step.power,
-                "ON" if step.modulation_enabled else "OFF",
-            )
-            signal_gen.set_frequency(step.frequency)
-            signal_gen.set_power(step.power)
-
-            if modulation_config is not None:
-                if prev_mod_enabled != step.modulation_enabled:
-                    signal_gen.set_modulation_enabled(
-                        modulation_config, step.modulation_enabled
-                    )
-                    prev_mod_enabled = step.modulation_enabled
-
-        self._execute_plan_loop(
-            self._test_plan.steps,
-            total_steps,
-            start_step,
-            apply_step,
-            signal_gen.enable_output,
-        )
-
-        if signal_gen.is_connected:
-            if modulation_config is not None:
-                signal_gen.disable_all_modulation()
-            signal_gen.disable_output()
+    def dwell(self, seconds: float) -> None:
+        """Interruptible dwell exposed to executors (StepContext protocol)."""
+        self._interruptible_sleep(seconds)
 
     def _interruptible_sleep(self, duration: float) -> None:
         """Sleep that can be interrupted by stop or pause request."""

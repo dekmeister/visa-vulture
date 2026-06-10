@@ -499,7 +499,7 @@ class TestEquipmentModelRunTest:
             equipment_model.run_test(1)
 
     def test_skips_earlier_steps_from_step(self, mock_visa_connection: Mock) -> None:
-        """_execute_power_supply_plan with start_step=2 skips step 1."""
+        """_execute_plan with start_step=2 skips step 1."""
         from visa_vulture.instruments import PowerSupply
 
         model = EquipmentModel(mock_visa_connection)
@@ -530,7 +530,7 @@ class TestEquipmentModelRunTest:
             lambda current, total, step: progress_steps.append(step.step_number)
         )
 
-        model._execute_power_supply_plan(start_step=2)
+        model._execute_plan(start_step=2)
 
         assert progress_steps == [2, 3]
         mock_ps.enable_output.assert_called_once()
@@ -561,7 +561,7 @@ class TestEquipmentModelRunTest:
         model._instrument = mock_ps
         model._instrument_type = "power_supply"
 
-        model._execute_power_supply_plan(start_step=2)
+        model._execute_plan(start_step=2)
 
         # enable_output should have been called exactly once (on step 2, not step 1)
         mock_ps.enable_output.assert_called_once()
@@ -626,7 +626,7 @@ class TestEquipmentModelStopTest:
 
         model.register_state_callback(track_state)
 
-        # Mock _execute_power_supply_plan to simulate pause then stop
+        # Mock _execute_plan to simulate pause then stop
         def mock_execute(start_step: int = 1) -> None:
             # Simulate: start running, pause, then stop
             model._pause_requested = True
@@ -636,7 +636,7 @@ class TestEquipmentModelStopTest:
             model._pause_requested = False
             # Method returns, run_test's finally block should handle transition
 
-        with patch.object(model, "_execute_power_supply_plan", mock_execute):
+        with patch.object(model, "_execute_plan", mock_execute):
             model.run_test()
 
         # The final state should be IDLE, not stuck at PAUSED
@@ -754,7 +754,7 @@ class TestEquipmentModelRunTestExecution:
             # Simulate successful execution (no exceptions, no stop)
             pass
 
-        with patch.object(model, "_execute_power_supply_plan", mock_execute):
+        with patch.object(model, "_execute_plan", mock_execute):
             model.run_test()
 
         assert model.state == EquipmentState.IDLE
@@ -778,7 +778,7 @@ class TestEquipmentModelRunTestExecution:
         def mock_execute(start_step: int = 1) -> None:
             raise RuntimeError("Instrument communication error")
 
-        with patch.object(model, "_execute_power_supply_plan", mock_execute):
+        with patch.object(model, "_execute_plan", mock_execute):
             with pytest.raises(RuntimeError, match="Instrument communication error"):
                 model.run_test()
 
@@ -806,7 +806,7 @@ class TestEquipmentModelRunTestExecution:
             # Simulate stop requested during execution
             model._stop_requested = True
 
-        with patch.object(model, "_execute_power_supply_plan", mock_execute):
+        with patch.object(model, "_execute_plan", mock_execute):
             model.run_test()
 
         assert model.state == EquipmentState.IDLE
@@ -830,7 +830,7 @@ class TestEquipmentModelRunTestExecution:
             model._stop_requested = True
             model._pause_requested = False
 
-        with patch.object(model, "_execute_power_supply_plan", mock_execute):
+        with patch.object(model, "_execute_plan", mock_execute):
             model.run_test()
 
         assert model.state == EquipmentState.IDLE
@@ -858,7 +858,7 @@ class TestEquipmentModelRunTestExecution:
             model._pause_requested = False
             model._state_machine.to_running()
 
-        with patch.object(model, "_execute_power_supply_plan", mock_execute):
+        with patch.object(model, "_execute_plan", mock_execute):
             model.run_test()
 
         assert model.state == EquipmentState.IDLE
@@ -888,7 +888,7 @@ class TestEquipmentModelRunTestExecution:
             model._state_machine.to_paused()
             raise RuntimeError("Instrument lost connection")
 
-        with patch.object(model, "_execute_power_supply_plan", mock_execute):
+        with patch.object(model, "_execute_plan", mock_execute):
             with pytest.raises(RuntimeError, match="Instrument lost connection"):
                 model.run_test()
 
@@ -1319,7 +1319,7 @@ class TestExecutePlanLoop:
 class TestPowerSupplyExecutionPath:
     """Tests verifying power supply per-step instrument command values.
 
-    These tests ensure that _execute_power_supply_plan correctly extracts
+    These tests ensure that _execute_plan correctly extracts
     voltage and current from each PowerSupplyTestStep and passes the exact
     values to the corresponding instrument methods.
     """
@@ -1345,7 +1345,7 @@ class TestPowerSupplyExecutionPath:
         )
         model, mock_ps = _make_model_with_power_supply(mock_visa_connection, plan)
 
-        model._execute_power_supply_plan()
+        model._execute_plan()
 
         assert mock_ps.set_voltage.call_args_list == [
             call(1.0),
@@ -1362,7 +1362,7 @@ class TestPowerSupplyExecutionPath:
 class TestSignalGeneratorExecutionPath:
     """Tests verifying signal generator per-step instrument command values.
 
-    These tests ensure that _execute_signal_generator_plan correctly extracts
+    These tests ensure that _execute_plan correctly extracts
     frequency and power from each SignalGeneratorTestStep, passes exact values
     to instrument methods, and handles the modulation toggle optimization
     (prev_mod_enabled tracking) correctly.
@@ -1389,7 +1389,7 @@ class TestSignalGeneratorExecutionPath:
         )
         model, mock_sg = _make_model_with_signal_generator(mock_visa_connection, plan)
 
-        model._execute_signal_generator_plan()
+        model._execute_plan()
 
         assert mock_sg.set_frequency.call_args_list == [
             call(1e6),
@@ -1417,7 +1417,7 @@ class TestSignalGeneratorExecutionPath:
         )
         model, mock_sg = _make_model_with_signal_generator(mock_visa_connection, plan)
 
-        model._execute_signal_generator_plan()
+        model._execute_plan()
 
         mock_sg.configure_modulation.assert_not_called()
         mock_sg.set_modulation_enabled.assert_not_called()
@@ -1457,7 +1457,7 @@ class TestSignalGeneratorExecutionPath:
         )
         model, mock_sg = _make_model_with_signal_generator(mock_visa_connection, plan)
 
-        model._execute_signal_generator_plan()
+        model._execute_plan()
 
         mock_sg.configure_modulation.assert_called_once_with(am_config)
         # First set_modulation_enabled call is the initial disable
@@ -1516,7 +1516,7 @@ class TestSignalGeneratorExecutionPath:
         )
         model, mock_sg = _make_model_with_signal_generator(mock_visa_connection, plan)
 
-        model._execute_signal_generator_plan()
+        model._execute_plan()
 
         assert mock_sg.set_modulation_enabled.call_args_list == [
             call(am_config, False),  # Initial disable
@@ -1566,7 +1566,7 @@ class TestSignalGeneratorExecutionPath:
         )
         model, mock_sg = _make_model_with_signal_generator(mock_visa_connection, plan)
 
-        model._execute_signal_generator_plan()
+        model._execute_plan()
 
         assert mock_sg.set_modulation_enabled.call_args_list == [
             call(am_config, False),  # Initial disable
