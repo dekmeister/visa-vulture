@@ -10,6 +10,7 @@ Refer to pyproject.toml
 |---------|---------|-------|
 | pyvisa | VISA communication | Core instrument control |
 | pyvisa-sim | Simulation backend | Development without hardware |
+| pyvisa-py | Pure-Python VISA backend | Dev-only; real-transport loopback tests |
 | matplotlib | Plotting | Embedded in Tkinter |
 | tkinter | GUI framework | Included with Python (not in requirements.txt) |
 
