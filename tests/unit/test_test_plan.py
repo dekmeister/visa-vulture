@@ -3,8 +3,8 @@
 import pytest
 
 from visa_vulture.model.test_plan import (
-    PLAN_TYPE_POWER_SUPPLY,
-    PLAN_TYPE_SIGNAL_GENERATOR,
+    INSTRUMENT_TYPE_POWER_SUPPLY,
+    INSTRUMENT_TYPE_SIGNAL_GENERATOR,
     PowerSupplyTestStep,
     SignalGeneratorTestStep,
     TestPlan,
@@ -304,7 +304,7 @@ class TestTestPlanModulationConfig:
 
     def test_default_modulation_config_is_none(self) -> None:
         """Default modulation_config is None."""
-        plan = TestPlan(name="Test", plan_type=PLAN_TYPE_SIGNAL_GENERATOR)
+        plan = TestPlan(name="Test", instrument_type=INSTRUMENT_TYPE_SIGNAL_GENERATOR)
         assert plan.modulation_config is None
 
     def test_modulation_config_can_be_set_am(self) -> None:
@@ -316,7 +316,7 @@ class TestTestPlanModulationConfig:
         )
         plan = TestPlan(
             name="Test",
-            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+            instrument_type=INSTRUMENT_TYPE_SIGNAL_GENERATOR,
             modulation_config=config,
         )
         assert plan.modulation_config is config
@@ -330,7 +330,7 @@ class TestTestPlanModulationConfig:
         )
         plan = TestPlan(
             name="Test",
-            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+            instrument_type=INSTRUMENT_TYPE_SIGNAL_GENERATOR,
             modulation_config=config,
         )
         assert plan.modulation_config is config
@@ -341,15 +341,15 @@ class TestTestPlanProperties:
 
     def test_creation_with_name_and_type(self) -> None:
         """TestPlan can be created with name and type."""
-        plan = TestPlan(name="Test", plan_type=PLAN_TYPE_POWER_SUPPLY)
+        plan = TestPlan(name="Test", instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY)
         assert plan.name == "Test"
-        assert plan.plan_type == PLAN_TYPE_POWER_SUPPLY
+        assert plan.instrument_type == INSTRUMENT_TYPE_POWER_SUPPLY
 
     def test_total_duration_returns_sum_of_durations(self) -> None:
         """total_duration returns sum of duration_seconds from all steps."""
         plan = TestPlan(
             name="Test",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[
                 PowerSupplyTestStep(step_number=1, duration_seconds=2.0),
                 PowerSupplyTestStep(step_number=2, duration_seconds=5.0),
@@ -360,14 +360,14 @@ class TestTestPlanProperties:
 
     def test_total_duration_with_no_steps_is_zero(self) -> None:
         """total_duration is 0.0 when there are no steps."""
-        plan = TestPlan(name="Test", plan_type=PLAN_TYPE_POWER_SUPPLY)
+        plan = TestPlan(name="Test", instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY)
         assert plan.total_duration == 0.0
 
     def test_step_count_returns_number_of_steps(self) -> None:
         """step_count returns the number of steps."""
         plan = TestPlan(
             name="Test",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[
                 PowerSupplyTestStep(step_number=1, duration_seconds=1.0),
                 PowerSupplyTestStep(step_number=2, duration_seconds=1.0),
@@ -377,7 +377,7 @@ class TestTestPlanProperties:
 
     def test_step_count_empty_plan(self) -> None:
         """step_count is 0 for empty plan."""
-        plan = TestPlan(name="Test", plan_type=PLAN_TYPE_POWER_SUPPLY)
+        plan = TestPlan(name="Test", instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY)
         assert plan.step_count == 0
 
 
@@ -388,7 +388,7 @@ class TestTestPlanAbsoluteTime:
         """Absolute times are cumulative sums of durations."""
         plan = TestPlan(
             name="Test",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[
                 PowerSupplyTestStep(step_number=1, duration_seconds=2.0),
                 PowerSupplyTestStep(step_number=2, duration_seconds=3.0),
@@ -403,7 +403,7 @@ class TestTestPlanAbsoluteTime:
         """Zero-duration step does not advance absolute time."""
         plan = TestPlan(
             name="Test",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[
                 PowerSupplyTestStep(step_number=1, duration_seconds=0.0),
                 PowerSupplyTestStep(step_number=2, duration_seconds=3.0),
@@ -418,7 +418,7 @@ class TestTestPlanAbsoluteTime:
         """Single step starts at absolute time 0."""
         plan = TestPlan(
             name="Test",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[
                 PowerSupplyTestStep(step_number=1, duration_seconds=10.0),
             ],
@@ -435,7 +435,7 @@ class TestTestPlanGetStep:
         step2 = PowerSupplyTestStep(step_number=2, duration_seconds=1.0, voltage=10.0)
         plan = TestPlan(
             name="Test",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[step1, step2],
         )
         assert plan.get_step(1) is step1
@@ -445,14 +445,14 @@ class TestTestPlanGetStep:
         """get_step returns None for non-existent step number."""
         plan = TestPlan(
             name="Test",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[PowerSupplyTestStep(step_number=1, duration_seconds=1.0)],
         )
         assert plan.get_step(99) is None
 
     def test_get_step_empty_plan(self) -> None:
         """get_step returns None for empty plan."""
-        plan = TestPlan(name="Test", plan_type=PLAN_TYPE_POWER_SUPPLY)
+        plan = TestPlan(name="Test", instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY)
         assert plan.get_step(1) is None
 
 
@@ -463,7 +463,7 @@ class TestTestPlanValidation:
         """Empty name returns validation error."""
         plan = TestPlan(
             name="",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[PowerSupplyTestStep(step_number=1, duration_seconds=1.0)],
         )
         errors = plan.validate()
@@ -471,7 +471,7 @@ class TestTestPlanValidation:
 
     def test_validate_no_steps_returns_error(self) -> None:
         """No steps returns validation error."""
-        plan = TestPlan(name="Test", plan_type=PLAN_TYPE_POWER_SUPPLY, steps=[])
+        plan = TestPlan(name="Test", instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY, steps=[])
         errors = plan.validate()
         assert any("at least one step" in e for e in errors)
 
@@ -479,7 +479,7 @@ class TestTestPlanValidation:
         """Valid plan returns empty error list."""
         plan = TestPlan(
             name="Test",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[
                 PowerSupplyTestStep(step_number=1, duration_seconds=1.0),
                 PowerSupplyTestStep(step_number=2, duration_seconds=2.0),
@@ -493,7 +493,7 @@ class TestTestPlanValidation:
         """Any combination of non-negative durations is valid."""
         plan = TestPlan(
             name="Test",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[
                 PowerSupplyTestStep(step_number=1, duration_seconds=5.0),
                 PowerSupplyTestStep(step_number=2, duration_seconds=0.0),
@@ -511,7 +511,7 @@ class TestTestPlanStr:
         """String representation includes name, step count, and duration."""
         plan = TestPlan(
             name="My Test",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[
                 PowerSupplyTestStep(step_number=1, duration_seconds=2.0),
                 PowerSupplyTestStep(step_number=2, duration_seconds=3.0),
@@ -527,12 +527,12 @@ class TestPlanTypeConstants:
     """Tests for plan type constants."""
 
     def test_power_supply_constant(self) -> None:
-        """PLAN_TYPE_POWER_SUPPLY has correct value."""
-        assert PLAN_TYPE_POWER_SUPPLY == "power_supply"
+        """INSTRUMENT_TYPE_POWER_SUPPLY has correct value."""
+        assert INSTRUMENT_TYPE_POWER_SUPPLY == "power_supply"
 
     def test_signal_generator_constant(self) -> None:
-        """PLAN_TYPE_SIGNAL_GENERATOR has correct value."""
-        assert PLAN_TYPE_SIGNAL_GENERATOR == "signal_generator"
+        """INSTRUMENT_TYPE_SIGNAL_GENERATOR has correct value."""
+        assert INSTRUMENT_TYPE_SIGNAL_GENERATOR == "signal_generator"
 
 
 class TestDurationFromStep:
@@ -549,7 +549,7 @@ class TestDurationFromStep:
         """Duration from last step equals that step's duration."""
         plan = TestPlan(
             name="Test",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[
                 PowerSupplyTestStep(
                     step_number=1, duration_seconds=5.0, voltage=1.0, current=1.0
@@ -565,7 +565,7 @@ class TestDurationFromStep:
         """Duration from middle step sums remaining steps."""
         plan = TestPlan(
             name="Test",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[
                 PowerSupplyTestStep(
                     step_number=1, duration_seconds=5.0, voltage=1.0, current=1.0
@@ -584,7 +584,7 @@ class TestDurationFromStep:
         """Duration from step beyond range returns 0."""
         plan = TestPlan(
             name="Test",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[
                 PowerSupplyTestStep(
                     step_number=1, duration_seconds=5.0, voltage=1.0, current=1.0

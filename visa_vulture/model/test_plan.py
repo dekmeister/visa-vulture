@@ -5,8 +5,8 @@ from enum import Enum
 from typing import Sequence
 
 # Plan type constants
-PLAN_TYPE_POWER_SUPPLY = "power_supply"
-PLAN_TYPE_SIGNAL_GENERATOR = "signal_generator"
+INSTRUMENT_TYPE_POWER_SUPPLY = "power_supply"
+INSTRUMENT_TYPE_SIGNAL_GENERATOR = "signal_generator"
 
 # Hard validation limits (values beyond these are physically unreasonable)
 # These cause errors and block test plan loading
@@ -132,12 +132,12 @@ class TestPlan:
     Test plans define sequences of instrument settings to apply
     during a test run. Each step specifies a duration (how long it
     lasts) and the plan computes absolute times as cumulative sums.
-    The plan_type field determines which execution path is used and
+    The instrument_type field determines which execution path is used and
     what step types are expected.
     """
 
     name: str
-    plan_type: str
+    instrument_type: str
     steps: Sequence[TestStep] = field(default_factory=list)
     description: str = ""
     modulation_config: ModulationConfig | None = None  # For signal generator plans

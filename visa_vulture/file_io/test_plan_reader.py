@@ -19,8 +19,8 @@ from ..model.test_plan import (
     TestPlan,
     PowerSupplyTestStep,
     SignalGeneratorTestStep,
-    PLAN_TYPE_POWER_SUPPLY,
-    PLAN_TYPE_SIGNAL_GENERATOR,
+    INSTRUMENT_TYPE_POWER_SUPPLY,
+    INSTRUMENT_TYPE_SIGNAL_GENERATOR,
     ModulationType,
     ModulationConfig,
     AMModulationConfig,
@@ -56,12 +56,12 @@ SIGNAL_GENERATOR_COLUMNS = {"duration", "frequency", "power"}
 OPTIONAL_COLUMNS = {"description"}
 
 # Valid instrument types for metadata
-_VALID_INSTRUMENT_TYPES = {PLAN_TYPE_POWER_SUPPLY, PLAN_TYPE_SIGNAL_GENERATOR}
+_VALID_INSTRUMENT_TYPES = {INSTRUMENT_TYPE_POWER_SUPPLY, INSTRUMENT_TYPE_SIGNAL_GENERATOR}
 
 # Required columns by plan type
 _COLUMN_REQUIREMENTS: dict[str, set[str]] = {
-    PLAN_TYPE_POWER_SUPPLY: POWER_SUPPLY_COLUMNS,
-    PLAN_TYPE_SIGNAL_GENERATOR: SIGNAL_GENERATOR_COLUMNS,
+    INSTRUMENT_TYPE_POWER_SUPPLY: POWER_SUPPLY_COLUMNS,
+    INSTRUMENT_TYPE_SIGNAL_GENERATOR: SIGNAL_GENERATOR_COLUMNS,
 }
 
 # Modulation metadata keys
@@ -134,19 +134,19 @@ def read_test_plan(
             errors=["Missing required metadata field 'instrument_type'"],
         )
 
-    plan_type = metadata["instrument_type"]
-    if plan_type not in _VALID_INSTRUMENT_TYPES:
+    instrument_type = metadata["instrument_type"]
+    if instrument_type not in _VALID_INSTRUMENT_TYPES:
         return TestPlanResult(
             plan=None,
             errors=[
-                f"Invalid instrument_type '{plan_type}'. "
-                f"Must be '{PLAN_TYPE_POWER_SUPPLY}' or '{PLAN_TYPE_SIGNAL_GENERATOR}'"
+                f"Invalid instrument_type '{instrument_type}'. "
+                f"Must be '{INSTRUMENT_TYPE_POWER_SUPPLY}' or '{INSTRUMENT_TYPE_SIGNAL_GENERATOR}'"
             ],
         )
 
     try:
         return _parse_csv_content(
-            csv_content, metadata, file_path, plan_type, soft_limits
+            csv_content, metadata, file_path, instrument_type, soft_limits
         )
     except csv.Error as e:
         return TestPlanResult(plan=None, errors=[f"CSV parsing error: {e}"])
@@ -156,7 +156,7 @@ def _parse_csv_content(
     csv_content: str,
     metadata: dict[str, str],
     file_path: Path,
-    plan_type: str,
+    instrument_type: str,
     soft_limits: ValidationLimits | None,
 ) -> TestPlanResult:
     """Parse CSV content into a TestPlanResult."""
@@ -177,27 +177,27 @@ def _parse_csv_content(
         return TestPlanResult(plan=None, errors=["CSV file has no data rows"])
 
     # Validate required columns
-    required = _COLUMN_REQUIREMENTS[plan_type]
+    required = _COLUMN_REQUIREMENTS[instrument_type]
     missing = required - columns
     if missing:
         return TestPlanResult(
             plan=None,
             errors=[
-                f"Missing required columns for {plan_type.replace('_', ' ')}: "
+                f"Missing required columns for {instrument_type.replace('_', ' ')}: "
                 f"{', '.join(sorted(missing))}"
             ],
         )
 
     # Parse modulation config for signal generators
     modulation_config = None
-    if plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
+    if instrument_type == INSTRUMENT_TYPE_SIGNAL_GENERATOR:
         modulation_config = _parse_modulation_config(metadata, errors)
         if errors:
             return TestPlanResult(plan=None, errors=errors)
 
     # Parse rows into steps
     plan, parse_errors = _parse_test_plan(
-        file_path, rows, column_map, errors, plan_type
+        file_path, rows, column_map, errors, instrument_type
     )
     if parse_errors:
         return TestPlanResult(plan=None, errors=parse_errors)
@@ -206,7 +206,7 @@ def _parse_csv_content(
     if plan is not None and modulation_config is not None:
         plan = TestPlan(
             name=plan.name,
-            plan_type=plan.plan_type,
+            instrument_type=plan.instrument_type,
             steps=plan.steps,
             description=plan.description,
             modulation_config=modulation_config,
@@ -257,11 +257,11 @@ def _parse_test_plan(
     rows: list[dict[str, str]],
     column_map: dict[str, str],
     errors: list[str],
-    plan_type: str,
+    instrument_type: str,
 ) -> tuple[TestPlan | None, list[str]]:
     """Parse rows into a suitable type of TestPlan."""
-    if plan_type not in (PLAN_TYPE_POWER_SUPPLY, PLAN_TYPE_SIGNAL_GENERATOR):
-        errors.append(f"Unknown plan type: '{plan_type}'")
+    if instrument_type not in (INSTRUMENT_TYPE_POWER_SUPPLY, INSTRUMENT_TYPE_SIGNAL_GENERATOR):
+        errors.append(f"Unknown plan type: '{instrument_type}'")
         return None, errors
 
     steps: list[PowerSupplyTestStep | SignalGeneratorTestStep] = []
@@ -270,11 +270,11 @@ def _parse_test_plan(
         step_number = row_num - 1  # 1-based step number (row 2 = step 1)
         step: PowerSupplyTestStep | SignalGeneratorTestStep | None = None
         row_errors: list[str] = []
-        if plan_type == PLAN_TYPE_POWER_SUPPLY:
+        if instrument_type == INSTRUMENT_TYPE_POWER_SUPPLY:
             step, row_errors = _parse_power_supply_row(
                 row, column_map, row_num, step_number
             )
-        elif plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
+        elif instrument_type == INSTRUMENT_TYPE_SIGNAL_GENERATOR:
             step, row_errors = _parse_signal_generator_row(
                 row, column_map, row_num, step_number
             )
@@ -291,7 +291,7 @@ def _parse_test_plan(
         return None, errors
 
     plan_name = file_path.stem
-    test_plan = TestPlan(name=plan_name, steps=steps, plan_type=plan_type)
+    test_plan = TestPlan(name=plan_name, steps=steps, instrument_type=instrument_type)
 
     validation_errors = test_plan.validate()
     if validation_errors:
@@ -300,7 +300,7 @@ def _parse_test_plan(
 
     logger.info(
         "Loaded %s test plan '%s' from %s: %d steps",
-        plan_type,
+        instrument_type,
         plan_name,
         file_path,
         len(steps),

@@ -11,8 +11,8 @@ from ..model import (
     TestStep,
     PowerSupplyTestStep,
     SignalGeneratorTestStep,
-    PLAN_TYPE_POWER_SUPPLY,
-    PLAN_TYPE_SIGNAL_GENERATOR,
+    INSTRUMENT_TYPE_POWER_SUPPLY,
+    INSTRUMENT_TYPE_SIGNAL_GENERATOR,
 )
 from ..utils import BackgroundTaskRunner, TaskResult
 from ..view import MainWindow
@@ -143,7 +143,7 @@ class EquipmentPresenter:
             and selected_display_name in self._instrument_registry
         ):
             entry = self._instrument_registry[selected_display_name]
-            instrument_type = entry.base_type
+            instrument_type = entry.instrument_type
             # Only pass custom class for non-built-in instruments
             if selected_display_name not in ("Power Supply", "Signal Generator"):
                 instrument_class = entry.cls
@@ -272,7 +272,7 @@ class EquipmentPresenter:
             return
 
         # Check instrument type match if connected
-        mismatch = self._check_instrument_type_match(test_plan.plan_type)
+        mismatch = self._check_instrument_type_match(test_plan.instrument_type)
         if mismatch is not None:
             logger.error("Test plan load failed: %s", mismatch)
             self._view.show_error("Instrument Mismatch", mismatch)
@@ -295,7 +295,7 @@ class EquipmentPresenter:
             self._view.set_status(f"Loaded: {test_plan}")
 
             # Handle plot and table based on plan type
-            if test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
+            if test_plan.instrument_type == INSTRUMENT_TYPE_SIGNAL_GENERATOR:
                 self._setup_signal_generator_preview(test_plan)
             else:
                 self._setup_power_supply_preview(test_plan)
@@ -332,7 +332,7 @@ class EquipmentPresenter:
             return
 
         # Verify instrument type matches plan type
-        mismatch = self._check_instrument_type_match(self._model.test_plan.plan_type)
+        mismatch = self._check_instrument_type_match(self._model.test_plan.instrument_type)
         if mismatch is not None:
             self._view.show_error("Instrument Mismatch", mismatch)
             return
@@ -343,7 +343,7 @@ class EquipmentPresenter:
         self._timer.start(self._update_runtime, self._update_plot_position)
 
         # Clear position indicator but keep the plan preview for both plot types
-        if self._model.test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
+        if self._model.test_plan.instrument_type == INSTRUMENT_TYPE_SIGNAL_GENERATOR:
             self._view.signal_gen_plot_panel.clear_position()
         else:
             self._view.power_supply_plot_panel.clear_position()
@@ -452,7 +452,7 @@ class EquipmentPresenter:
 
         if (
             self._model.test_plan is not None
-            and self._model.test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR
+            and self._model.test_plan.instrument_type == INSTRUMENT_TYPE_SIGNAL_GENERATOR
         ):
             self._view.signal_gen_plot_panel.clear_position()
         else:
@@ -555,7 +555,7 @@ class EquipmentPresenter:
             # Clear position indicators and table highlighting
             if (
                 self._model.test_plan
-                and self._model.test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR
+                and self._model.test_plan.instrument_type == INSTRUMENT_TYPE_SIGNAL_GENERATOR
             ):
                 self._view.signal_gen_plot_panel.clear_position()
                 self._view.sg_table.clear_highlight()
@@ -579,14 +579,14 @@ class EquipmentPresenter:
         model_name, tooltip = self._model.get_instrument_identification()
         self._view.set_instrument_display(model_name, tooltip)
 
-    def _check_instrument_type_match(self, plan_type: str) -> str | None:
+    def _check_instrument_type_match(self, instrument_type: str) -> str | None:
         """Check if the plan type is compatible with the connected instrument.
 
         Returns an error message if mismatched, or None if compatible.
         """
-        if self._model.is_plan_type_compatible(plan_type):
+        if self._model.is_instrument_type_compatible(instrument_type):
             return None
-        plan_label = plan_type.replace("_", " ")
+        plan_label = instrument_type.replace("_", " ")
         instrument_label = (self._model.instrument_type or "").replace("_", " ")
         return (
             f"Cannot load {plan_label} test plan: "
@@ -677,7 +677,7 @@ class EquipmentPresenter:
             current_time = elapsed
 
         # Update the appropriate plot
-        if self._model.test_plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
+        if self._model.test_plan.instrument_type == INSTRUMENT_TYPE_SIGNAL_GENERATOR:
             self._view.signal_gen_plot_panel.set_current_position(current_time)
         else:
             self._view.power_supply_plot_panel.set_current_position(current_time)

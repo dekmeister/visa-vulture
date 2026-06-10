@@ -137,14 +137,14 @@ def equipment_model(mock_visa_connection: Mock):
 def sample_power_supply_plan():
     """Sample PowerSupply test plan."""
     from visa_vulture.model.test_plan import (
-        PLAN_TYPE_POWER_SUPPLY,
+        INSTRUMENT_TYPE_POWER_SUPPLY,
         PowerSupplyTestStep,
         TestPlan,
     )
 
     return TestPlan(
         name="Test Plan",
-        plan_type=PLAN_TYPE_POWER_SUPPLY,
+        instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
         steps=[
             PowerSupplyTestStep(
                 step_number=1, duration_seconds=1.0, voltage=5.0, current=1.0
@@ -160,14 +160,14 @@ def sample_power_supply_plan():
 def sample_signal_generator_plan():
     """Sample SignalGenerator test plan."""
     from visa_vulture.model.test_plan import (
-        PLAN_TYPE_SIGNAL_GENERATOR,
+        INSTRUMENT_TYPE_SIGNAL_GENERATOR,
         SignalGeneratorTestStep,
         TestPlan,
     )
 
     return TestPlan(
         name="SG Test Plan",
-        plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+        instrument_type=INSTRUMENT_TYPE_SIGNAL_GENERATOR,
         steps=[
             SignalGeneratorTestStep(
                 step_number=1, duration_seconds=1.0, frequency=1e6, power=0
@@ -319,22 +319,22 @@ def mock_model_for_presenter() -> Mock:
     # Default return values
     model.get_instrument_identification.return_value = (None, None)
 
-    # Plan type compatibility - mirrors real EquipmentModel.is_plan_type_compatible()
-    def is_plan_type_compatible(plan_type: str) -> bool:
+    # Plan type compatibility - mirrors real EquipmentModel.is_instrument_type_compatible()
+    def is_instrument_type_compatible(instrument_type: str) -> bool:
         from visa_vulture.model.test_plan import (
-            PLAN_TYPE_POWER_SUPPLY,
-            PLAN_TYPE_SIGNAL_GENERATOR,
+            INSTRUMENT_TYPE_POWER_SUPPLY,
+            INSTRUMENT_TYPE_SIGNAL_GENERATOR,
         )
 
         if model._instrument_type is None:
             return True
-        if plan_type == PLAN_TYPE_POWER_SUPPLY:
+        if instrument_type == INSTRUMENT_TYPE_POWER_SUPPLY:
             return model._instrument_type == "power_supply"
-        if plan_type == PLAN_TYPE_SIGNAL_GENERATOR:
+        if instrument_type == INSTRUMENT_TYPE_SIGNAL_GENERATOR:
             return model._instrument_type == "signal_generator"
         return True
 
-    model.is_plan_type_compatible.side_effect = is_plan_type_compatible
+    model.is_instrument_type_compatible.side_effect = is_instrument_type_compatible
 
     return model
 

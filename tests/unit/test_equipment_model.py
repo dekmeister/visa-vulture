@@ -8,8 +8,8 @@ import pytest
 from visa_vulture.model.equipment import EquipmentModel
 from visa_vulture.model.state_machine import EquipmentState
 from visa_vulture.model.test_plan import (
-    PLAN_TYPE_POWER_SUPPLY,
-    PLAN_TYPE_SIGNAL_GENERATOR,
+    INSTRUMENT_TYPE_POWER_SUPPLY,
+    INSTRUMENT_TYPE_SIGNAL_GENERATOR,
     PowerSupplyTestStep,
     SignalGeneratorTestStep,
     TestPlan,
@@ -67,7 +67,7 @@ def _make_zero_duration_power_supply_plan() -> TestPlan:
     """Create a power supply plan with zero-duration steps for fast tests."""
     return TestPlan(
         name="Fast PS Plan",
-        plan_type=PLAN_TYPE_POWER_SUPPLY,
+        instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
         steps=[
             PowerSupplyTestStep(
                 step_number=1, duration_seconds=0.0, voltage=5.0, current=1.0
@@ -80,7 +80,7 @@ def _make_zero_duration_signal_generator_plan() -> TestPlan:
     """Create a signal generator plan with zero-duration steps for fast tests."""
     return TestPlan(
         name="Fast SG Plan",
-        plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+        instrument_type=INSTRUMENT_TYPE_SIGNAL_GENERATOR,
         steps=[
             SignalGeneratorTestStep(
                 step_number=1, duration_seconds=0.0, frequency=1e6, power=0
@@ -164,7 +164,7 @@ class TestEquipmentModelTestPlan:
         """Invalid test plan raises ValueError."""
         invalid_plan = TestPlan(
             name="",  # Empty name is invalid
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[PowerSupplyTestStep(step_number=1, duration_seconds=1.0)],
         )
 
@@ -186,9 +186,9 @@ class TestPlanTypeCompatibility:
         self, equipment_model: EquipmentModel
     ) -> None:
         """Any plan type is compatible when no instrument is connected."""
-        assert equipment_model.is_plan_type_compatible(PLAN_TYPE_POWER_SUPPLY) is True
+        assert equipment_model.is_instrument_type_compatible(INSTRUMENT_TYPE_POWER_SUPPLY) is True
         assert (
-            equipment_model.is_plan_type_compatible(PLAN_TYPE_SIGNAL_GENERATOR) is True
+            equipment_model.is_instrument_type_compatible(INSTRUMENT_TYPE_SIGNAL_GENERATOR) is True
         )
 
     def test_compatible_ps_plan_with_ps_instrument(
@@ -198,7 +198,7 @@ class TestPlanTypeCompatibility:
         equipment_model.connect_instrument(
             "TCPIP::192.168.1.100::INSTR", "power_supply"
         )
-        assert equipment_model.is_plan_type_compatible(PLAN_TYPE_POWER_SUPPLY) is True
+        assert equipment_model.is_instrument_type_compatible(INSTRUMENT_TYPE_POWER_SUPPLY) is True
 
     def test_compatible_sg_plan_with_sg_instrument(
         self, equipment_model: EquipmentModel, mock_visa_connection: Mock
@@ -208,7 +208,7 @@ class TestPlanTypeCompatibility:
             "TCPIP::192.168.1.100::INSTR", "signal_generator"
         )
         assert (
-            equipment_model.is_plan_type_compatible(PLAN_TYPE_SIGNAL_GENERATOR) is True
+            equipment_model.is_instrument_type_compatible(INSTRUMENT_TYPE_SIGNAL_GENERATOR) is True
         )
 
     def test_incompatible_ps_plan_with_sg_instrument(
@@ -218,7 +218,7 @@ class TestPlanTypeCompatibility:
         equipment_model.connect_instrument(
             "TCPIP::192.168.1.100::INSTR", "signal_generator"
         )
-        assert equipment_model.is_plan_type_compatible(PLAN_TYPE_POWER_SUPPLY) is False
+        assert equipment_model.is_instrument_type_compatible(INSTRUMENT_TYPE_POWER_SUPPLY) is False
 
     def test_incompatible_sg_plan_with_ps_instrument(
         self, equipment_model: EquipmentModel, mock_visa_connection: Mock
@@ -228,7 +228,7 @@ class TestPlanTypeCompatibility:
             "TCPIP::192.168.1.100::INSTR", "power_supply"
         )
         assert (
-            equipment_model.is_plan_type_compatible(PLAN_TYPE_SIGNAL_GENERATOR) is False
+            equipment_model.is_instrument_type_compatible(INSTRUMENT_TYPE_SIGNAL_GENERATOR) is False
         )
 
     def test_run_test_raises_on_incompatible_types(
@@ -240,7 +240,7 @@ class TestPlanTypeCompatibility:
         )
         ps_plan = TestPlan(
             name="PS Plan",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[
                 PowerSupplyTestStep(
                     step_number=1, duration_seconds=1.0, voltage=5.0, current=1.0
@@ -406,7 +406,7 @@ class TestEquipmentModelRunTest:
         """run_test() without start_step executes all steps from step 1."""
         plan = TestPlan(
             name="Test",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[
                 PowerSupplyTestStep(
                     step_number=1, duration_seconds=0.0, voltage=5.0, current=1.0
@@ -506,7 +506,7 @@ class TestEquipmentModelRunTest:
         _force_model_state(model, EquipmentState.RUNNING)
         model._test_plan = TestPlan(
             name="Test",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[
                 PowerSupplyTestStep(
                     step_number=1, duration_seconds=0.0, voltage=5.0, current=1.0
@@ -545,7 +545,7 @@ class TestEquipmentModelRunTest:
         _force_model_state(model, EquipmentState.RUNNING)
         model._test_plan = TestPlan(
             name="Test",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[
                 PowerSupplyTestStep(
                     step_number=1, duration_seconds=0.0, voltage=5.0, current=1.0
@@ -1038,7 +1038,7 @@ class TestOutputDisabledOnStopAndPause:
         # Plan with duration to enter interruptible sleep
         plan = TestPlan(
             name="PS Plan with duration",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[
                 PowerSupplyTestStep(
                     step_number=1, duration_seconds=10.0, voltage=5.0, current=1.0
@@ -1115,7 +1115,7 @@ class TestOutputDisabledOnStopAndPause:
         # Plan with duration to enter interruptible sleep
         plan = TestPlan(
             name="SG Plan with duration",
-            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+            instrument_type=INSTRUMENT_TYPE_SIGNAL_GENERATOR,
             steps=[
                 SignalGeneratorTestStep(
                     step_number=1, duration_seconds=10.0, frequency=1e6, power=0
@@ -1156,7 +1156,7 @@ class TestOutputDisabledOnStopAndPause:
         # Create a plan with AM modulation configured
         plan_with_modulation = TestPlan(
             name="Modulated SG Plan",
-            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+            instrument_type=INSTRUMENT_TYPE_SIGNAL_GENERATOR,
             steps=[
                 SignalGeneratorTestStep(
                     step_number=1,
@@ -1200,7 +1200,7 @@ class TestOutputDisabledOnStopAndPause:
         # Create a plan with FM modulation configured
         plan_with_modulation = TestPlan(
             name="Modulated SG Plan",
-            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+            instrument_type=INSTRUMENT_TYPE_SIGNAL_GENERATOR,
             steps=[
                 SignalGeneratorTestStep(
                     step_number=1,
@@ -1330,7 +1330,7 @@ class TestPowerSupplyExecutionPath:
         """Each step's voltage and current are sent to the instrument in order."""
         plan = TestPlan(
             name="Multi-step PS",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[
                 PowerSupplyTestStep(
                     step_number=1, duration_seconds=0.0, voltage=1.0, current=0.1
@@ -1374,7 +1374,7 @@ class TestSignalGeneratorExecutionPath:
         """Each step's frequency and power are sent to the instrument in order."""
         plan = TestPlan(
             name="Multi-step SG",
-            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+            instrument_type=INSTRUMENT_TYPE_SIGNAL_GENERATOR,
             steps=[
                 SignalGeneratorTestStep(
                     step_number=1, duration_seconds=0.0, frequency=1e6, power=0.0
@@ -1408,7 +1408,7 @@ class TestSignalGeneratorExecutionPath:
         """Without modulation_config, no modulation methods are called."""
         plan = TestPlan(
             name="SG no mod",
-            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+            instrument_type=INSTRUMENT_TYPE_SIGNAL_GENERATOR,
             steps=[
                 SignalGeneratorTestStep(
                     step_number=1, duration_seconds=0.0, frequency=1e6, power=0.0
@@ -1436,7 +1436,7 @@ class TestSignalGeneratorExecutionPath:
         )
         plan = TestPlan(
             name="SG with AM",
-            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+            instrument_type=INSTRUMENT_TYPE_SIGNAL_GENERATOR,
             steps=[
                 SignalGeneratorTestStep(
                     step_number=1,
@@ -1481,7 +1481,7 @@ class TestSignalGeneratorExecutionPath:
         # Step 2 skipped (same as step 1), step 4 skipped (same as step 3)
         plan = TestPlan(
             name="SG toggle test",
-            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+            instrument_type=INSTRUMENT_TYPE_SIGNAL_GENERATOR,
             steps=[
                 SignalGeneratorTestStep(
                     step_number=1,
@@ -1538,7 +1538,7 @@ class TestSignalGeneratorExecutionPath:
         # Pattern: True, False, True — every step changes
         plan = TestPlan(
             name="SG alternating",
-            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+            instrument_type=INSTRUMENT_TYPE_SIGNAL_GENERATOR,
             steps=[
                 SignalGeneratorTestStep(
                     step_number=1,
@@ -1589,7 +1589,7 @@ class TestInterruptibleSleep:
         """Setting _pause_requested during a timed sleep transitions to PAUSED."""
         plan = TestPlan(
             name="Timed PS",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[
                 PowerSupplyTestStep(
                     step_number=1, duration_seconds=2.0, voltage=5.0, current=1.0
@@ -1633,7 +1633,7 @@ class TestInterruptibleSleep:
         """Setting _stop_requested while paused during sleep exits the loop."""
         plan = TestPlan(
             name="Timed PS",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[
                 PowerSupplyTestStep(
                     step_number=1, duration_seconds=5.0, voltage=5.0, current=1.0
@@ -1678,7 +1678,7 @@ class TestInterruptibleSleep:
         """_time_remaining_in_step is set when paused and cleared after resume."""
         plan = TestPlan(
             name="Timed PS",
-            plan_type=PLAN_TYPE_POWER_SUPPLY,
+            instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY,
             steps=[
                 PowerSupplyTestStep(
                     step_number=1, duration_seconds=2.0, voltage=5.0, current=1.0
@@ -1911,13 +1911,13 @@ class TestIsConnectedSafetyGuard:
 
 
 class TestPlanTypeCompatibilityUnknownType:
-    """Tests for is_plan_type_compatible with unknown plan types."""
+    """Tests for is_instrument_type_compatible with unknown plan types."""
 
     def test_unknown_plan_type_compatible_when_no_instrument(
         self, equipment_model: EquipmentModel
     ) -> None:
         """Unknown plan type is compatible when no instrument is connected."""
-        assert equipment_model.is_plan_type_compatible("some_future_type") is True
+        assert equipment_model.is_instrument_type_compatible("some_future_type") is True
 
     def test_unknown_plan_type_compatible_with_connected_instrument(
         self, equipment_model: EquipmentModel, mock_visa_connection: Mock
@@ -1926,4 +1926,4 @@ class TestPlanTypeCompatibilityUnknownType:
         equipment_model.connect_instrument(
             "TCPIP::192.168.1.100::INSTR", "power_supply"
         )
-        assert equipment_model.is_plan_type_compatible("some_future_type") is True
+        assert equipment_model.is_instrument_type_compatible("some_future_type") is True

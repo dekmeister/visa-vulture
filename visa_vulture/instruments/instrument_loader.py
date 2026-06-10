@@ -27,7 +27,7 @@ class InstrumentEntry:
 
     cls: type[BaseInstrument]
     display_name: str
-    base_type: str  # "power_supply" or "signal_generator"
+    instrument_type: str  # "power_supply" or "signal_generator"
 
 
 def scan_custom_instruments(
@@ -91,8 +91,8 @@ def scan_custom_instruments(
                 continue
 
             # Determine base type
-            base_type = _get_base_type(obj)
-            if base_type is None:
+            instrument_type = _get_base_type(obj)
+            if instrument_type is None:
                 logger.warning(
                     "Custom instrument '%s' in '%s' does not extend "
                     "PowerSupply or SignalGenerator. Skipping.",
@@ -104,13 +104,13 @@ def scan_custom_instruments(
             entry = InstrumentEntry(
                 cls=obj,
                 display_name=display_name,
-                base_type=base_type,
+                instrument_type=instrument_type,
             )
             registry[display_name] = entry
             logger.info(
                 "Discovered custom instrument: %s (%s) from %s",
                 display_name,
-                base_type,
+                instrument_type,
                 py_file.name,
             )
 
@@ -133,12 +133,12 @@ def build_instrument_registry(
         "Power Supply": InstrumentEntry(
             cls=PowerSupply,
             display_name="Power Supply",
-            base_type="power_supply",
+            instrument_type="power_supply",
         ),
         "Signal Generator": InstrumentEntry(
             cls=SignalGenerator,
             display_name="Signal Generator",
-            base_type="signal_generator",
+            instrument_type="signal_generator",
         ),
     }
 

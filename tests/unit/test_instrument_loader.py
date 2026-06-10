@@ -85,15 +85,15 @@ class TestBuildInstrumentRegistry:
 
     def test_built_in_base_types(self):
         registry = build_instrument_registry()
-        assert registry["Power Supply"].base_type == "power_supply"
-        assert registry["Signal Generator"].base_type == "signal_generator"
+        assert registry["Power Supply"].instrument_type == "power_supply"
+        assert registry["Signal Generator"].instrument_type == "signal_generator"
 
     def test_custom_instruments_merged(self):
         custom = {
             "Fake Signal Gen": InstrumentEntry(
                 cls=FakeSignalGen,
                 display_name="Fake Signal Gen",
-                base_type="signal_generator",
+                instrument_type="signal_generator",
             )
         }
         registry = build_instrument_registry(custom)
@@ -134,7 +134,7 @@ class TestCreateInstrument:
             "Fake Signal Gen": InstrumentEntry(
                 cls=FakeSignalGen,
                 display_name="Fake Signal Gen",
-                base_type="signal_generator",
+                instrument_type="signal_generator",
             )
         }
         registry = build_instrument_registry(custom)
@@ -150,7 +150,7 @@ class TestCreateInstrument:
             "Fake Signal Gen": InstrumentEntry(
                 cls=FakeSignalGen,
                 display_name="Fake Signal Gen",
-                base_type="signal_generator",
+                instrument_type="signal_generator",
             )
         }
         registry = build_instrument_registry(custom)
@@ -194,7 +194,7 @@ class TestScanCustomInstruments:
 
         result = scan_custom_instruments(instruments_dir)
         assert "My Sig Gen" in result
-        assert result["My Sig Gen"].base_type == "signal_generator"
+        assert result["My Sig Gen"].instrument_type == "signal_generator"
         assert result["My Sig Gen"].display_name == "My Sig Gen"
 
     def test_discovers_power_supply_extension(self, tmp_path):
@@ -210,7 +210,7 @@ class TestScanCustomInstruments:
 
         result = scan_custom_instruments(instruments_dir)
         assert "My Power Supply" in result
-        assert result["My Power Supply"].base_type == "power_supply"
+        assert result["My Power Supply"].instrument_type == "power_supply"
 
     def test_skips_class_without_display_name(self, tmp_path):
         instruments_dir = tmp_path / "instruments"

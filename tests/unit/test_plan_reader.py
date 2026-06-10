@@ -8,8 +8,8 @@ import pytest
 from visa_vulture.config.schema import SignalGeneratorSoftLimits, ValidationLimits
 from visa_vulture.file_io.test_plan_reader import TestPlanResult, read_test_plan
 from visa_vulture.model.test_plan import (
-    PLAN_TYPE_POWER_SUPPLY,
-    PLAN_TYPE_SIGNAL_GENERATOR,
+    INSTRUMENT_TYPE_POWER_SUPPLY,
+    INSTRUMENT_TYPE_SIGNAL_GENERATOR,
     PowerSupplyTestStep,
     SignalGeneratorTestStep,
     ModulationType,
@@ -92,7 +92,7 @@ class TestReadPowerSupplyPlan:
 
         assert result.errors == []
         assert result.plan is not None
-        assert result.plan.plan_type == PLAN_TYPE_POWER_SUPPLY
+        assert result.plan.instrument_type == INSTRUMENT_TYPE_POWER_SUPPLY
         assert result.plan.step_count == 3
         assert isinstance(result.plan.steps[0], PowerSupplyTestStep)
 
@@ -131,7 +131,7 @@ class TestReadSignalGeneratorPlan:
 
         assert result.errors == []
         assert result.plan is not None
-        assert result.plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR
+        assert result.plan.instrument_type == INSTRUMENT_TYPE_SIGNAL_GENERATOR
         assert result.plan.step_count == 3
         assert isinstance(result.plan.steps[0], SignalGeneratorTestStep)
 
@@ -234,7 +234,7 @@ class TestReadTestPlanTypeDetection:
 
         assert result.errors == []
         assert result.plan is not None
-        assert result.plan.plan_type == PLAN_TYPE_SIGNAL_GENERATOR
+        assert result.plan.instrument_type == INSTRUMENT_TYPE_SIGNAL_GENERATOR
 
     def test_missing_metadata_returns_error(self, tmp_path: Path) -> None:
         """CSV with no metadata comment lines returns error."""
@@ -287,7 +287,7 @@ class TestReadTestPlanTypeDetection:
 
         assert result.errors == []
         assert result.plan is not None
-        assert result.plan.plan_type == PLAN_TYPE_POWER_SUPPLY
+        assert result.plan.instrument_type == INSTRUMENT_TYPE_POWER_SUPPLY
 
 
 class TestReadTestPlanColumnNormalization:

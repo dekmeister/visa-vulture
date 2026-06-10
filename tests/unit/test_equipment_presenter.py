@@ -5,8 +5,8 @@ from unittest.mock import Mock, patch
 import pytest
 
 from visa_vulture.model import (
-    PLAN_TYPE_POWER_SUPPLY,
-    PLAN_TYPE_SIGNAL_GENERATOR,
+    INSTRUMENT_TYPE_POWER_SUPPLY,
+    INSTRUMENT_TYPE_SIGNAL_GENERATOR,
     EquipmentState,
     PowerSupplyTestStep,
     SignalGeneratorTestStep,
@@ -1435,7 +1435,7 @@ class TestRunWithInstrumentMismatch:
 
         sg_plan = TestPlan(
             name="SG Plan",
-            plan_type=PLAN_TYPE_SIGNAL_GENERATOR,
+            instrument_type=INSTRUMENT_TYPE_SIGNAL_GENERATOR,
             steps=[
                 SignalGeneratorTestStep(
                     step_number=1, duration_seconds=1.0, frequency=1e6, power=0.0
@@ -1547,12 +1547,12 @@ class TestConnectWithCustomInstrument:
 
         registry = {
             "Power Supply": InstrumentEntry(
-                cls=PowerSupply, display_name="Power Supply", base_type="power_supply"
+                cls=PowerSupply, display_name="Power Supply", instrument_type="power_supply"
             ),
             "My Custom PS": InstrumentEntry(
                 cls=CustomPowerSupply,
                 display_name="My Custom PS",
-                base_type="power_supply",
+                instrument_type="power_supply",
             ),
         }
 
@@ -1596,7 +1596,7 @@ class TestConnectWithCustomInstrument:
 
         registry = {
             "Power Supply": InstrumentEntry(
-                cls=PowerSupply, display_name="Power Supply", base_type="power_supply"
+                cls=PowerSupply, display_name="Power Supply", instrument_type="power_supply"
             ),
         }
 
