@@ -8,6 +8,7 @@ from .instrument_types import (
     StepContext,
     StepExecutor,
     MetadataParser,
+    validate_soft_limit_config,
 )
 from .test_plan import (
     TestPlan,
@@ -30,6 +31,7 @@ __all__ = [
     "StepContext",
     "StepExecutor",
     "MetadataParser",
+    "validate_soft_limit_config",
     "TestPlan",
     "TestStep",
     "PowerSupplyTestStep",

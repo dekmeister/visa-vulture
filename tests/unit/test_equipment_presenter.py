@@ -1385,19 +1385,14 @@ class TestLoadTestPlanSoftLimitWarnings:
         test_plan_fixtures_path,
     ) -> None:
         """Loading a plan that exceeds soft limits shows a warning dialog."""
-        from visa_vulture.config import (
-            CommonSoftLimits,
-            PowerSupplySoftLimits,
-            SignalGeneratorSoftLimits,
-            ValidationLimits,
-        )
+        from visa_vulture.config import ValidationLimits
 
         # Set soft limits that the valid_power_supply.csv plan will exceed
         # (plan has voltage=10.0V, current=2.0A)
         limits = ValidationLimits(
-            signal_generator=SignalGeneratorSoftLimits(),
-            power_supply=PowerSupplySoftLimits(voltage_max_v=3.0, current_max_a=0.5),
-            common=CommonSoftLimits(),
+            instrument_limits={
+                "power_supply": {"voltage_max_v": 3.0, "current_max_a": 0.5}
+            }
         )
 
         with patch(

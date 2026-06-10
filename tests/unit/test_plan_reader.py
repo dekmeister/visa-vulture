@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from visa_vulture.config.schema import SignalGeneratorSoftLimits, ValidationLimits
+from visa_vulture.config.schema import ValidationLimits
 from visa_vulture.file_io.test_plan_reader import TestPlanResult, read_test_plan
 from visa_vulture.model.test_plan import (
     INSTRUMENT_TYPE_POWER_SUPPLY,
@@ -915,8 +915,9 @@ class TestSoftLimitValidation:
 
     def test_custom_soft_limits_respected(self, tmp_path: Path) -> None:
         """Custom soft limits from config are used."""
-        custom_sg_limits = SignalGeneratorSoftLimits(power_max_dbm=10.0)
-        limits = ValidationLimits(signal_generator=custom_sg_limits)
+        limits = ValidationLimits(
+            instrument_limits={"signal_generator": {"power_max_dbm": 10.0}}
+        )
         result = _parse_plan_csv(tmp_path, _make_sg_csv(power=15), soft_limits=limits)
 
         assert result.errors == []

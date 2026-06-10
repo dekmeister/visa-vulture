@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..config.schema import ValidationLimits
+from ..model.instrument_types import INSTRUMENT_TYPE_REGISTRY
 from ..model.test_plan import (
     TestPlan,
     PowerSupplyTestStep,
@@ -643,6 +644,8 @@ def _validate_soft_limits(
     """
     warnings: list[str] = []
 
+    descriptor = INSTRUMENT_TYPE_REGISTRY.get(plan.instrument_type)
+
     for step in plan.steps:
         if step.duration_seconds > limits.common.duration_max_s:
             _check_soft_limit(
@@ -655,70 +658,44 @@ def _validate_soft_limits(
                 "exceeds typical maximum",
             )
 
-        if isinstance(step, SignalGeneratorTestStep):
-            if step.power < limits.signal_generator.power_min_dbm:
-                _check_soft_limit(
-                    warnings,
-                    step.step_number,
-                    "power",
-                    step.power,
-                    limits.signal_generator.power_min_dbm,
-                    "dBm",
-                    "below typical noise floor",
-                    "below",
-                )
-            if step.power > limits.signal_generator.power_max_dbm:
-                _check_soft_limit(
-                    warnings,
-                    step.step_number,
-                    "power",
-                    step.power,
-                    limits.signal_generator.power_max_dbm,
-                    "dBm",
-                    "exceeds typical equipment limits",
-                )
-            if step.frequency < limits.signal_generator.frequency_min_hz:
-                _check_soft_limit(
-                    warnings,
-                    step.step_number,
-                    "frequency",
-                    step.frequency,
-                    limits.signal_generator.frequency_min_hz,
-                    "Hz",
-                    "below typical minimum",
-                    "below",
-                )
-            if step.frequency > limits.signal_generator.frequency_max_hz:
-                _check_soft_limit(
-                    warnings,
-                    step.step_number,
-                    "frequency",
-                    step.frequency,
-                    limits.signal_generator.frequency_max_hz,
-                    "Hz",
-                    "exceeds typical equipment limits",
-                )
+        if descriptor is None:
+            continue
 
-        elif isinstance(step, PowerSupplyTestStep):
-            if step.voltage > limits.power_supply.voltage_max_v:
-                _check_soft_limit(
-                    warnings,
-                    step.step_number,
-                    "voltage",
-                    step.voltage,
-                    limits.power_supply.voltage_max_v,
-                    "V",
-                    "exceeds typical lab supply limits",
-                )
-            if step.current > limits.power_supply.current_max_a:
-                _check_soft_limit(
-                    warnings,
-                    step.step_number,
-                    "current",
-                    step.current,
-                    limits.power_supply.current_max_a,
-                    "A",
-                    "exceeds typical lab supply limits",
-                )
+        for spec in descriptor.fields:
+            soft = spec.soft_limits
+            if soft is None:
+                continue
+            value = getattr(step, spec.name)
+
+            if soft.min_key is not None:
+                minimum = limits.get_limit(plan.instrument_type, soft.min_key)
+                if minimum is None:
+                    minimum = soft.min_default
+                if minimum is not None and value < minimum:
+                    _check_soft_limit(
+                        warnings,
+                        step.step_number,
+                        spec.name,
+                        value,
+                        minimum,
+                        spec.unit,
+                        soft.below_message,
+                        "below",
+                    )
+
+            if soft.max_key is not None:
+                maximum = limits.get_limit(plan.instrument_type, soft.max_key)
+                if maximum is None:
+                    maximum = soft.max_default
+                if maximum is not None and value > maximum:
+                    _check_soft_limit(
+                        warnings,
+                        step.step_number,
+                        spec.name,
+                        value,
+                        maximum,
+                        spec.unit,
+                        soft.above_message,
+                    )
 
     return warnings

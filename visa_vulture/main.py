@@ -14,7 +14,7 @@ from .instruments import (
     build_instrument_registry,
 )
 from .logging_config import setup_logging
-from .model import EquipmentModel
+from .model import EquipmentModel, validate_soft_limit_config
 from .presenter import EquipmentPresenter
 from .view import DisclaimerDialog, MainWindow
 
@@ -95,6 +95,17 @@ def main() -> int:
 
     logger.info("Starting VISA Vulture")
     logger.info("Simulation mode: %s", config.simulation_mode)
+
+    # Validate configured soft limits against the instrument-type registry.
+    # Unknown sections/keys warn (e.g. typos); constraint violations block launch.
+    limit_errors, limit_warnings = validate_soft_limit_config(config.validation_limits)
+    for warning in limit_warnings:
+        logger.warning("Configuration warning: %s", warning)
+    if limit_errors:
+        print("Configuration errors:", file=sys.stderr)
+        for error in limit_errors:
+            print(f"  - {error}", file=sys.stderr)
+        return 1
 
     # Scan for custom instruments in the root instruments/ directory
     custom_instruments = scan_custom_instruments(Path.cwd() / "instruments")

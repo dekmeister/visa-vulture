@@ -5,30 +5,6 @@ from typing import Any
 
 
 @dataclass
-class SignalGeneratorSoftLimits:
-    """Soft validation limits for signal generator values.
-
-    Values outside these limits generate warnings but allow progression.
-    """
-
-    power_min_dbm: float = -100.0  # Below typical noise floor
-    power_max_dbm: float = 30.0  # Above typical equipment limits
-    frequency_min_hz: float = 1.0  # Unusually low frequency
-    frequency_max_hz: float = 50e9  # 50 GHz - above typical equipment
-
-
-@dataclass
-class PowerSupplySoftLimits:
-    """Soft validation limits for power supply values.
-
-    Values outside these limits generate warnings but allow progression.
-    """
-
-    voltage_max_v: float = 100.0  # Above typical lab supply
-    current_max_a: float = 50.0  # Above typical lab supply
-
-
-@dataclass
 class CommonSoftLimits:
     """Soft validation limits common to all instruments.
 
@@ -40,13 +16,21 @@ class CommonSoftLimits:
 
 @dataclass
 class ValidationLimits:
-    """Container for all soft validation limits."""
+    """Container for all soft validation limits.
 
-    signal_generator: SignalGeneratorSoftLimits = field(
-        default_factory=SignalGeneratorSoftLimits
-    )
-    power_supply: PowerSupplySoftLimits = field(default_factory=PowerSupplySoftLimits)
+    ``common`` is typed (shared by every instrument). ``instrument_limits`` holds
+    per-instrument-type sections generically: ``{instrument_type: {json_key:
+    value}}``. Per-key constraints and default thresholds live in the model's
+    instrument-type descriptors, not here — the config package stays a leaf and
+    does not import the model.
+    """
+
     common: CommonSoftLimits = field(default_factory=CommonSoftLimits)
+    instrument_limits: dict[str, dict[str, float]] = field(default_factory=dict)
+
+    def get_limit(self, section: str, key: str) -> float | None:
+        """Return a config-supplied limit value, or None if not provided."""
+        return self.instrument_limits.get(section, {}).get(key)
 
 
 @dataclass
@@ -219,7 +203,12 @@ def _validate_validation_limits(
     limits_dict: dict[str, Any], errors: list[str]
 ) -> ValidationLimits:
     """
-    Validate and parse validation_limits configuration section.
+    Validate and parse the validation_limits configuration section.
+
+    ``common`` is validated as a typed section. Every other section is parsed
+    generically: each value must be numeric (per-key constraints and defaults
+    live in the model's descriptors and are checked at startup, not here). The
+    config package stays a leaf and does not import the model.
 
     Args:
         limits_dict: The validation_limits section from config
@@ -228,83 +217,30 @@ def _validate_validation_limits(
     Returns:
         ValidationLimits with parsed values or defaults
     """
-    # Parse signal generator limits
-    sg_dict = limits_dict.get("signal_generator", {})
-    sg_limits = _validate_signal_generator_limits(sg_dict, errors)
-
-    # Parse power supply limits
-    ps_dict = limits_dict.get("power_supply", {})
-    ps_limits = _validate_power_supply_limits(ps_dict, errors)
-
-    # Parse common limits
+    # Parse common limits (typed - shared by all instruments).
     common_dict = limits_dict.get("common", {})
     common_limits = _validate_common_limits(common_dict, errors)
 
-    return ValidationLimits(
-        signal_generator=sg_limits,
-        power_supply=ps_limits,
-        common=common_limits,
-    )
+    # Parse every other section generically.
+    instrument_limits: dict[str, dict[str, float]] = {}
+    for section, section_dict in limits_dict.items():
+        if section == "common":
+            continue
+        prefix = f"validation_limits.{section}"
+        if not isinstance(section_dict, dict):
+            errors.append(f"{prefix} must be an object")
+            continue
+        parsed: dict[str, float] = {}
+        for key, value in section_dict.items():
+            if not isinstance(value, (int, float)):
+                errors.append(
+                    f"{prefix}.{key} must be numeric, got {type(value).__name__}"
+                )
+                continue
+            parsed[key] = float(value)
+        instrument_limits[section] = parsed
 
-
-def _validate_signal_generator_limits(
-    sg_dict: dict[str, Any], errors: list[str]
-) -> SignalGeneratorSoftLimits:
-    """Validate signal generator soft limits."""
-    defaults = SignalGeneratorSoftLimits()
-    prefix = "validation_limits.signal_generator"
-
-    return SignalGeneratorSoftLimits(
-        power_min_dbm=_validate_numeric_field(
-            sg_dict, "power_min_dbm", defaults.power_min_dbm, errors, prefix
-        ),
-        power_max_dbm=_validate_numeric_field(
-            sg_dict, "power_max_dbm", defaults.power_max_dbm, errors, prefix
-        ),
-        frequency_min_hz=_validate_numeric_field(
-            sg_dict,
-            "frequency_min_hz",
-            defaults.frequency_min_hz,
-            errors,
-            prefix,
-            min_value=0,
-        ),
-        frequency_max_hz=_validate_numeric_field(
-            sg_dict,
-            "frequency_max_hz",
-            defaults.frequency_max_hz,
-            errors,
-            prefix,
-            min_value=0,
-        ),
-    )
-
-
-def _validate_power_supply_limits(
-    ps_dict: dict[str, Any], errors: list[str]
-) -> PowerSupplySoftLimits:
-    """Validate power supply soft limits."""
-    defaults = PowerSupplySoftLimits()
-    prefix = "validation_limits.power_supply"
-
-    return PowerSupplySoftLimits(
-        voltage_max_v=_validate_numeric_field(
-            ps_dict,
-            "voltage_max_v",
-            defaults.voltage_max_v,
-            errors,
-            prefix,
-            min_value=0,
-        ),
-        current_max_a=_validate_numeric_field(
-            ps_dict,
-            "current_max_a",
-            defaults.current_max_a,
-            errors,
-            prefix,
-            min_value=0,
-        ),
-    )
+    return ValidationLimits(common=common_limits, instrument_limits=instrument_limits)
 
 
 def _validate_common_limits(

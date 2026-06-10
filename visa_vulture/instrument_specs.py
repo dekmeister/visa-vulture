@@ -22,7 +22,13 @@ StepDetailsFormatter = Callable[[Any], str]  # step -> Start-from dialog text
 
 @dataclass(frozen=True)
 class SoftLimitSpec:
-    """Soft (warning-only) limit configuration for a single step field."""
+    """Soft (warning-only) limit configuration for a single step field.
+
+    ``min_default``/``max_default`` are the fallback thresholds used when the
+    config supplies no override. ``config_min`` is the constraint applied to a
+    *config-supplied* limit value at startup (e.g. frequency limits must be
+    ``>= 0``; power limits have no such constraint because dBm can be negative).
+    """
 
     min_key: str | None = None  # JSON key, e.g. "power_min_dbm"
     max_key: str | None = None  # JSON key, e.g. "voltage_max_v"
@@ -30,6 +36,8 @@ class SoftLimitSpec:
     max_default: float | None = None
     below_message: str = "below typical minimum"
     above_message: str = "exceeds typical equipment limits"
+    config_min: float | None = None  # lower bound for config-supplied limit values
+    config_min_exclusive: bool = False
 
 
 @dataclass(frozen=True)

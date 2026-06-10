@@ -16,7 +16,7 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, fields as dataclass_fields
 from types import MappingProxyType
-from typing import Any, Callable, Mapping, Protocol, cast
+from typing import TYPE_CHECKING, Any, Callable, Mapping, Protocol, cast
 
 from ..instruments import BaseInstrument, PowerSupply, SignalGenerator
 from ..instrument_specs import (
@@ -35,6 +35,9 @@ from .test_plan import (
     TestPlan,
     TestStep,
 )
+
+if TYPE_CHECKING:
+    from ..config.schema import ValidationLimits
 
 logger = logging.getLogger(__name__)
 
@@ -283,6 +286,7 @@ _POWER_SUPPLY_FIELDS: tuple[StepFieldSpec, ...] = (
             max_key="voltage_max_v",
             max_default=100.0,
             above_message="exceeds typical lab supply limits",
+            config_min=0.0,
         ),
         axis="primary",
     ),
@@ -295,6 +299,7 @@ _POWER_SUPPLY_FIELDS: tuple[StepFieldSpec, ...] = (
             max_key="current_max_a",
             max_default=50.0,
             above_message="exceeds typical lab supply limits",
+            config_min=0.0,
         ),
         axis="secondary",
     ),
@@ -313,6 +318,7 @@ _SIGNAL_GENERATOR_FIELDS: tuple[StepFieldSpec, ...] = (
             max_default=50e9,
             below_message="below typical minimum",
             above_message="exceeds typical equipment limits",
+            config_min=0.0,
         ),
         axis="primary",
     ),
@@ -392,3 +398,65 @@ for _descriptor in _BUILTIN_DESCRIPTORS:
 INSTRUMENT_TYPE_REGISTRY: Mapping[str, InstrumentTypeDescriptor] = MappingProxyType(
     {d.instrument_type: d for d in _BUILTIN_DESCRIPTORS}
 )
+
+
+def validate_soft_limit_config(
+    limits: "ValidationLimits",
+    registry: Mapping[str, InstrumentTypeDescriptor] = INSTRUMENT_TYPE_REGISTRY,
+) -> tuple[list[str], list[str]]:
+    """Validate config-supplied instrument soft limits against the registry.
+
+    The config layer only checks that limit values are numeric; per-key
+    constraints (and the recipe for which sections/keys exist) live in the
+    descriptors' ``SoftLimitSpec``s, so this registry-aware check runs at startup.
+
+    Returns ``(errors, warnings)``:
+      * errors — a config-supplied value violates its field's ``config_min``
+        constraint (e.g. a negative frequency limit). These should block launch.
+      * warnings — a section or key matching no descriptor field (e.g. the typo
+        ``frequency_max_hzz``). These are logged but do not block launch; today
+        such typos are silently ignored, which hides mistakes.
+    """
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    # Build {section: {json_key: SoftLimitSpec}} from the registry.
+    known: dict[str, dict[str, SoftLimitSpec]] = {}
+    for instrument_type, descriptor in registry.items():
+        keys: dict[str, SoftLimitSpec] = {}
+        for fspec in descriptor.fields:
+            soft = fspec.soft_limits
+            if soft is None:
+                continue
+            if soft.min_key is not None:
+                keys[soft.min_key] = soft
+            if soft.max_key is not None:
+                keys[soft.max_key] = soft
+        known[instrument_type] = keys
+
+    for section, values in limits.instrument_limits.items():
+        section_keys = known.get(section)
+        if section_keys is None:
+            warnings.append(f"Unknown validation_limits section '{section}'")
+            continue
+        for key, value in values.items():
+            soft = section_keys.get(key)
+            if soft is None:
+                warnings.append(
+                    f"Unknown validation_limits key 'validation_limits.{section}.{key}'"
+                )
+                continue
+            if soft.config_min is not None:
+                op = ">" if soft.config_min_exclusive else ">="
+                violated = (
+                    value <= soft.config_min
+                    if soft.config_min_exclusive
+                    else value < soft.config_min
+                )
+                if violated:
+                    errors.append(
+                        f"validation_limits.{section}.{key} must be numeric "
+                        f"{op} {soft.config_min:g}, got {value}"
+                    )
+
+    return errors, warnings
