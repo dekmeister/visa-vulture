@@ -323,7 +323,7 @@ class TestResourceManagerDialogFlow:
 
         trigger_view_callback(mock_view, "on_connect")
 
-        mock_view.show_power_supply_tab_only.assert_called_once()
+        mock_view.show_tab_only.assert_called_once_with("power_supply")
 
     def test_connect_success_shows_signal_generator_tab(
         self,
@@ -340,7 +340,7 @@ class TestResourceManagerDialogFlow:
 
         trigger_view_callback(mock_view, "on_connect")
 
-        mock_view.show_signal_generator_tab_only.assert_called_once()
+        mock_view.show_tab_only.assert_called_once_with("signal_generator")
 
     def test_connect_success_updates_view_status(
         self,
@@ -532,9 +532,9 @@ class TestLoadTestPlanHandler:
 
         mock_model_for_presenter.load_test_plan.assert_called_once()
         mock_view.set_test_plan_name.assert_called()
-        mock_view.show_power_supply_plot.assert_called_once()
-        mock_view.power_supply_plot_panel.load_test_plan_preview.assert_called_once()
-        mock_view.ps_table.load_steps.assert_called_once()
+        mock_view.show_plot.assert_called_once_with("power_supply")
+        mock_view.get_plot_panel("power_supply").load_test_plan_preview.assert_called_once()
+        mock_view.get_table("power_supply").load_steps.assert_called_once()
 
     def test_load_valid_signal_generator_plan_updates_view(
         self,
@@ -548,9 +548,9 @@ class TestLoadTestPlanHandler:
 
         trigger_view_callback(mock_view, "on_load_test_plan", file_path)
 
-        mock_view.show_signal_generator_plot.assert_called_once()
-        mock_view.signal_gen_plot_panel.load_test_plan_preview.assert_called_once()
-        mock_view.sg_table.load_steps.assert_called_once()
+        mock_view.show_plot.assert_called_once_with("signal_generator")
+        mock_view.get_plot_panel("signal_generator").load_test_plan_preview.assert_called_once()
+        mock_view.get_table("signal_generator").load_steps.assert_called_once()
 
     def test_load_invalid_plan_shows_error(
         self,
@@ -662,7 +662,7 @@ class TestRunHandler:
 
         trigger_view_callback(mock_view, "on_run")
 
-        mock_view.power_supply_plot_panel.clear_position.assert_called()
+        mock_view.get_plot_panel("power_supply").clear_position.assert_called()
 
     def test_run_clears_signal_gen_position_for_sg_plan(
         self,
@@ -678,7 +678,7 @@ class TestRunHandler:
 
         trigger_view_callback(mock_view, "on_run")
 
-        mock_view.signal_gen_plot_panel.clear_position.assert_called()
+        mock_view.get_plot_panel("signal_generator").clear_position.assert_called()
 
 
 class TestPauseHandler:
@@ -968,7 +968,7 @@ class TestProgressCallback:
         trigger_progress(mock_model_for_presenter, current=1, total=3, step=step)
         execute_scheduled_callbacks(mock_view)
 
-        mock_view.power_supply_plot_panel.set_current_position.assert_called_with(5.0)
+        mock_view.get_plot_panel("power_supply").set_current_position.assert_called_with(5.0)
 
     def test_progress_updates_signal_generator_plot_position(
         self,
@@ -988,7 +988,7 @@ class TestProgressCallback:
         trigger_progress(mock_model_for_presenter, current=1, total=2, step=step)
         execute_scheduled_callbacks(mock_view)
 
-        mock_view.signal_gen_plot_panel.set_current_position.assert_called_with(7.5)
+        mock_view.get_plot_panel("signal_generator").set_current_position.assert_called_with(7.5)
 
     def test_progress_highlights_power_supply_table_row(
         self,
@@ -1004,7 +1004,7 @@ class TestProgressCallback:
         trigger_progress(mock_model_for_presenter, current=4, total=5, step=step)
         execute_scheduled_callbacks(mock_view)
 
-        mock_view.ps_table.highlight_step.assert_called_with(4)
+        mock_view.get_table("power_supply").highlight_step.assert_called_with(4)
 
     def test_progress_highlights_signal_generator_table_row(
         self,
@@ -1020,7 +1020,7 @@ class TestProgressCallback:
         trigger_progress(mock_model_for_presenter, current=2, total=3, step=step)
         execute_scheduled_callbacks(mock_view)
 
-        mock_view.sg_table.highlight_step.assert_called_with(2)
+        mock_view.get_table("signal_generator").highlight_step.assert_called_with(2)
 
 
 class TestCompleteCallback:
@@ -1075,7 +1075,7 @@ class TestCompleteCallback:
         trigger_complete(mock_model_for_presenter, success=True, message="Done")
         execute_scheduled_callbacks(mock_view)
 
-        mock_view.power_supply_plot_panel.clear_position.assert_called()
+        mock_view.get_plot_panel("power_supply").clear_position.assert_called()
 
     def test_complete_clears_signal_generator_plot_position(
         self,
@@ -1090,7 +1090,7 @@ class TestCompleteCallback:
         trigger_complete(mock_model_for_presenter, success=True, message="Done")
         execute_scheduled_callbacks(mock_view)
 
-        mock_view.signal_gen_plot_panel.clear_position.assert_called()
+        mock_view.get_plot_panel("signal_generator").clear_position.assert_called()
 
     def test_complete_clears_power_supply_table_highlight(
         self,
@@ -1105,7 +1105,7 @@ class TestCompleteCallback:
         trigger_complete(mock_model_for_presenter, success=True, message="Done")
         execute_scheduled_callbacks(mock_view)
 
-        mock_view.ps_table.clear_highlight.assert_called()
+        mock_view.get_table("power_supply").clear_highlight.assert_called()
 
     def test_complete_clears_signal_generator_table_highlight(
         self,
@@ -1120,7 +1120,7 @@ class TestCompleteCallback:
         trigger_complete(mock_model_for_presenter, success=True, message="Done")
         execute_scheduled_callbacks(mock_view)
 
-        mock_view.sg_table.clear_highlight.assert_called()
+        mock_view.get_table("signal_generator").clear_highlight.assert_called()
 
 
 class TestInstrumentDisplay:
@@ -1591,7 +1591,10 @@ class TestConnectWithCustomInstrument:
 
         registry = {
             "Power Supply": InstrumentEntry(
-                cls=PowerSupply, display_name="Power Supply", instrument_type="power_supply"
+                cls=PowerSupply,
+                display_name="Power Supply",
+                instrument_type="power_supply",
+                is_builtin=True,
             ),
         }
 

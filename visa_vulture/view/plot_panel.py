@@ -1,7 +1,6 @@
-"""Plot panel widgets for real-time dual-axis data visualization."""
+"""Plot panel widget for real-time dual-axis data visualization."""
 
 import tkinter as tk
-from dataclasses import dataclass
 from tkinter import ttk
 from typing import Sequence
 
@@ -14,51 +13,39 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
-
-@dataclass(frozen=True)
-class AxisConfig:
-    """Configuration for a single Y-axis on a plot panel.
-
-    Attributes:
-        label: Axis label including units, e.g. "Voltage (V)"
-        color: Matplotlib color string for axis label, ticks, and line
-        legend_label: Text shown in the plot legend, e.g. "Voltage"
-        default_scale: Initial Y-axis scale, either "linear" or "log"
-        default_ylim: Y-axis limits used when clearing the plot, as (min, max)
-        lower_bound_zero: Whether the lower Y bound should be clamped to 0
-            in linear mode when auto-scaling
-    """
-
-    label: str
-    color: str
-    legend_label: str
-    default_scale: str = "linear"
-    default_ylim: tuple[float, float] = (0.0, 1.0)
-    lower_bound_zero: bool = True
-    linear_only: bool = False
+from ..instrument_specs import AxisConfig
 
 
 class PlotPanel(ttk.Frame):
     """
-    Base panel for displaying real-time dual-axis plots.
+    Panel for displaying real-time dual-axis plots.
 
-    Embeds a matplotlib figure with dual y-axes. Subclasses configure
-    axis labels, colors, scales, and limits by overriding
-    _primary_config() and _secondary_config().
+    Embeds a matplotlib figure with dual y-axes. The primary and secondary
+    axis configurations (labels, colors, scales, limits) are supplied at
+    construction time as ``AxisConfig`` data, so the panel is generic across
+    instrument types.
     """
 
-    def __init__(self, parent: tk.Widget, **kwargs):
+    def __init__(
+        self,
+        parent: tk.Widget,
+        primary: AxisConfig,
+        secondary: AxisConfig,
+        **kwargs,
+    ):
         """
         Initialize plot panel.
 
         Args:
             parent: Parent widget
+            primary: Configuration for the primary (left) Y-axis
+            secondary: Configuration for the secondary (right) Y-axis
             **kwargs: Additional frame options
         """
         super().__init__(parent, **kwargs)
 
-        self._primary = self._primary_config()
-        self._secondary = self._secondary_config()
+        self._primary = primary
+        self._secondary = secondary
 
         # Data storage
         self._times: list[float] = []
@@ -73,14 +60,6 @@ class PlotPanel(ttk.Frame):
         self._secondary_scale: str = self._secondary.default_scale
 
         self._create_widgets()
-
-    def _primary_config(self) -> AxisConfig:
-        """Return configuration for the primary Y-axis. Must be overridden."""
-        raise NotImplementedError
-
-    def _secondary_config(self) -> AxisConfig:
-        """Return configuration for the secondary Y-axis. Must be overridden."""
-        raise NotImplementedError
 
     def _create_widgets(self) -> None:
         """Create matplotlib figure and canvas."""
@@ -380,151 +359,3 @@ class PlotPanel(ttk.Frame):
 
         # Redraw
         self._canvas.draw_idle()
-
-
-class PowerSupplyPlotPanel(PlotPanel):
-    """
-    Panel for displaying real-time voltage and current plots.
-
-    Embeds matplotlib figure with dual y-axis for voltage and current.
-    """
-
-    def _primary_config(self) -> AxisConfig:
-        """Return voltage axis configuration."""
-        return AxisConfig(
-            label="Voltage (V)",
-            color="blue",
-            legend_label="Voltage",
-            default_scale="linear",
-            default_ylim=(0.0, 1.0),
-            lower_bound_zero=True,
-        )
-
-    def _secondary_config(self) -> AxisConfig:
-        """Return current axis configuration."""
-        return AxisConfig(
-            label="Current (A)",
-            color="red",
-            legend_label="Current",
-            default_scale="linear",
-            default_ylim=(0.0, 1.0),
-            lower_bound_zero=True,
-        )
-
-    def add_point(self, time: float, voltage: float, current: float) -> None:
-        """
-        Add a data point to the plot.
-
-        Args:
-            time: Time in seconds
-            voltage: Voltage reading
-            current: Current reading
-        """
-        super().add_point(time, voltage, current)
-
-    def set_data(
-        self,
-        times: Sequence[float],
-        voltages: Sequence[float],
-        currents: Sequence[float],
-    ) -> None:
-        """
-        Replace all plot data.
-
-        Args:
-            times: Time values
-            voltages: Voltage values
-            currents: Current values
-        """
-        super().set_data(times, voltages, currents)
-
-    def load_test_plan_preview(
-        self,
-        times: Sequence[float],
-        voltages: Sequence[float],
-        currents: Sequence[float],
-    ) -> None:
-        """
-        Load test plan data as a preview (shows full plan trajectory).
-
-        Args:
-            times: Time values
-            voltages: Voltage values
-            currents: Current values
-        """
-        super().load_test_plan_preview(times, voltages, currents)
-
-
-class SignalGeneratorPlotPanel(PlotPanel):
-    """
-    Panel for displaying signal generator frequency and power plots.
-
-    Embeds matplotlib figure with dual y-axis for frequency and power,
-    plus a vertical line indicator showing current test position.
-    """
-
-    def _primary_config(self) -> AxisConfig:
-        """Return frequency axis configuration."""
-        return AxisConfig(
-            label="Frequency (Hz)",
-            color="green",
-            legend_label="Frequency",
-            default_scale="log",
-            default_ylim=(1.0, 1000.0),
-            lower_bound_zero=True,
-        )
-
-    def _secondary_config(self) -> AxisConfig:
-        """Return power axis configuration."""
-        return AxisConfig(
-            label="Power (dBm)",
-            color="orange",
-            legend_label="Power",
-            default_scale="linear",
-            default_ylim=(-20.0, 10.0),
-            lower_bound_zero=False,
-            linear_only=True,
-        )
-
-    def add_point(self, time: float, frequency: float, power: float) -> None:
-        """
-        Add a data point to the plot.
-
-        Args:
-            time: Time in seconds
-            frequency: Frequency in Hz
-            power: Power in dBm
-        """
-        super().add_point(time, frequency, power)
-
-    def set_data(
-        self,
-        times: Sequence[float],
-        frequencies: Sequence[float],
-        powers: Sequence[float],
-    ) -> None:
-        """
-        Replace all plot data.
-
-        Args:
-            times: Time values
-            frequencies: Frequency values in Hz
-            powers: Power values in dBm
-        """
-        super().set_data(times, frequencies, powers)
-
-    def load_test_plan_preview(
-        self,
-        times: Sequence[float],
-        frequencies: Sequence[float],
-        powers: Sequence[float],
-    ) -> None:
-        """
-        Load test plan data as a preview (shows full plan trajectory).
-
-        Args:
-            times: Time values
-            frequencies: Frequency values in Hz
-            powers: Power values in dBm
-        """
-        super().load_test_plan_preview(times, frequencies, powers)

@@ -254,15 +254,15 @@ def mock_view() -> Mock:
     view.schedule.side_effect = mock_schedule
     view.cancel_schedule.side_effect = mock_cancel_schedule
 
-    # Mock panel objects
-    view.power_supply_plot_panel = Mock()
-    view.signal_gen_plot_panel = Mock()
-    view.ps_table = Mock()
-    view.sg_table = Mock()
+    # Keyed plot panels and tables, one per instrument type. The keyed view API
+    # (get_plot_panel / get_table / iter_tables) returns a stable mock per key
+    # so tests can assert on a specific instrument type's widgets.
+    view._plot_panels = {"power_supply": Mock(), "signal_generator": Mock()}
+    view._tables = {"power_supply": Mock(), "signal_generator": Mock()}
+    view.get_plot_panel.side_effect = lambda t: view._plot_panels[t]
+    view.get_table.side_effect = lambda t: view._tables[t]
+    view.iter_tables.side_effect = lambda: list(view._tables.values())
     view.plot_notebook = Mock()
-
-    # Default tab index (0 = Power Supply)
-    view.get_selected_tab_index.return_value = 0
 
     # Defaults for start-from feature
     view.get_active_table_selected_step.return_value = None

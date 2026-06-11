@@ -6,13 +6,10 @@ from ..config import ValidationLimits
 from ..file_io import read_test_plan
 from ..instruments import InstrumentEntry
 from ..model import (
+    INSTRUMENT_TYPE_REGISTRY,
     EquipmentModel,
     EquipmentState,
     TestStep,
-    PowerSupplyTestStep,
-    SignalGeneratorTestStep,
-    INSTRUMENT_TYPE_POWER_SUPPLY,
-    INSTRUMENT_TYPE_SIGNAL_GENERATOR,
 )
 from ..utils import BackgroundTaskRunner, TaskResult
 from ..view import MainWindow
@@ -58,6 +55,19 @@ class EquipmentPresenter:
         self._poll_interval_ms = poll_interval_ms
         self._plot_refresh_interval_ms = plot_refresh_interval_ms
         self._validation_limits = validation_limits
+        # When no registry is supplied, default to the built-in instrument types
+        # derived from the model's descriptor registry. This removes the need
+        # for a display-name fallback when resolving a connection selection.
+        if instrument_registry is None:
+            instrument_registry = {
+                d.display_name: InstrumentEntry(
+                    cls=d.instrument_cls,
+                    display_name=d.display_name,
+                    instrument_type=d.instrument_type,
+                    is_builtin=True,
+                )
+                for d in INSTRUMENT_TYPE_REGISTRY.values()
+            }
         self._instrument_registry = instrument_registry
 
         # Background task runner
@@ -94,13 +104,9 @@ class EquipmentPresenter:
         self._view.set_on_pause(self._handle_pause)
         self._view.set_on_start_from(self._handle_start_from)
 
-        # Table selection callbacks
-        self._view.ps_table.register_selection_callback(
-            self._on_table_selection_changed
-        )
-        self._view.sg_table.register_selection_callback(
-            self._on_table_selection_changed
-        )
+        # Table selection callbacks (one per instrument-type tab)
+        for table in self._view.iter_tables():
+            table.register_selection_callback(self._on_table_selection_changed)
 
         # Model callbacks
         self._model.register_state_callback(self._on_state_changed)
@@ -136,23 +142,25 @@ class EquipmentPresenter:
 
         resource_address, selected_display_name = result
 
-        # Resolve the selected instrument type through the registry
-        instrument_class = None
-        if (
-            self._instrument_registry
-            and selected_display_name in self._instrument_registry
-        ):
-            entry = self._instrument_registry[selected_display_name]
-            instrument_type = entry.instrument_type
-            # Only pass custom class for non-built-in instruments
-            if selected_display_name not in ("Power Supply", "Signal Generator"):
-                instrument_class = entry.cls
-        else:
-            # Fallback for when no registry is available
-            if selected_display_name == "Signal Generator":
-                instrument_type = "signal_generator"
-            else:
-                instrument_type = "power_supply"
+        # Resolve the selected instrument type through the registry. The
+        # registry always contains the built-in types (plus any custom ones),
+        # so a missing entry indicates a programming error rather than a normal
+        # disconnected path.
+        entry = (self._instrument_registry or {}).get(selected_display_name)
+        if entry is None:
+            logger.error(
+                "Selected instrument '%s' not found in registry", selected_display_name
+            )
+            self._view.show_error(
+                "Connection Error",
+                f"Unknown instrument type: {selected_display_name}",
+            )
+            return
+
+        instrument_type = entry.instrument_type
+        # Only pass a custom class for non-built-in instruments; built-ins are
+        # constructed by the model from its own registry.
+        instrument_class = None if entry.is_builtin else entry.cls
 
         self._connect_to_resource(resource_address, instrument_type, instrument_class)
 
@@ -229,11 +237,8 @@ class EquipmentPresenter:
                 self._view.set_connection_status(True)
                 self._view.set_status("Connected")
                 self._update_instrument_display()
-                # Show only relevant tab
-                if instrument_type == "power_supply":
-                    self._view.show_power_supply_tab_only()
-                else:
-                    self._view.show_signal_generator_tab_only()
+                # Show only the connected instrument type's tab
+                self._view.show_tab_only(instrument_type)
 
         self._task_runner.run_task(task, on_complete)
 
@@ -294,11 +299,8 @@ class EquipmentPresenter:
             self._view.set_test_plan_name(test_plan.name)
             self._view.set_status(f"Loaded: {test_plan}")
 
-            # Handle plot and table based on plan type
-            if test_plan.instrument_type == INSTRUMENT_TYPE_SIGNAL_GENERATOR:
-                self._setup_signal_generator_preview(test_plan)
-            else:
-                self._setup_power_supply_preview(test_plan)
+            # Handle plot and table for the plan's instrument type
+            self._setup_plan_preview(test_plan)
 
             # Enable run button if connected
             if self._model.state == EquipmentState.IDLE:
@@ -342,11 +344,10 @@ class EquipmentPresenter:
         # Start runtime timer
         self._timer.start(self._update_runtime, self._update_plot_position)
 
-        # Clear position indicator but keep the plan preview for both plot types
-        if self._model.test_plan.instrument_type == INSTRUMENT_TYPE_SIGNAL_GENERATOR:
-            self._view.signal_gen_plot_panel.clear_position()
-        else:
-            self._view.power_supply_plot_panel.clear_position()
+        # Clear position indicator but keep the plan preview
+        self._view.get_plot_panel(
+            self._model.test_plan.instrument_type
+        ).clear_position()
 
         def task():
             self._model.run_test()
@@ -405,10 +406,9 @@ class EquipmentPresenter:
         total_steps = self._model.test_plan.step_count
         steps_to_run = total_steps - selected_step + 1
 
-        if isinstance(step, PowerSupplyTestStep):
-            step_details = f"V={step.voltage:.2f}V, I={step.current:.2f}A"
-        elif isinstance(step, SignalGeneratorTestStep):
-            step_details = f"F={step.frequency:.1f} Hz, P={step.power:.1f} dBm"
+        descriptor = INSTRUMENT_TYPE_REGISTRY.get(self._model.test_plan.instrument_type)
+        if descriptor is not None:
+            step_details = descriptor.view.format_step_details(step)
         else:
             step_details = f"Duration={step.duration_seconds}s"
 
@@ -450,13 +450,10 @@ class EquipmentPresenter:
             remaining_duration, self._update_runtime, self._update_plot_position
         )
 
-        if (
-            self._model.test_plan is not None
-            and self._model.test_plan.instrument_type == INSTRUMENT_TYPE_SIGNAL_GENERATOR
-        ):
-            self._view.signal_gen_plot_panel.clear_position()
-        else:
-            self._view.power_supply_plot_panel.clear_position()
+        if self._model.test_plan is not None:
+            self._view.get_plot_panel(
+                self._model.test_plan.instrument_type
+            ).clear_position()
 
         def task():
             self._model.run_test(start_step)
@@ -509,31 +506,32 @@ class EquipmentPresenter:
 
     def _on_test_progress(self, current: int, total: int, step: TestStep) -> None:
         """Handle test progress update."""
+        # The progress callback carries the step itself, so resolve the
+        # instrument type from the step's dataclass via the registry (matching
+        # the original step-driven dispatch).
+        descriptor = next(
+            (
+                d
+                for d in INSTRUMENT_TYPE_REGISTRY.values()
+                if isinstance(step, d.step_cls)
+            ),
+            None,
+        )
+        if descriptor is None:
+            return
+        instrument_type = descriptor.instrument_type
 
         # Schedule view update on main thread
         def update():
-            if isinstance(step, SignalGeneratorTestStep):
-                # Signal generator step
-                self._view.set_status(
-                    f"Step {current}/{total}: F={step.frequency/1e6:.3f} MHz, P={step.power:.1f} dBm"
-                )
-                # Update position indicator on the plot
-                self._view.signal_gen_plot_panel.set_current_position(
-                    step.absolute_time_seconds
-                )
-                # Highlight current row in table
-                self._view.sg_table.highlight_step(step.step_number)
-            elif isinstance(step, PowerSupplyTestStep):
-                # Power supply step
-                self._view.set_status(
-                    f"Step {current}/{total}: V={step.voltage:.2f}V, I={step.current:.2f}A"
-                )
-                # Update position indicator on the plot
-                self._view.power_supply_plot_panel.set_current_position(
-                    step.absolute_time_seconds
-                )
-                # Highlight current row in table
-                self._view.ps_table.highlight_step(step.step_number)
+            self._view.set_status(
+                descriptor.view.format_step_status(step, current, total)
+            )
+            # Update position indicator on the plot
+            self._view.get_plot_panel(instrument_type).set_current_position(
+                step.absolute_time_seconds
+            )
+            # Highlight current row in table
+            self._view.get_table(instrument_type).highlight_step(step.step_number)
 
         self._view.schedule(0, update)
 
@@ -553,15 +551,10 @@ class EquipmentPresenter:
                 self._view.show_error("Test Error", message)
 
             # Clear position indicators and table highlighting
-            if (
-                self._model.test_plan
-                and self._model.test_plan.instrument_type == INSTRUMENT_TYPE_SIGNAL_GENERATOR
-            ):
-                self._view.signal_gen_plot_panel.clear_position()
-                self._view.sg_table.clear_highlight()
-            else:
-                self._view.power_supply_plot_panel.clear_position()
-                self._view.ps_table.clear_highlight()
+            if self._model.test_plan is not None:
+                instrument_type = self._model.test_plan.instrument_type
+                self._view.get_plot_panel(instrument_type).clear_position()
+                self._view.get_table(instrument_type).clear_highlight()
 
         self._view.schedule(0, update)
 
@@ -593,31 +586,40 @@ class EquipmentPresenter:
             f"connected instrument is a {instrument_label}"
         )
 
-    def _setup_signal_generator_preview(self, test_plan) -> None:
-        """Set up signal generator plot and table for a loaded test plan."""
-        self._view.signal_gen_plot_panel.clear()
-        self._view.signal_gen_plot_panel.set_title(test_plan.name)
-        self._view.show_signal_generator_plot()
+    def _setup_plan_preview(self, test_plan) -> None:
+        """Set up the plot and table for a loaded test plan.
 
-        times = [s.absolute_time_seconds for s in test_plan.steps]
-        freqs = [s.frequency for s in test_plan.steps]  # type: ignore[attr-defined]
-        powers = [s.power for s in test_plan.steps]  # type: ignore[attr-defined]
-        self._view.signal_gen_plot_panel.load_test_plan_preview(times, freqs, powers)
-        self._view.sg_table.load_steps(test_plan.steps)
+        The primary/secondary plot series are extracted generically from the
+        descriptor's field specs (the fields flagged ``axis="primary"`` and
+        ``axis="secondary"``), so no per-type branching is needed.
+        """
+        instrument_type = test_plan.instrument_type
+        descriptor = INSTRUMENT_TYPE_REGISTRY[instrument_type]
+        plot_panel = self._view.get_plot_panel(instrument_type)
 
-    def _setup_power_supply_preview(self, test_plan) -> None:
-        """Set up power supply plot and table for a loaded test plan."""
-        self._view.power_supply_plot_panel.clear()
-        self._view.power_supply_plot_panel.set_title(test_plan.name)
-        self._view.show_power_supply_plot()
+        plot_panel.clear()
+        plot_panel.set_title(test_plan.name)
+        self._view.show_plot(instrument_type)
 
-        times = [s.absolute_time_seconds for s in test_plan.steps]
-        voltages = [s.voltage for s in test_plan.steps]  # type: ignore[attr-defined]
-        currents = [s.current for s in test_plan.steps]  # type: ignore[attr-defined]
-        self._view.power_supply_plot_panel.load_test_plan_preview(
-            times, voltages, currents
+        times, primary, secondary = self._extract_axis_series(descriptor, test_plan.steps)
+        plot_panel.load_test_plan_preview(times, primary, secondary)
+        self._view.get_table(instrument_type).load_steps(test_plan.steps)
+
+    @staticmethod
+    def _extract_axis_series(descriptor, steps):
+        """Extract (times, primary_values, secondary_values) from plan steps.
+
+        Uses the descriptor's field specs to find which step attributes feed the
+        primary and secondary plot axes.
+        """
+        primary_name = next(f.name for f in descriptor.fields if f.axis == "primary")
+        secondary_name = next(
+            f.name for f in descriptor.fields if f.axis == "secondary"
         )
-        self._view.ps_table.load_steps(test_plan.steps)
+        times = [s.absolute_time_seconds for s in steps]
+        primary = [getattr(s, primary_name) for s in steps]
+        secondary = [getattr(s, secondary_name) for s in steps]
+        return times, primary, secondary
 
     def _update_view_for_state(self, state: EquipmentState) -> None:
         """Update view based on current state."""
@@ -676,11 +678,10 @@ class EquipmentPresenter:
         else:
             current_time = elapsed
 
-        # Update the appropriate plot
-        if self._model.test_plan.instrument_type == INSTRUMENT_TYPE_SIGNAL_GENERATOR:
-            self._view.signal_gen_plot_panel.set_current_position(current_time)
-        else:
-            self._view.power_supply_plot_panel.set_current_position(current_time)
+        # Update the plot for the active instrument type
+        self._view.get_plot_panel(
+            self._model.test_plan.instrument_type
+        ).set_current_position(current_time)
 
         self._timer.schedule_plot_tick(self._update_plot_position)
 

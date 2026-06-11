@@ -2,23 +2,14 @@
 
 from .disclaimer_dialog import DisclaimerDialog
 from .main_window import MainWindow
-from .plot_panel import (
-    AxisConfig,
-    PlotPanel,
-    PowerSupplyPlotPanel,
-    SignalGeneratorPlotPanel,
-)
+from .plot_panel import PlotPanel
 from .resource_manager_dialog import ResourceManagerDialog
-from .test_points_table import TestPointsTable, InstrumentType
+from .test_points_table import TestPointsTable
 
 __all__ = [
-    "AxisConfig",
     "DisclaimerDialog",
-    "InstrumentType",
     "MainWindow",
     "PlotPanel",
-    "PowerSupplyPlotPanel",
     "ResourceManagerDialog",
-    "SignalGeneratorPlotPanel",
     "TestPointsTable",
 ]

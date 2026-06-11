@@ -2,44 +2,19 @@
 
 import tkinter as tk
 from tkinter import ttk
-from typing import Callable, Sequence, Union
-from enum import Enum
+from typing import Callable, Sequence
 
-
-class InstrumentType(Enum):
-    """Instrument type for table column configuration."""
-
-    POWER_SUPPLY = "power_supply"
-    SIGNAL_GENERATOR = "signal_generator"
+from ..instrument_specs import ColumnSpec
 
 
 class TestPointsTable(ttk.Frame):
     """
     Scrollable table displaying test plan steps with row highlighting.
 
-    Supports both Power Supply and Signal Generator column layouts.
+    The columns are supplied at construction time as ``ColumnSpec`` data, so
+    the table is generic across instrument types. Each column carries its own
+    ``value_fn`` that formats a step into its cell text.
     """
-
-    # Column configurations: (column_id, heading, width)
-    COLUMNS = {
-        InstrumentType.POWER_SUPPLY: [
-            ("step", "Step", 50),
-            ("duration", "Duration (s)", 80),
-            ("abs_time", "Abs. Time (s)", 80),
-            ("voltage", "Voltage (V)", 80),
-            ("current", "Current (A)", 80),
-            ("description", "Description", 150),
-        ],
-        InstrumentType.SIGNAL_GENERATOR: [
-            ("step", "Step", 50),
-            ("duration", "Duration (s)", 80),
-            ("abs_time", "Abs. Time (s)", 80),
-            ("frequency", "Frequency", 90),
-            ("power", "Power (dBm)", 80),
-            ("modulation", "Modulation", 80),
-            ("description", "Description", 150),
-        ],
-    }
 
     # Highlight color for current step
     HIGHLIGHT_BG = "#FFE4B5"  # Moccasin - soft orange
@@ -47,7 +22,7 @@ class TestPointsTable(ttk.Frame):
     def __init__(
         self,
         parent: tk.Widget,
-        instrument_type: InstrumentType = InstrumentType.POWER_SUPPLY,
+        columns: Sequence[ColumnSpec],
         **kwargs,
     ):
         """
@@ -55,12 +30,12 @@ class TestPointsTable(ttk.Frame):
 
         Args:
             parent: Parent widget
-            instrument_type: Type of instrument (determines columns)
+            columns: Column specifications (id, heading, width, value formatter)
             **kwargs: Additional frame options
         """
         super().__init__(parent, **kwargs)
 
-        self._instrument_type = instrument_type
+        self._columns: tuple[ColumnSpec, ...] = tuple(columns)
         self._step_to_item: dict[int, str] = {}
         self._current_step: int | None = None
 
@@ -72,9 +47,7 @@ class TestPointsTable(ttk.Frame):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
-        # Get column configuration
-        columns = self.COLUMNS[self._instrument_type]
-        column_ids = [col[0] for col in columns]
+        column_ids = [col.column_id for col in self._columns]
 
         # Create Treeview
         self._tree = ttk.Treeview(
@@ -86,9 +59,11 @@ class TestPointsTable(ttk.Frame):
         self._tree.grid(row=0, column=0, sticky="nsew")
 
         # Configure columns
-        for col_id, heading, width in columns:
-            self._tree.heading(col_id, text=heading)
-            self._tree.column(col_id, width=width, minwidth=40, anchor=tk.CENTER)
+        for col in self._columns:
+            self._tree.heading(col.column_id, text=col.heading)
+            self._tree.column(
+                col.column_id, width=col.width, minwidth=40, anchor=tk.CENTER
+            )
 
         # Description column should be left-aligned and expandable
         self._tree.column("description", anchor=tk.W, stretch=True)
@@ -106,7 +81,7 @@ class TestPointsTable(ttk.Frame):
         Load test steps into the table.
 
         Args:
-            steps: Sequence of TestStep or SignalGeneratorTestStep objects
+            steps: Sequence of step objects (duck-typed by each column's value_fn)
         """
         self.clear()
 
@@ -114,41 +89,7 @@ class TestPointsTable(ttk.Frame):
             item_id = f"step_{step.step_number}"
             self._step_to_item[step.step_number] = item_id
 
-            values: tuple[object, ...]
-            if self._instrument_type == InstrumentType.POWER_SUPPLY:
-                values = (
-                    step.step_number,
-                    f"{step.duration_seconds:.1f}",
-                    f"{step.absolute_time_seconds:.1f}",
-                    f"{step.voltage:.2f}",
-                    f"{step.current:.2f}",
-                    step.description,
-                )
-            else:  # Signal Generator
-                # Format frequency with appropriate units
-                freq = step.frequency
-                if freq >= 1e9:
-                    freq_str = f"{freq / 1e9:.3f} GHz"
-                elif freq >= 1e6:
-                    freq_str = f"{freq / 1e6:.3f} MHz"
-                elif freq >= 1e3:
-                    freq_str = f"{freq / 1e3:.3f} kHz"
-                else:
-                    freq_str = f"{freq:.1f} Hz"
-
-                # Format modulation status
-                modulation_str = "Enabled" if step.modulation_enabled else "Disabled"
-
-                values = (
-                    step.step_number,
-                    f"{step.duration_seconds:.1f}",
-                    f"{step.absolute_time_seconds:.1f}",
-                    freq_str,
-                    f"{step.power:.1f}",
-                    modulation_str,
-                    step.description,
-                )
-
+            values = tuple(col.value_fn(step) for col in self._columns)
             self._tree.insert("", tk.END, iid=item_id, values=values)
 
     def highlight_step(self, step_number: int) -> None:

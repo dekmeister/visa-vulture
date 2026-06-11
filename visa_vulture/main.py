@@ -163,8 +163,15 @@ def main() -> int:
 
     root.deiconify()
 
+    # Derive the per-type view specs from the model's descriptor registry so the
+    # view can build one tab per instrument type without importing the model.
+    instrument_view_specs = {
+        t: d.view for t, d in INSTRUMENT_TYPE_REGISTRY.items()
+    }
+
     view = MainWindow(
         root,
+        instrument_view_specs=instrument_view_specs,
         title=config.window_title,
         width=config.window_width,
         height=config.window_height,

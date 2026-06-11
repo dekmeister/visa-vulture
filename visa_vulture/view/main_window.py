@@ -1,12 +1,14 @@
 """Main application window."""
 
 import tkinter as tk
+from dataclasses import dataclass
 from tkinter import filedialog, messagebox, ttk
-from typing import Callable
+from typing import Callable, Iterator
 
+from ..instrument_specs import InstrumentViewSpec
 from .log_panel import LogPanel
-from .plot_panel import PowerSupplyPlotPanel, SignalGeneratorPlotPanel
-from .test_points_table import TestPointsTable, InstrumentType
+from .plot_panel import PlotPanel
+from .test_points_table import TestPointsTable
 
 # Button enable/disable configuration per equipment state.
 _BUTTON_STATES: dict[str, dict[str, str]] = {
@@ -76,6 +78,18 @@ _START_FROM_BUTTON_TEXT: dict[str, str] = {
 }
 
 
+@dataclass
+class _InstrumentTab:
+    """View-side bundle for one instrument-type tab in the plot notebook."""
+
+    instrument_type: str
+    label: str
+    container: ttk.PanedWindow
+    plot_panel: PlotPanel
+    table: TestPointsTable
+    visible: bool = True
+
+
 class MainWindow:
     """
     Main application window.
@@ -87,6 +101,7 @@ class MainWindow:
     def __init__(
         self,
         root: tk.Tk,
+        instrument_view_specs: dict[str, InstrumentViewSpec],
         title: str = "VISA Vulture",
         width: int = 1300,
         height: int = 800,
@@ -97,6 +112,8 @@ class MainWindow:
 
         Args:
             root: Tkinter root window
+            instrument_view_specs: Per-instrument-type presentation specs, keyed
+                by instrument_type. One plot/table tab is built per entry.
             title: Window title
             width: Window width
             height: Window height
@@ -106,6 +123,11 @@ class MainWindow:
         self._root.title(title)
         self._root.geometry(f"{width}x{height}")
         self._visa_backend_label = visa_backend_label
+        self._view_specs = instrument_view_specs
+
+        # One tab per instrument type, keyed by instrument_type (insertion order
+        # follows the registry order supplied by main.py).
+        self._tabs: dict[str, _InstrumentTab] = {}
 
         # Callbacks set by presenter
         self._on_connect: Callable[[], None] | None = None
@@ -261,37 +283,30 @@ class MainWindow:
         paned = ttk.PanedWindow(self._root, orient=tk.VERTICAL)
         paned.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
 
-        # Plot container with notebook for switching between plot types
+        # Plot container with notebook for switching between instrument types
         self._plot_notebook = ttk.Notebook(paned)
         paned.add(self._plot_notebook, weight=2)
 
-        # Power supply tab: horizontal paned window with plot and table
-        self._ps_container = ttk.PanedWindow(self._plot_notebook, orient=tk.HORIZONTAL)
-        self._plot_notebook.add(self._ps_container, text="Power Supply")
+        # One tab per instrument view spec: horizontal paned window with plot
+        # and table.
+        for instrument_type, spec in self._view_specs.items():
+            container = ttk.PanedWindow(self._plot_notebook, orient=tk.HORIZONTAL)
+            self._plot_notebook.add(container, text=spec.tab_label)
 
-        self._power_supply_plot_panel = PowerSupplyPlotPanel(self._ps_container)
-        self._ps_container.add(self._power_supply_plot_panel, weight=3)
+            plot_panel = PlotPanel(container, spec.primary_axis, spec.secondary_axis)
+            container.add(plot_panel, weight=3)
 
-        self._ps_table = TestPointsTable(
-            self._ps_container, InstrumentType.POWER_SUPPLY
-        )
-        self._ps_container.add(self._ps_table, weight=1)
+            table = TestPointsTable(container, spec.columns)
+            container.add(table, weight=1)
 
-        # Signal generator tab: horizontal paned window with plot and table
-        self._sg_container = ttk.PanedWindow(self._plot_notebook, orient=tk.HORIZONTAL)
-        self._plot_notebook.add(self._sg_container, text="Signal Generator")
-
-        self._signal_gen_plot_panel = SignalGeneratorPlotPanel(self._sg_container)
-        self._sg_container.add(self._signal_gen_plot_panel, weight=3)
-
-        self._sg_table = TestPointsTable(
-            self._sg_container, InstrumentType.SIGNAL_GENERATOR
-        )
-        self._sg_container.add(self._sg_table, weight=1)
-
-        # Track which tabs are currently visible
-        self._ps_tab_visible = True
-        self._sg_tab_visible = True
+            self._tabs[instrument_type] = _InstrumentTab(
+                instrument_type=instrument_type,
+                label=spec.tab_label,
+                container=container,
+                plot_panel=plot_panel,
+                table=table,
+                visible=True,
+            )
 
         # Log panel (bottom)
         self._log_panel = LogPanel(paned)
@@ -607,11 +622,11 @@ class MainWindow:
         Returns:
             1-based step number, or None if no selection
         """
-        tab_index = self.get_selected_tab_index()
-        if tab_index == 0:
-            return self._ps_table.get_selected_step_number()
-        else:
-            return self._sg_table.get_selected_step_number()
+        selected = self._plot_notebook.select()
+        for tab in self._tabs.values():
+            if str(tab.container) == selected:
+                return tab.table.get_selected_step_number()
+        return None
 
     def set_start_from_button_text(self, text: str) -> None:
         """Update Start from button text."""
@@ -629,43 +644,28 @@ class MainWindow:
         return self._log_panel
 
     @property
-    def power_supply_plot_panel(self) -> PowerSupplyPlotPanel:
-        """Get power supply plot panel widget."""
-        return self._power_supply_plot_panel
-
-    @property
-    def signal_gen_plot_panel(self) -> SignalGeneratorPlotPanel:
-        """Get signal generator plot panel widget."""
-        return self._signal_gen_plot_panel
-
-    @property
-    def ps_table(self) -> TestPointsTable:
-        """Get power supply test points table."""
-        return self._ps_table
-
-    @property
-    def sg_table(self) -> TestPointsTable:
-        """Get signal generator test points table."""
-        return self._sg_table
-
-    @property
     def plot_notebook(self) -> ttk.Notebook:
         """Get plot notebook widget for tab change binding."""
         return self._plot_notebook
 
-    def get_selected_tab_index(self) -> int:
-        """Get the index of the currently selected plot tab."""
-        return int(self._plot_notebook.index(self._plot_notebook.select()))
+    def get_plot_panel(self, instrument_type: str) -> PlotPanel:
+        """Get the plot panel for the given instrument type."""
+        return self._tabs[instrument_type].plot_panel
 
-    def show_power_supply_plot(self) -> None:
-        """Switch to power supply plot tab."""
-        if self._ps_tab_visible:
-            self._plot_notebook.select(self._ps_container)
+    def get_table(self, instrument_type: str) -> TestPointsTable:
+        """Get the test points table for the given instrument type."""
+        return self._tabs[instrument_type].table
 
-    def show_signal_generator_plot(self) -> None:
-        """Switch to signal generator plot tab."""
-        if self._sg_tab_visible:
-            self._plot_notebook.select(self._sg_container)
+    def iter_tables(self) -> Iterator[TestPointsTable]:
+        """Iterate over every instrument-type test points table."""
+        for tab in self._tabs.values():
+            yield tab.table
+
+    def show_plot(self, instrument_type: str) -> None:
+        """Switch to the plot tab for the given instrument type, if visible."""
+        tab = self._tabs[instrument_type]
+        if tab.visible:
+            self._plot_notebook.select(tab.container)
 
     def _show_tab(
         self, container: ttk.PanedWindow, text: str, is_visible: bool
@@ -681,31 +681,21 @@ class MainWindow:
             self._plot_notebook.hide(container)
         return False
 
-    def show_power_supply_tab_only(self) -> None:
-        """Show only power supply tab, hide signal generator tab."""
-        self._ps_tab_visible = self._show_tab(
-            self._ps_container, "Power Supply", self._ps_tab_visible
-        )
-        self._sg_tab_visible = self._hide_tab(self._sg_container, self._sg_tab_visible)
-        self._plot_notebook.select(self._ps_container)
-
-    def show_signal_generator_tab_only(self) -> None:
-        """Show only signal generator tab, hide power supply tab."""
-        self._sg_tab_visible = self._show_tab(
-            self._sg_container, "Signal Generator", self._sg_tab_visible
-        )
-        self._ps_tab_visible = self._hide_tab(self._ps_container, self._ps_tab_visible)
-        self._plot_notebook.select(self._sg_container)
+    def show_tab_only(self, instrument_type: str) -> None:
+        """Show only the given instrument type's tab, hide the others."""
+        for key, tab in self._tabs.items():
+            if key == instrument_type:
+                tab.visible = self._show_tab(tab.container, tab.label, tab.visible)
+            else:
+                tab.visible = self._hide_tab(tab.container, tab.visible)
+        self._plot_notebook.select(self._tabs[instrument_type].container)
 
     def show_all_tabs(self) -> None:
-        """Show both tabs (for disconnected state)."""
-        self._ps_tab_visible = self._show_tab(
-            self._ps_container, "Power Supply", self._ps_tab_visible
-        )
-        self._sg_tab_visible = self._show_tab(
-            self._sg_container, "Signal Generator", self._sg_tab_visible
-        )
-        self._plot_notebook.select(self._ps_container)
+        """Show all tabs (for disconnected state)."""
+        for tab in self._tabs.values():
+            tab.visible = self._show_tab(tab.container, tab.label, tab.visible)
+        first = next(iter(self._tabs.values()))
+        self._plot_notebook.select(first.container)
 
     def schedule(self, delay_ms: int, callback: Callable[[], None]) -> str:
         """
