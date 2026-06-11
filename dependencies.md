@@ -50,16 +50,24 @@ Arrows indicate "imports from" direction.
 
 | Package | Can Import | Must NOT Import |
 |---------|------------|-----------------|
-| **main.py** | config, logging_config, instruments, model, view, presenter | file_io, utils (indirectly via others) |
+| **main.py** | config, logging_config, instruments, model, view, presenter, instrument_specs | file_io, utils (indirectly via others) |
+| **instrument_specs.py** | (standard library + typing only) | All internal packages (neutral leaf) |
 | **config/** | (standard library only) | All internal packages |
 | **logging_config/** | (standard library only) | All internal packages |
-| **model/** | instruments, file_io | view, presenter, config, logging_config |
-| **view/** | utils (optional) | model, presenter, instruments, file_io, config |
+| **model/** | instruments, file_io, instrument_specs | view, presenter, config (config only under `TYPE_CHECKING`), logging_config |
+| **view/** | utils (optional), instrument_specs | model, presenter, instruments, file_io, config |
 | **presenter/** | model, view, utils | instruments, file_io, config (go through model) |
-| **file_io/** | model (TestPlan, TestStep subclasses, plan type constants) | view, presenter, instruments, config |
+| **file_io/** | model (`INSTRUMENT_TYPE_REGISTRY`, TestPlan, TestStep subclasses, type constants) | view, presenter, instruments, config |
 | **instruments/** | (pyvisa, importlib) | All internal packages |
 | **instruments/ (root)** | visa_vulture.instruments | Internal packages (uses visa_vulture as a library) |
 | **utils/** | (standard library only) | All internal packages |
+
+> **`instrument_specs.py`** is a neutral leaf module of pure-data spec
+> dataclasses (`StepFieldSpec`, `ColumnSpec`, `AxisConfig`, `InstrumentViewSpec`,
+> …). The model embeds these specs in each `InstrumentTypeDescriptor`; `main.py`
+> derives `{instrument_type: descriptor.view}` and injects it into the view. This
+> lets the view consume presentation data without importing the model, preserving
+> the MVP dependency direction.
 
 ---
 
@@ -181,10 +189,10 @@ User clicks "Run"
                     For each test step:   Log each action
                             │               │
                             ▼               ▼
-                    PowerSupply.set_...   LogPanel updates
-                            │
+                    StepExecutor.apply_step  LogPanel updates
+                            │  (instrument commands)
                             ▼
-                    PowerSupplyPlotPanel.update(data)
+                    PlotPanel.set_current_position(...)
                             │
                     (test complete)
                             │

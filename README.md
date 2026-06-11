@@ -185,8 +185,9 @@ The application follows the Model-View-Presenter (MVP) pattern:
 instruments/                    # Custom instrument extensions (project root)
 visa_vulture/
 ├── main.py                 # Entry point
+├── instrument_specs.py     # Pure-data view/field specs (neutral leaf module)
 ├── config/                 # Configuration loading
-├── model/                  # Business logic, state machine
+├── model/                  # Business logic, state machine, instrument-type registry
 ├── view/                   # Tkinter GUI components
 ├── presenter/              # MVP coordination
 ├── file_io/                # CSV parsing, results writing
@@ -204,13 +205,22 @@ Custom instruments must extend `PowerSupply` or `SignalGenerator` (not `BaseInst
 
 See [instruments/README.md](instruments/README.md) for full documentation and the [PSG E8257D example](instruments/psg_e8257d.py).
 
-## Adding New Built-in Instruments
+## Adding a New Built-in Instrument Type
 
-1. Create a new class in `visa_vulture/instruments/` inheriting from `BaseInstrument`
-2. Implement required methods: `connect`, `disconnect`, `get_status`
-3. Add instrument-specific commands
-4. Register in `visa_vulture/instruments/instrument_loader.py` registry
-5. Add simulation responses to `visa_vulture/simulation/instruments.yaml`
+Built-in instrument types are defined by a single registry of descriptors,
+`INSTRUMENT_TYPE_REGISTRY` in `visa_vulture/model/instrument_types.py`. Adding a
+type is a matter of writing a small set of artifacts — no edits to the parsing,
+validation, execution, or GUI layers:
+
+1. Create an instrument class in `visa_vulture/instruments/` (inheriting from
+   `BaseInstrument`), implementing `connect`, `disconnect`, and its commands
+2. Add a `TestStep` subclass and one `InstrumentTypeDescriptor` (field specs,
+   executor, view spec) to the registry in `model/instrument_types.py`
+3. Add simulation responses to `visa_vulture/simulation/instruments.yaml`
+4. Add a sample plan under `plans/` and tests
+
+A descriptor whose field specs don't match its step dataclass fails loudly at
+import time. See CLAUDE.md ("Adding a New Instrument Type") for the full recipe.
 
 ## Development
 

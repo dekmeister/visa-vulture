@@ -147,8 +147,9 @@ def main() -> int:
     )
     logger.info("VISA backend: %s", visa_connection.active_backend)
 
-    # Create model
-    model = EquipmentModel(visa_connection)
+    # Create model (driven by the same instrument-type registry the loader and
+    # view specs are derived from)
+    model = EquipmentModel(visa_connection, instrument_types=INSTRUMENT_TYPE_REGISTRY)
 
     # Create GUI
     root = tk.Tk()

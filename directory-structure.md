@@ -11,6 +11,7 @@ visa_vulture/
 ├── __init__.py
 ├── __main__.py
 ├── main.py
+├── instrument_specs.py          # Neutral leaf: pure-data view/field specs (no model/view imports)
 │
 ├── config/
 │   ├── __init__.py
@@ -22,6 +23,7 @@ visa_vulture/
 │   ├── __init__.py
 │   ├── state_machine.py
 │   ├── equipment.py
+│   ├── instrument_types.py      # Descriptor registry, step executors, built-in types
 │   └── test_plan.py
 │
 ├── view/
@@ -73,6 +75,7 @@ visa_vulture/
 | `__init__.py` | Package init with `__version__` |
 | `__main__.py` | Enables `python -m visa_vulture` |
 | `main.py` | Application entry point; loads config, initialises logging, wires components, manages shutdown |
+| `instrument_specs.py` | Neutral leaf module of pure-data spec dataclasses (`StepFieldSpec`, `ColumnSpec`, `AxisConfig`, `SoftLimitSpec`, `InstrumentViewSpec`) and column helpers. Imports neither `model` nor `view`, so both may import it |
 
 ---
 
@@ -82,9 +85,9 @@ Configuration loading and validation.
 
 | File | Purpose |
 |------|---------|
-| `__init__.py` | Exports: `load_config`, `AppConfig`, `ValidationLimits`, soft limit classes |
+| `__init__.py` | Exports: `load_config`, `AppConfig`, `ValidationLimits`, `CommonSoftLimits` |
 | `loader.py` | Load JSON file, call validation, return config dict or errors |
-| `schema.py` | Define expected structure, field types, defaults, validation rules |
+| `schema.py` | Define expected structure, field types, defaults, validation rules. `ValidationLimits` holds `common` plus a generic `instrument_limits: dict[str, dict[str, float]]` keyed by instrument type |
 | `default_config.json` | Default configuration shipped with application |
 
 ---
@@ -95,10 +98,11 @@ Business logic, independent of GUI.
 
 | File | Purpose |
 |------|---------|
-| `__init__.py` | Exports: `EquipmentModel`, `EquipmentState`, `TestPlan`, `TestStep`, step subclasses, plan type constants |
+| `__init__.py` | Exports: `EquipmentModel`, `EquipmentState`, `INSTRUMENT_TYPE_REGISTRY`, `InstrumentTypeDescriptor`, `StepExecutor`, `StepContext`, `validate_soft_limit_config`, `TestPlan`, `TestStep`, step subclasses, `INSTRUMENT_TYPE_*` constants, modulation classes |
 | `state_machine.py` | `EquipmentState` enum, transition validation, callback registration |
-| `equipment.py` | `EquipmentModel` class coordinating state, instruments, test execution |
-| `test_plan.py` | `TestPlan` container, `TestStep` base class, `PowerSupplyTestStep` and `SignalGeneratorTestStep` subclasses |
+| `equipment.py` | `EquipmentModel` class coordinating state, instruments, registry-driven test execution |
+| `instrument_types.py` | `INSTRUMENT_TYPE_REGISTRY` of `InstrumentTypeDescriptor`s, the `StepExecutor` ABC and built-in executors, built-in field/view specs, the import-time descriptor↔step consistency check, and `validate_soft_limit_config` |
+| `test_plan.py` | `TestPlan` container, `TestStep` base class, `PowerSupplyTestStep` and `SignalGeneratorTestStep` subclasses, `INSTRUMENT_TYPE_*` constants |
 
 ---
 
@@ -108,12 +112,12 @@ GUI components, no business logic.
 
 | File | Purpose |
 |------|---------|
-| `__init__.py` | Exports: `MainWindow`, `PlotPanel`, `PowerSupplyPlotPanel`, `SignalGeneratorPlotPanel`, `AxisConfig`, `ResourceManagerDialog`, `TestPointsTable`, `InstrumentType` |
-| `main_window.py` | Main application window, assembles panels, exposes callbacks |
+| `__init__.py` | Exports: `MainWindow`, `PlotPanel`, `ResourceManagerDialog`, `TestPointsTable`, `DisclaimerDialog` |
+| `main_window.py` | Main application window; builds one plot/table tab per `InstrumentViewSpec`, exposes a keyed view API (`get_plot_panel`/`get_table`/`show_tab_only`/…) |
 | `log_panel.py` | `LogPanel` widget with scrolling text, level filtering, auto-scroll |
-| `plot_panel.py` | `PlotPanel` base class, `PowerSupplyPlotPanel` and `SignalGeneratorPlotPanel` subclasses for dual-axis matplotlib plots |
+| `plot_panel.py` | Single generic `PlotPanel` configured at construction with primary/secondary `AxisConfig` for dual-axis matplotlib plots |
 | `resource_manager_dialog.py` | `ResourceManagerDialog` for instrument connection with resource scanning and identification |
-| `test_points_table.py` | Tabular display of all test plan steps |
+| `test_points_table.py` | Generic `TestPointsTable` driven by a `ColumnSpec` list; each column formats a step via its `value_fn` |
 
 ---
 
@@ -206,25 +210,27 @@ Each `__init__.py` curates what other packages import:
 ```python
 # config/__init__.py
 from .loader import load_config
-from .schema import (
-    AppConfig, ValidationLimits, SignalGeneratorSoftLimits,
-    PowerSupplySoftLimits, CommonSoftLimits,
-)
+from .schema import AppConfig, ValidationLimits, CommonSoftLimits
 
 # model/__init__.py
 from .state_machine import EquipmentState
 from .equipment import EquipmentModel
+from .instrument_types import (
+    INSTRUMENT_TYPE_REGISTRY, InstrumentTypeDescriptor,
+    StepContext, StepExecutor, MetadataParser, validate_soft_limit_config,
+)
 from .test_plan import (
     TestPlan, TestStep, PowerSupplyTestStep, SignalGeneratorTestStep,
-    PLAN_TYPE_POWER_SUPPLY, PLAN_TYPE_SIGNAL_GENERATOR,
+    INSTRUMENT_TYPE_POWER_SUPPLY, INSTRUMENT_TYPE_SIGNAL_GENERATOR,
     ModulationType, ModulationConfig, AMModulationConfig, FMModulationConfig,
 )
 
 # view/__init__.py
+from .disclaimer_dialog import DisclaimerDialog
 from .main_window import MainWindow
-from .plot_panel import AxisConfig, PlotPanel, PowerSupplyPlotPanel, SignalGeneratorPlotPanel
+from .plot_panel import PlotPanel
 from .resource_manager_dialog import ResourceManagerDialog
-from .test_points_table import TestPointsTable, InstrumentType
+from .test_points_table import TestPointsTable
 
 # presenter/__init__.py
 from .equipment_presenter import EquipmentPresenter
