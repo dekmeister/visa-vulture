@@ -1,70 +1,19 @@
 """Test plan data structures."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Sequence
+from typing import TYPE_CHECKING, Sequence
 
-# Plan type constants
-INSTRUMENT_TYPE_POWER_SUPPLY = "power_supply"
-INSTRUMENT_TYPE_SIGNAL_GENERATOR = "signal_generator"
+if TYPE_CHECKING:
+    # Modulation configs are driver-owned (instruments/modulation.py); TestPlan
+    # only references the base type in an annotation, never at runtime. This is a
+    # documented deferral — see CLAUDE.md "Adding a New Instrument Type".
+    from ..instruments.modulation import ModulationConfig
 
-# Hard validation limits (values beyond these are physically unreasonable) live
-# in each instrument type's StepFieldSpec.hard_min/hard_max in instrument_specs;
-# the reader enforces them during CSV parsing.
-
-
-class ModulationType(Enum):
-    """Supported modulation types for signal generators."""
-
-    NONE = "none"
-    AM = "am"
-    FM = "fm"
-    # Future: PSK = "psk", QAM = "qam", etc.
-
-
-@dataclass
-class ModulationConfig:
-    """Base configuration for modulation.
-
-    This is the base class for modulation configurations.
-    Subclasses define specific parameters for each modulation type.
-    """
-
-    modulation_type: ModulationType
-    modulation_frequency: float  # Hz - frequency of modulating signal
-
-    def __post_init__(self) -> None:
-        """Validate common modulation values."""
-        if self.modulation_frequency <= 0:
-            raise ValueError(
-                f"modulation_frequency must be > 0, got {self.modulation_frequency}"
-            )
-
-
-@dataclass
-class AMModulationConfig(ModulationConfig):
-    """AM-specific modulation configuration."""
-
-    depth: float = 50.0  # Percentage (0-100%)
-
-    def __post_init__(self) -> None:
-        """Validate AM modulation values."""
-        super().__post_init__()
-        if not 0 <= self.depth <= 100:
-            raise ValueError(f"AM depth must be 0-100%, got {self.depth}")
-
-
-@dataclass
-class FMModulationConfig(ModulationConfig):
-    """FM-specific modulation configuration."""
-
-    deviation: float = 1000.0  # Hz
-
-    def __post_init__(self) -> None:
-        """Validate FM modulation values."""
-        super().__post_init__()
-        if self.deviation <= 0:
-            raise ValueError(f"FM deviation must be > 0, got {self.deviation}")
+# This module is intentionally generic: TestStep and TestPlan only. Per-type step
+# dataclasses and the INSTRUMENT_TYPE_* constants live in their respective
+# model/instrument_types/<type>.py modules.
 
 
 @dataclass
@@ -87,37 +36,6 @@ class TestStep:
             raise ValueError(
                 f"duration_seconds must be >= 0, got {self.duration_seconds}"
             )
-
-
-@dataclass
-class PowerSupplyTestStep(TestStep):
-    """A single step in a power supply test plan."""
-
-    voltage: float = 0.0
-    current: float = 0.0
-
-    def __post_init__(self) -> None:
-        """Validate step values."""
-        super().__post_init__()
-        if self.voltage < 0:
-            raise ValueError(f"voltage must be >= 0, got {self.voltage}")
-        if self.current < 0:
-            raise ValueError(f"current must be >= 0, got {self.current}")
-
-
-@dataclass
-class SignalGeneratorTestStep(TestStep):
-    """A single step in a signal generator test plan."""
-
-    frequency: float = 0.0  # Hz
-    power: float = 0.0  # dBm (can be negative)
-    modulation_enabled: bool = False  # Per-step modulation toggle
-
-    def __post_init__(self) -> None:
-        """Validate step values."""
-        super().__post_init__()
-        if self.frequency < 0:
-            raise ValueError(f"frequency must be >= 0, got {self.frequency}")
 
 
 @dataclass

@@ -106,14 +106,16 @@ UNKNOWN  ──►  IDLE  ──►  RUNNING  ◄──►  PAUSED
 
 ### 6. Registry-Driven Instrument Types
 
-- A single `INSTRUMENT_TYPE_REGISTRY` of `InstrumentTypeDescriptor`s (in
-  `model/instrument_types.py`) is the one source of truth for each supported type
+- A single `INSTRUMENT_TYPE_REGISTRY` of `InstrumentTypeDescriptor`s (assembled in
+  `model/instrument_types/registry.py`, one module per type) is the one source of
+  truth for each supported type
 - Each descriptor bundles the instrument class, step dataclass, declarative field
   specs, a per-run `StepExecutor`, and a pure-data view spec
-- Generic CSV parsing, soft-limit validation, test execution, table columns, plot
-  extraction, and status/dialog formatting all read from this registry — adding a
-  type touches the registry, not the layers
-- Presentation specs live in a neutral leaf module (`instrument_specs.py`) the view
+- Generic CSV parsing, soft-limit validation, test execution (the stateless
+  `model/test_runner.py`), table columns, plot extraction, and status/dialog
+  formatting all read from this registry — adding a type touches one new module,
+  not the layers
+- Presentation specs live in a neutral leaf module (`view_specs.py`) the view
   imports without importing the model, preserving the MVP dependency direction
 - The executor interface (`apply_step` / `on_first_step` / `dwell` / `teardown`)
   also leaves room for future sink-style instruments that sample during a step
@@ -135,7 +137,7 @@ UNKNOWN  ──►  IDLE  ──►  RUNNING  ◄──►  PAUSED
 | Future Need                  | How Structure Supports It              |
 |------------------------------|----------------------------------------|
 | Additional instruments       | Custom: extend a built-in type in root `instruments/`; built-in: add an instrument class in `visa_vulture/instruments/` |
-| New instrument types         | Add a `TestStep` subclass + one `InstrumentTypeDescriptor` to `INSTRUMENT_TYPE_REGISTRY` in `model/instrument_types.py` (drives parsing, validation, execution, table, plot, formatting) — no edits to equipment.py, test_plan_reader.py, schema.py, main_window.py, or equipment_presenter.py. See CLAUDE.md "Adding a New Instrument Type" |
+| New instrument types         | Add a `model/instrument_types/<type>.py` module (`TestStep` subclass + one `InstrumentTypeDescriptor`) and register it in `registry.py` (drives parsing, validation, execution, table, plot, formatting) — no edits to equipment.py, test_runner.py, test_plan_reader.py, schema.py, main_window.py, or equipment_presenter.py. See CLAUDE.md "Adding a New Instrument Type" |
 | More states                  | Extend EquipmentState enum             |
 | New file formats             | Add parser in file_io/                 |
 | Parallel instrument control  | Extend threading_helpers               |

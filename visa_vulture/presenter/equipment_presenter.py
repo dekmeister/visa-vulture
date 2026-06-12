@@ -34,7 +34,7 @@ class EquipmentPresenter:
         poll_interval_ms: int = 100,
         plot_refresh_interval_ms: int = 1000,
         validation_limits: ValidationLimits | None = None,
-        instrument_registry: dict[str, InstrumentEntry] | None = None,
+        instrument_catalog: dict[str, InstrumentEntry] | None = None,
     ):
         """
         Initialize presenter.
@@ -46,7 +46,7 @@ class EquipmentPresenter:
             plot_refresh_interval_ms: Interval for plot position updates during test
             validation_limits: Optional soft validation limits for test plans.
                 If provided, values exceeding soft limits generate warnings.
-            instrument_registry: Optional registry of available instrument types.
+            instrument_catalog: Optional catalog of available instrument types.
                 Maps display names to InstrumentEntry objects. If not provided,
                 only built-in instrument types are available.
         """
@@ -55,11 +55,11 @@ class EquipmentPresenter:
         self._poll_interval_ms = poll_interval_ms
         self._plot_refresh_interval_ms = plot_refresh_interval_ms
         self._validation_limits = validation_limits
-        # When no registry is supplied, default to the built-in instrument types
+        # When no catalog is supplied, default to the built-in instrument types
         # derived from the model's descriptor registry. This removes the need
         # for a display-name fallback when resolving a connection selection.
-        if instrument_registry is None:
-            instrument_registry = {
+        if instrument_catalog is None:
+            instrument_catalog = {
                 d.display_name: InstrumentEntry(
                     cls=d.instrument_cls,
                     display_name=d.display_name,
@@ -68,7 +68,7 @@ class EquipmentPresenter:
                 )
                 for d in INSTRUMENT_TYPE_REGISTRY.values()
             }
-        self._instrument_registry = instrument_registry
+        self._instrument_catalog = instrument_catalog
 
         # Background task runner
         self._task_runner = BackgroundTaskRunner(view.schedule)
@@ -123,8 +123,8 @@ class EquipmentPresenter:
 
         # Build instrument type list for the dialog dropdown
         instrument_types = None
-        if self._instrument_registry:
-            instrument_types = list(self._instrument_registry.keys())
+        if self._instrument_catalog:
+            instrument_types = list(self._instrument_catalog.keys())
 
         # Create and configure dialog
         dialog = ResourceManagerDialog(
@@ -142,14 +142,14 @@ class EquipmentPresenter:
 
         resource_address, selected_display_name = result
 
-        # Resolve the selected instrument type through the registry. The
-        # registry always contains the built-in types (plus any custom ones),
+        # Resolve the selected instrument type through the catalog. The
+        # catalog always contains the built-in types (plus any custom ones),
         # so a missing entry indicates a programming error rather than a normal
         # disconnected path.
-        entry = (self._instrument_registry or {}).get(selected_display_name)
+        entry = (self._instrument_catalog or {}).get(selected_display_name)
         if entry is None:
             logger.error(
-                "Selected instrument '%s' not found in registry", selected_display_name
+                "Selected instrument '%s' not found in catalog", selected_display_name
             )
             self._view.show_error(
                 "Connection Error",

@@ -11,7 +11,7 @@ visa_vulture/
 ├── __init__.py
 ├── __main__.py
 ├── main.py
-├── instrument_specs.py          # Neutral leaf: pure-data view/field specs (no model/view imports)
+├── view_specs.py                # Neutral leaf: pure-data view specs (no model/view imports)
 │
 ├── config/
 │   ├── __init__.py
@@ -22,9 +22,17 @@ visa_vulture/
 ├── model/
 │   ├── __init__.py
 │   ├── state_machine.py
-│   ├── equipment.py
-│   ├── instrument_types.py      # Descriptor registry, step executors, built-in types
-│   └── test_plan.py
+│   ├── equipment.py             # Connection + state + StepContext impl; delegates run loop
+│   ├── test_runner.py           # Stateless run_plan() + execute_steps()
+│   ├── test_plan.py             # Generic only: TestStep, TestPlan
+│   └── instrument_types/        # One module per type + generic framework
+│       ├── __init__.py          # Public re-exports
+│       ├── executor.py          # StepContext, StepExecutor, MetadataParser
+│       ├── fields.py            # StepFieldSpec, SoftLimitSpec, column helpers
+│       ├── descriptor.py        # InstrumentTypeDescriptor + consistency check
+│       ├── power_supply.py      # Power-supply type (step, fields, executor, view, descriptor)
+│       ├── signal_generator.py  # Signal-generator type + modulation metadata parsers
+│       └── registry.py          # _BUILTIN_DESCRIPTORS, INSTRUMENT_TYPE_REGISTRY, validate_soft_limit_config
 │
 ├── view/
 │   ├── __init__.py
@@ -49,6 +57,7 @@ visa_vulture/
 │   ├── base_instrument.py
 │   ├── power_supply.py
 │   ├── signal_generator.py
+│   ├── modulation.py            # ModulationType/Config, AM/FM configs (driver-owned)
 │   └── instrument_loader.py
 │
 ├── logging_config/
@@ -75,7 +84,7 @@ visa_vulture/
 | `__init__.py` | Package init with `__version__` |
 | `__main__.py` | Enables `python -m visa_vulture` |
 | `main.py` | Application entry point; loads config, initialises logging, wires components, manages shutdown |
-| `instrument_specs.py` | Neutral leaf module of pure-data spec dataclasses (`StepFieldSpec`, `ColumnSpec`, `AxisConfig`, `SoftLimitSpec`, `InstrumentViewSpec`) and column helpers. Imports neither `model` nor `view`, so both may import it |
+| `view_specs.py` | Neutral leaf module of pure-data view-presentation dataclasses (`ColumnSpec`, `AxisConfig`, `InstrumentViewSpec`, formatter aliases). Imports neither `model` nor `view`, so both may import it. Parsing-side field specs live in `model/instrument_types/fields.py` |
 
 ---
 
@@ -98,11 +107,12 @@ Business logic, independent of GUI.
 
 | File | Purpose |
 |------|---------|
-| `__init__.py` | Exports: `EquipmentModel`, `EquipmentState`, `INSTRUMENT_TYPE_REGISTRY`, `InstrumentTypeDescriptor`, `StepExecutor`, `StepContext`, `validate_soft_limit_config`, `TestPlan`, `TestStep`, step subclasses, `INSTRUMENT_TYPE_*` constants, modulation classes |
+| `__init__.py` | Exports: `EquipmentModel`, `EquipmentState`, `INSTRUMENT_TYPE_REGISTRY`, `InstrumentTypeDescriptor`, `StepExecutor`, `StepContext`, `MetadataParser`, `validate_soft_limit_config`, `TestPlan`, `TestStep`, step subclasses, `INSTRUMENT_TYPE_*` constants (modulation classes now live in `instruments`) |
 | `state_machine.py` | `EquipmentState` enum, transition validation, callback registration |
-| `equipment.py` | `EquipmentModel` class coordinating state, instruments, registry-driven test execution |
-| `instrument_types.py` | `INSTRUMENT_TYPE_REGISTRY` of `InstrumentTypeDescriptor`s, the `StepExecutor` ABC and built-in executors, built-in field/view specs, the import-time descriptor↔step consistency check, and `validate_soft_limit_config` |
-| `test_plan.py` | `TestPlan` container, `TestStep` base class, `PowerSupplyTestStep` and `SignalGeneratorTestStep` subclasses, `INSTRUMENT_TYPE_*` constants |
+| `equipment.py` | `EquipmentModel` class coordinating state, instruments, connection; implements `StepContext` and delegates the run loop to `test_runner` |
+| `test_runner.py` | Stateless `run_plan()` (descriptor lookup, instrument check, setup → loop → teardown) and `execute_steps()` (the generic per-step loop). Never imports `equipment` |
+| `test_plan.py` | Generic only: `TestPlan` container and `TestStep` base class |
+| `instrument_types/` | Subpackage: one module per instrument type plus the generic framework. `executor.py` (`StepContext`/`StepExecutor`/`MetadataParser`), `fields.py` (`StepFieldSpec`/`SoftLimitSpec`/column helpers), `descriptor.py` (`InstrumentTypeDescriptor` + consistency check), `power_supply.py` and `signal_generator.py` (each: constant, step dataclass, fields, executor, view spec, descriptor; SG also holds modulation metadata parsers), `registry.py` (`_BUILTIN_DESCRIPTORS`, `INSTRUMENT_TYPE_REGISTRY`, `validate_soft_limit_config`). `__init__.py` re-exports the public surface |
 
 ---
 
@@ -161,12 +171,13 @@ VISA communication and instrument abstraction.
 
 | File | Purpose |
 |------|---------|
-| `__init__.py` | Exports: `VISAConnection`, `PowerSupply`, `SignalGenerator`, loader functions |
+| `__init__.py` | Exports: `VISAConnection`, `PowerSupply`, `SignalGenerator`, modulation classes, loader functions |
 | `visa_connection.py` | `VISAConnection` class managing ResourceManager, resource discovery |
 | `base_instrument.py` | `BaseInstrument` abstract class with common interface and SCPI commands |
 | `power_supply.py` | `PowerSupply` class with voltage/current control commands |
-| `signal_generator.py` | `SignalGenerator` class with frequency/power control commands |
-| `instrument_loader.py` | Auto-scanning, registry building, and custom instrument loading |
+| `signal_generator.py` | `SignalGenerator` class with frequency/power control commands; imports modulation configs from sibling `modulation.py` |
+| `modulation.py` | `ModulationType`, `ModulationConfig`, `AMModulationConfig`, `FMModulationConfig` — driver-owned (they parameterise the SG driver). Stdlib-only |
+| `instrument_loader.py` | Auto-scanning, catalog building (`build_instrument_catalog`), and custom instrument loading |
 
 ---
 
@@ -218,12 +229,11 @@ from .equipment import EquipmentModel
 from .instrument_types import (
     INSTRUMENT_TYPE_REGISTRY, InstrumentTypeDescriptor,
     StepContext, StepExecutor, MetadataParser, validate_soft_limit_config,
-)
-from .test_plan import (
-    TestPlan, TestStep, PowerSupplyTestStep, SignalGeneratorTestStep,
+    PowerSupplyTestStep, SignalGeneratorTestStep,
     INSTRUMENT_TYPE_POWER_SUPPLY, INSTRUMENT_TYPE_SIGNAL_GENERATOR,
-    ModulationType, ModulationConfig, AMModulationConfig, FMModulationConfig,
 )
+from .test_plan import TestPlan, TestStep
+# Modulation classes now live in visa_vulture.instruments (driver-owned).
 
 # view/__init__.py
 from .disclaimer_dialog import DisclaimerDialog
@@ -243,9 +253,12 @@ from .visa_connection import VISAConnection
 from .base_instrument import BaseInstrument
 from .power_supply import PowerSupply
 from .signal_generator import SignalGenerator
+from .modulation import (
+    ModulationType, ModulationConfig, AMModulationConfig, FMModulationConfig,
+)
 from .instrument_loader import (
     InstrumentEntry, scan_custom_instruments,
-    build_instrument_registry, create_instrument,
+    build_instrument_catalog, create_instrument,
 )
 
 # logging_config/__init__.py

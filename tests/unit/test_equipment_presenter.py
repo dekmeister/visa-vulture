@@ -1525,7 +1525,7 @@ class TestTableSelectionCallback:
 
 
 class TestConnectWithCustomInstrument:
-    """Tests for connecting with a custom instrument from the registry."""
+    """Tests for connecting with a custom instrument from the catalog."""
 
     def test_custom_instrument_passes_class_to_model(
         self,
@@ -1540,7 +1540,7 @@ class TestConnectWithCustomInstrument:
         class CustomPowerSupply(PowerSupply):
             display_name = "My Custom PS"
 
-        registry = {
+        catalog = {
             "Power Supply": InstrumentEntry(
                 cls=PowerSupply, display_name="Power Supply", instrument_type="power_supply"
             ),
@@ -1569,7 +1569,7 @@ class TestConnectWithCustomInstrument:
             presenter = EquipmentPresenter(
                 mock_model_for_presenter,
                 mock_view,
-                instrument_registry=registry,
+                instrument_catalog=catalog,
             )
             trigger_view_callback(mock_view, "on_connect")
 
@@ -1589,7 +1589,7 @@ class TestConnectWithCustomInstrument:
         from tests.unit.presenter_test_helpers import SynchronousTaskRunner
         from visa_vulture.instruments import InstrumentEntry, PowerSupply
 
-        registry = {
+        catalog = {
             "Power Supply": InstrumentEntry(
                 cls=PowerSupply,
                 display_name="Power Supply",
@@ -1616,7 +1616,7 @@ class TestConnectWithCustomInstrument:
             presenter = EquipmentPresenter(
                 mock_model_for_presenter,
                 mock_view,
-                instrument_registry=registry,
+                instrument_catalog=catalog,
             )
             trigger_view_callback(mock_view, "on_connect")
 

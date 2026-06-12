@@ -20,7 +20,7 @@ BaseTypeMap = dict[type[BaseInstrument], str]
 
 @dataclass
 class InstrumentEntry:
-    """Registry entry for an instrument type."""
+    """Catalog entry for an instrument type."""
 
     cls: type[BaseInstrument]
     display_name: str
@@ -47,11 +47,11 @@ def scan_custom_instruments(
     Returns:
         Dictionary mapping display_name to InstrumentEntry
     """
-    registry: dict[str, InstrumentEntry] = {}
+    catalog: dict[str, InstrumentEntry] = {}
 
     if not instruments_dir.is_dir():
         logger.debug("Custom instruments directory not found: %s", instruments_dir)
-        return registry
+        return catalog
 
     for py_file in sorted(instruments_dir.glob("*.py")):
         if py_file.name.startswith("_"):
@@ -108,7 +108,7 @@ def scan_custom_instruments(
                 instrument_type=instrument_type,
                 is_builtin=False,
             )
-            registry[display_name] = entry
+            catalog[display_name] = entry
             logger.info(
                 "Discovered custom instrument: %s (%s) from %s",
                 display_name,
@@ -116,15 +116,15 @@ def scan_custom_instruments(
                 py_file.name,
             )
 
-    return registry
+    return catalog
 
 
-def build_instrument_registry(
+def build_instrument_catalog(
     builtins: dict[str, InstrumentEntry],
     custom: dict[str, InstrumentEntry] | None = None,
 ) -> dict[str, InstrumentEntry]:
     """
-    Build the complete instrument registry from built-in and custom entries.
+    Build the complete instrument catalog from built-in and custom entries.
 
     Args:
         builtins: Built-in instrument entries (main.py derives these from the
@@ -132,28 +132,28 @@ def build_instrument_registry(
         custom: Custom instruments discovered by scan_custom_instruments.
 
     Returns:
-        Complete registry mapping display_name to InstrumentEntry
+        Complete catalog mapping display_name to InstrumentEntry
     """
-    registry: dict[str, InstrumentEntry] = dict(builtins)
+    catalog: dict[str, InstrumentEntry] = dict(builtins)
 
     if custom:
-        registry.update(custom)
+        catalog.update(custom)
 
-    return registry
+    return catalog
 
 
 def create_instrument(
-    registry: dict[str, InstrumentEntry],
+    catalog: dict[str, InstrumentEntry],
     display_name: str,
     resource_address: str,
     timeout_ms: int = 5000,
 ) -> BaseInstrument:
     """
-    Create an instrument instance from the registry.
+    Create an instrument instance from the catalog.
 
     Args:
-        registry: Instrument registry from build_instrument_registry
-        display_name: Display name key to look up in registry
+        catalog: Instrument catalog from build_instrument_catalog
+        display_name: Display name key to look up in the catalog
         resource_address: VISA resource address
         timeout_ms: Communication timeout in milliseconds
 
@@ -161,12 +161,12 @@ def create_instrument(
         Instrument instance
 
     Raises:
-        ValueError: If display_name is not found in registry
+        ValueError: If display_name is not found in the catalog
     """
-    if display_name not in registry:
+    if display_name not in catalog:
         raise ValueError(f"Unknown instrument: {display_name}")
 
-    entry = registry[display_name]
+    entry = catalog[display_name]
     return entry.cls(entry.display_name, resource_address, timeout_ms)
 
 

@@ -3,17 +3,14 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
 from .base_instrument import BaseInstrument
-
-if TYPE_CHECKING:
-    from visa_vulture.model.test_plan import (
-        ModulationConfig,
-        AMModulationConfig,
-        FMModulationConfig,
-        ModulationType,
-    )
+from .modulation import (
+    AMModulationConfig,
+    FMModulationConfig,
+    ModulationConfig,
+    ModulationType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -225,12 +222,6 @@ class SignalGenerator(BaseInstrument):
         Args:
             config: Modulation configuration object
         """
-        # Import here to avoid circular imports at module level
-        from visa_vulture.model.test_plan import (
-            AMModulationConfig,
-            FMModulationConfig,
-        )
-
         if isinstance(config, AMModulationConfig):
             self.configure_am_modulation(config.modulation_frequency, config.depth)
         elif isinstance(config, FMModulationConfig):
@@ -250,8 +241,6 @@ class SignalGenerator(BaseInstrument):
             config: Modulation configuration (determines which modulation type)
             enabled: Whether to enable or disable modulation
         """
-        from visa_vulture.model.test_plan import ModulationType
-
         if config.modulation_type == ModulationType.AM:
             if enabled:
                 self.enable_am_modulation()

@@ -12,27 +12,26 @@ from unittest.mock import Mock, call
 
 import pytest
 
-from visa_vulture.instrument_specs import (
-    InstrumentViewSpec,
-    StepFieldSpec,
-    make_columns,
-)
+from visa_vulture.view_specs import InstrumentViewSpec
 from visa_vulture.instruments import BaseInstrument, PowerSupply, SignalGenerator
-from visa_vulture.model import EquipmentModel, EquipmentState
+from visa_vulture.model import (
+    EquipmentModel,
+    EquipmentState,
+    INSTRUMENT_TYPE_POWER_SUPPLY,
+    INSTRUMENT_TYPE_SIGNAL_GENERATOR,
+    PowerSupplyTestStep,
+    TestPlan,
+    TestStep,
+)
 from visa_vulture.model.instrument_types import (
     INSTRUMENT_TYPE_REGISTRY,
     InstrumentTypeDescriptor,
     PowerSupplyStepExecutor,
     SignalGeneratorStepExecutor,
     StepExecutor,
+    StepFieldSpec,
+    make_columns,
     _check_descriptor_consistency,
-)
-from visa_vulture.model.test_plan import (
-    INSTRUMENT_TYPE_POWER_SUPPLY,
-    INSTRUMENT_TYPE_SIGNAL_GENERATOR,
-    PowerSupplyTestStep,
-    TestPlan,
-    TestStep,
 )
 
 

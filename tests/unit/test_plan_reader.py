@@ -7,14 +7,16 @@ import pytest
 
 from visa_vulture.config.schema import ValidationLimits
 from visa_vulture.file_io.test_plan_reader import TestPlanResult, read_test_plan
-from visa_vulture.model.test_plan import (
+from visa_vulture.instruments.modulation import (
+    ModulationType,
+    AMModulationConfig,
+    FMModulationConfig,
+)
+from visa_vulture.model import (
     INSTRUMENT_TYPE_POWER_SUPPLY,
     INSTRUMENT_TYPE_SIGNAL_GENERATOR,
     PowerSupplyTestStep,
     SignalGeneratorTestStep,
-    ModulationType,
-    AMModulationConfig,
-    FMModulationConfig,
 )
 
 

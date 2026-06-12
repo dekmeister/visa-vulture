@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from tkinter import filedialog, messagebox, ttk
 from typing import Callable, Iterator
 
-from ..instrument_specs import InstrumentViewSpec
+from ..view_specs import InstrumentViewSpec
 from .log_panel import LogPanel
 from .plot_panel import PlotPanel
 from .test_points_table import TestPointsTable

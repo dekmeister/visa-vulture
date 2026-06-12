@@ -7,7 +7,8 @@ import pytest
 
 from visa_vulture.model.equipment import EquipmentModel
 from visa_vulture.model.state_machine import EquipmentState
-from visa_vulture.model.test_plan import (
+from visa_vulture.model.test_runner import execute_steps
+from visa_vulture.model import (
     INSTRUMENT_TYPE_POWER_SUPPLY,
     INSTRUMENT_TYPE_SIGNAL_GENERATOR,
     PowerSupplyTestStep,
@@ -1151,7 +1152,7 @@ class TestOutputDisabledOnStopAndPause:
         self, mock_visa_connection: Mock
     ) -> None:
         """Stopping disables modulation when modulation was configured (safety test)."""
-        from visa_vulture.model.test_plan import AMModulationConfig, ModulationType
+        from visa_vulture.instruments.modulation import AMModulationConfig, ModulationType
 
         # Create a plan with AM modulation configured
         plan_with_modulation = TestPlan(
@@ -1195,7 +1196,7 @@ class TestOutputDisabledOnStopAndPause:
         self, mock_visa_connection: Mock
     ) -> None:
         """Completing all steps disables both output and modulation."""
-        from visa_vulture.model.test_plan import FMModulationConfig, ModulationType
+        from visa_vulture.instruments.modulation import FMModulationConfig, ModulationType
 
         # Create a plan with FM modulation configured
         plan_with_modulation = TestPlan(
@@ -1228,7 +1229,11 @@ class TestOutputDisabledOnStopAndPause:
 
 
 class TestExecutePlanLoop:
-    """Tests for the extracted _execute_plan_loop helper method."""
+    """Tests for the extracted test_runner.execute_steps helper.
+
+    The model is passed in as the StepContext (supplying stop_requested) and its
+    _notify_progress as the progress notifier.
+    """
 
     def test_sorts_steps_by_step_number(self, mock_visa_connection: Mock) -> None:
         """Steps are executed in step_number order regardless of input order."""
@@ -1241,8 +1246,14 @@ class TestExecutePlanLoop:
             PowerSupplyTestStep(step_number=2, duration_seconds=0.0),
         ]
 
-        model._execute_plan_loop(
-            steps, 3, 1, lambda s: executed.append(s.step_number), Mock()
+        execute_steps(
+            model,
+            model._notify_progress,
+            steps,
+            3,
+            1,
+            lambda s: executed.append(s.step_number),
+            Mock(),
         )
 
         assert executed == [1, 2, 3]
@@ -1258,8 +1269,14 @@ class TestExecutePlanLoop:
             PowerSupplyTestStep(step_number=3, duration_seconds=0.0),
         ]
 
-        model._execute_plan_loop(
-            steps, 3, 2, lambda s: executed.append(s.step_number), Mock()
+        execute_steps(
+            model,
+            model._notify_progress,
+            steps,
+            3,
+            2,
+            lambda s: executed.append(s.step_number),
+            Mock(),
         )
 
         assert executed == [2, 3]
@@ -1280,7 +1297,7 @@ class TestExecutePlanLoop:
             PowerSupplyTestStep(step_number=3, duration_seconds=0.0),
         ]
 
-        model._execute_plan_loop(steps, 3, 1, apply_step, Mock())
+        execute_steps(model, model._notify_progress, steps, 3, 1, apply_step, Mock())
 
         assert executed == [1, 2]
 
@@ -1294,7 +1311,7 @@ class TestExecutePlanLoop:
             PowerSupplyTestStep(step_number=2, duration_seconds=0.0),
         ]
 
-        model._execute_plan_loop(steps, 2, 2, lambda s: None, enable_mock)
+        execute_steps(model, model._notify_progress, steps, 2, 2, lambda s: None, enable_mock)
 
         enable_mock.assert_called_once()
 
@@ -1311,7 +1328,7 @@ class TestExecutePlanLoop:
             PowerSupplyTestStep(step_number=2, duration_seconds=0.0),
         ]
 
-        model._execute_plan_loop(steps, 2, 1, lambda s: None, Mock())
+        execute_steps(model, model._notify_progress, steps, 2, 1, lambda s: None, Mock())
 
         assert progress_steps == [1, 2]
 
@@ -1427,7 +1444,7 @@ class TestSignalGeneratorExecutionPath:
         self, mock_visa_connection: Mock
     ) -> None:
         """Modulation is configured once at start and initially disabled."""
-        from visa_vulture.model.test_plan import AMModulationConfig, ModulationType
+        from visa_vulture.instruments.modulation import AMModulationConfig, ModulationType
 
         am_config = AMModulationConfig(
             modulation_type=ModulationType.AM,
@@ -1469,7 +1486,7 @@ class TestSignalGeneratorExecutionPath:
         self, mock_visa_connection: Mock
     ) -> None:
         """set_modulation_enabled is only called when state changes between steps."""
-        from visa_vulture.model.test_plan import AMModulationConfig, ModulationType
+        from visa_vulture.instruments.modulation import AMModulationConfig, ModulationType
 
         am_config = AMModulationConfig(
             modulation_type=ModulationType.AM,
@@ -1528,7 +1545,7 @@ class TestSignalGeneratorExecutionPath:
         self, mock_visa_connection: Mock
     ) -> None:
         """Every step triggers set_modulation_enabled when state alternates."""
-        from visa_vulture.model.test_plan import AMModulationConfig, ModulationType
+        from visa_vulture.instruments.modulation import AMModulationConfig, ModulationType
 
         am_config = AMModulationConfig(
             modulation_type=ModulationType.AM,

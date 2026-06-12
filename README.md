@@ -185,7 +185,7 @@ The application follows the Model-View-Presenter (MVP) pattern:
 instruments/                    # Custom instrument extensions (project root)
 visa_vulture/
 ├── main.py                 # Entry point
-├── instrument_specs.py     # Pure-data view/field specs (neutral leaf module)
+├── view_specs.py           # Pure-data view presentation specs (neutral leaf module)
 ├── config/                 # Configuration loading
 ├── model/                  # Business logic, state machine, instrument-type registry
 ├── view/                   # Tkinter GUI components
@@ -208,14 +208,16 @@ See [instruments/README.md](instruments/README.md) for full documentation and th
 ## Adding a New Built-in Instrument Type
 
 Built-in instrument types are defined by a single registry of descriptors,
-`INSTRUMENT_TYPE_REGISTRY` in `visa_vulture/model/instrument_types.py`. Adding a
-type is a matter of writing a small set of artifacts — no edits to the parsing,
-validation, execution, or GUI layers:
+`INSTRUMENT_TYPE_REGISTRY` (assembled in
+`visa_vulture/model/instrument_types/registry.py`). Adding a type is a matter of
+writing a small set of artifacts — no edits to the parsing, validation,
+execution, or GUI layers:
 
 1. Create an instrument class in `visa_vulture/instruments/` (inheriting from
    `BaseInstrument`), implementing `connect`, `disconnect`, and its commands
-2. Add a `TestStep` subclass and one `InstrumentTypeDescriptor` (field specs,
-   executor, view spec) to the registry in `model/instrument_types.py`
+2. Create a `model/instrument_types/<type>.py` module (type constant, `TestStep`
+   subclass, field specs, executor, view spec, and one `InstrumentTypeDescriptor`),
+   then add the descriptor to `_BUILTIN_DESCRIPTORS` in `registry.py`
 3. Add simulation responses to `visa_vulture/simulation/instruments.yaml`
 4. Add a sample plan under `plans/` and tests
 

@@ -13,7 +13,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
-from ..instrument_specs import AxisConfig
+from ..view_specs import AxisConfig
 
 
 class PlotPanel(ttk.Frame):

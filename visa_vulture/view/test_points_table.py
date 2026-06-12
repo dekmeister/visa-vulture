@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable, Sequence
 
-from ..instrument_specs import ColumnSpec
+from ..view_specs import ColumnSpec
 
 
 class TestPointsTable(ttk.Frame):

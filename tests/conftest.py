@@ -136,7 +136,7 @@ def equipment_model(mock_visa_connection: Mock):
 @pytest.fixture
 def sample_power_supply_plan():
     """Sample PowerSupply test plan."""
-    from visa_vulture.model.test_plan import (
+    from visa_vulture.model import (
         INSTRUMENT_TYPE_POWER_SUPPLY,
         PowerSupplyTestStep,
         TestPlan,
@@ -159,7 +159,7 @@ def sample_power_supply_plan():
 @pytest.fixture
 def sample_signal_generator_plan():
     """Sample SignalGenerator test plan."""
-    from visa_vulture.model.test_plan import (
+    from visa_vulture.model import (
         INSTRUMENT_TYPE_SIGNAL_GENERATOR,
         SignalGeneratorTestStep,
         TestPlan,
@@ -321,7 +321,7 @@ def mock_model_for_presenter() -> Mock:
 
     # Plan type compatibility - mirrors real EquipmentModel.is_instrument_type_compatible()
     def is_instrument_type_compatible(instrument_type: str) -> bool:
-        from visa_vulture.model.test_plan import (
+        from visa_vulture.model import (
             INSTRUMENT_TYPE_POWER_SUPPLY,
             INSTRUMENT_TYPE_SIGNAL_GENERATOR,
         )

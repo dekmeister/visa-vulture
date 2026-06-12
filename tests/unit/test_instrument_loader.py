@@ -13,7 +13,7 @@ from visa_vulture.instruments import (
 )
 from visa_vulture.instruments.instrument_loader import (
     InstrumentEntry,
-    build_instrument_registry,
+    build_instrument_catalog,
     create_instrument,
     scan_custom_instruments,
     _get_base_type,
@@ -91,21 +91,21 @@ class TestGetBaseType:
         assert _get_base_type(str, _BASE_MAP) is None
 
 
-# === Tests for build_instrument_registry ===
+# === Tests for build_instrument_catalog ===
 
 
 class TestBuildInstrumentRegistry:
     def test_built_in_types_included(self):
-        registry = build_instrument_registry(_BUILTINS)
-        assert "Power Supply" in registry
-        assert "Signal Generator" in registry
-        assert registry["Power Supply"].cls is PowerSupply
-        assert registry["Signal Generator"].cls is SignalGenerator
+        catalog = build_instrument_catalog(_BUILTINS)
+        assert "Power Supply" in catalog
+        assert "Signal Generator" in catalog
+        assert catalog["Power Supply"].cls is PowerSupply
+        assert catalog["Signal Generator"].cls is SignalGenerator
 
     def test_built_in_base_types(self):
-        registry = build_instrument_registry(_BUILTINS)
-        assert registry["Power Supply"].instrument_type == "power_supply"
-        assert registry["Signal Generator"].instrument_type == "signal_generator"
+        catalog = build_instrument_catalog(_BUILTINS)
+        assert catalog["Power Supply"].instrument_type == "power_supply"
+        assert catalog["Signal Generator"].instrument_type == "signal_generator"
 
     def test_custom_instruments_merged(self):
         custom = {
@@ -115,18 +115,18 @@ class TestBuildInstrumentRegistry:
                 instrument_type="signal_generator",
             )
         }
-        registry = build_instrument_registry(_BUILTINS, custom)
-        assert "Fake Signal Gen" in registry
-        assert "Power Supply" in registry
-        assert "Signal Generator" in registry
+        catalog = build_instrument_catalog(_BUILTINS, custom)
+        assert "Fake Signal Gen" in catalog
+        assert "Power Supply" in catalog
+        assert "Signal Generator" in catalog
 
     def test_empty_custom_dict(self):
-        registry = build_instrument_registry(_BUILTINS, {})
-        assert len(registry) == 2
+        catalog = build_instrument_catalog(_BUILTINS, {})
+        assert len(catalog) == 2
 
     def test_none_custom_dict(self):
-        registry = build_instrument_registry(_BUILTINS, None)
-        assert len(registry) == 2
+        catalog = build_instrument_catalog(_BUILTINS, None)
+        assert len(catalog) == 2
 
 
 # === Tests for create_instrument ===
@@ -134,17 +134,17 @@ class TestBuildInstrumentRegistry:
 
 class TestCreateInstrument:
     def test_create_built_in_power_supply(self):
-        registry = build_instrument_registry(_BUILTINS)
+        catalog = build_instrument_catalog(_BUILTINS)
         instrument = create_instrument(
-            registry, "Power Supply", "TCPIP::1.2.3.4::INSTR", 5000
+            catalog, "Power Supply", "TCPIP::1.2.3.4::INSTR", 5000
         )
         assert isinstance(instrument, PowerSupply)
         assert instrument.name == "Power Supply"
 
     def test_create_built_in_signal_generator(self):
-        registry = build_instrument_registry(_BUILTINS)
+        catalog = build_instrument_catalog(_BUILTINS)
         instrument = create_instrument(
-            registry, "Signal Generator", "TCPIP::1.2.3.4::INSTR", 5000
+            catalog, "Signal Generator", "TCPIP::1.2.3.4::INSTR", 5000
         )
         assert isinstance(instrument, SignalGenerator)
 
@@ -156,9 +156,9 @@ class TestCreateInstrument:
                 instrument_type="signal_generator",
             )
         }
-        registry = build_instrument_registry(_BUILTINS, custom)
+        catalog = build_instrument_catalog(_BUILTINS, custom)
         instrument = create_instrument(
-            registry, "Fake Signal Gen", "TCPIP::1.2.3.4::INSTR", 5000
+            catalog, "Fake Signal Gen", "TCPIP::1.2.3.4::INSTR", 5000
         )
         assert isinstance(instrument, FakeSignalGen)
         assert isinstance(instrument, SignalGenerator)
@@ -172,17 +172,17 @@ class TestCreateInstrument:
                 instrument_type="signal_generator",
             )
         }
-        registry = build_instrument_registry(_BUILTINS, custom)
+        catalog = build_instrument_catalog(_BUILTINS, custom)
         instrument = create_instrument(
-            registry, "Fake Signal Gen", "TCPIP::1.2.3.4::INSTR", 5000
+            catalog, "Fake Signal Gen", "TCPIP::1.2.3.4::INSTR", 5000
         )
         assert isinstance(instrument, SignalGenerator)
         assert isinstance(instrument, BaseInstrument)
 
     def test_unknown_display_name_raises(self):
-        registry = build_instrument_registry(_BUILTINS)
+        catalog = build_instrument_catalog(_BUILTINS)
         with pytest.raises(ValueError, match="Unknown instrument"):
-            create_instrument(registry, "Nonexistent", "TCPIP::1.2.3.4::INSTR", 5000)
+            create_instrument(catalog, "Nonexistent", "TCPIP::1.2.3.4::INSTR", 5000)
 
 
 # === Tests for scan_custom_instruments ===
@@ -339,9 +339,9 @@ class TestScanCustomInstruments:
 
 class TestBuiltinEntriesFlag:
     def test_builtin_entries_marked_is_builtin(self):
-        registry = build_instrument_registry(_BUILTINS)
-        assert registry["Power Supply"].is_builtin is True
-        assert registry["Signal Generator"].is_builtin is True
+        catalog = build_instrument_catalog(_BUILTINS)
+        assert catalog["Power Supply"].is_builtin is True
+        assert catalog["Signal Generator"].is_builtin is True
 
 
 # === Tests for equipment model integration ===

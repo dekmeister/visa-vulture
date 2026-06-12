@@ -2,17 +2,19 @@
 
 import pytest
 
-from visa_vulture.model.test_plan import (
+from visa_vulture.instruments.modulation import (
+    ModulationType,
+    ModulationConfig,
+    AMModulationConfig,
+    FMModulationConfig,
+)
+from visa_vulture.model import (
     INSTRUMENT_TYPE_POWER_SUPPLY,
     INSTRUMENT_TYPE_SIGNAL_GENERATOR,
     PowerSupplyTestStep,
     SignalGeneratorTestStep,
     TestPlan,
     TestStep,
-    ModulationType,
-    ModulationConfig,
-    AMModulationConfig,
-    FMModulationConfig,
 )
 
 

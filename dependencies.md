@@ -50,24 +50,32 @@ Arrows indicate "imports from" direction.
 
 | Package | Can Import | Must NOT Import |
 |---------|------------|-----------------|
-| **main.py** | config, logging_config, instruments, model, view, presenter, instrument_specs | file_io, utils (indirectly via others) |
-| **instrument_specs.py** | (standard library + typing only) | All internal packages (neutral leaf) |
+| **main.py** | config, logging_config, instruments, model, view, presenter, view_specs | file_io, utils (indirectly via others) |
+| **view_specs.py** | (standard library + typing only) | All internal packages (neutral leaf) |
 | **config/** | (standard library only) | All internal packages |
 | **logging_config/** | (standard library only) | All internal packages |
-| **model/** | instruments, file_io, instrument_specs | view, presenter, config (config only under `TYPE_CHECKING`), logging_config |
-| **view/** | utils (optional), instrument_specs | model, presenter, instruments, file_io, config |
+| **model/** | instruments (incl. `instruments.modulation`), file_io, view_specs | view, presenter, config (config only under `TYPE_CHECKING`), logging_config |
+| **view/** | utils (optional), view_specs | model, presenter, instruments, file_io, config |
 | **presenter/** | model, view, utils | instruments, file_io, config (go through model) |
-| **file_io/** | model (`INSTRUMENT_TYPE_REGISTRY`, TestPlan, TestStep subclasses, type constants) | view, presenter, instruments, config |
-| **instruments/** | (pyvisa, importlib) | All internal packages |
+| **file_io/** | model (`INSTRUMENT_TYPE_REGISTRY`, `StepFieldSpec`, TestPlan, TestStep subclasses, type constants) | view, presenter, instruments, config |
+| **instruments/** | (pyvisa, importlib) | All internal packages (incl. model — no longer imported even lazily) |
 | **instruments/ (root)** | visa_vulture.instruments | Internal packages (uses visa_vulture as a library) |
 | **utils/** | (standard library only) | All internal packages |
 
-> **`instrument_specs.py`** is a neutral leaf module of pure-data spec
-> dataclasses (`StepFieldSpec`, `ColumnSpec`, `AxisConfig`, `InstrumentViewSpec`,
-> …). The model embeds these specs in each `InstrumentTypeDescriptor`; `main.py`
-> derives `{instrument_type: descriptor.view}` and injects it into the view. This
-> lets the view consume presentation data without importing the model, preserving
-> the MVP dependency direction.
+> **`view_specs.py`** is a neutral leaf module of pure-data presentation
+> dataclasses consumed by the view (`ColumnSpec`, `AxisConfig`,
+> `InstrumentViewSpec`, formatter aliases). The model embeds these specs in each
+> `InstrumentTypeDescriptor`; `main.py` derives `{instrument_type: descriptor.view}`
+> and injects it into the view. This lets the view consume presentation data
+> without importing the model, preserving the MVP dependency direction. The
+> parsing-side field specs (`StepFieldSpec`/`SoftLimitSpec`) and column helpers
+> live model-side in `model/instrument_types/fields.py` — the view never uses them.
+
+> **Modulation configs** (`ModulationType`, `ModulationConfig`, `AM`/`FM` configs)
+> live in `instruments/modulation.py` because they parameterise the signal
+> generator driver. The model's `model/instrument_types/signal_generator.py`
+> imports them (model → instruments), and the SG driver imports them as a sibling
+> — the driver no longer reaches back into the model.
 
 ---
 
@@ -95,7 +103,7 @@ main.py
    │
    ├─6─► view/ ──► Create MainWindow
    │
-   ├─7─► presenter/ ──► Create EquipmentPresenter with instrument registry, wire callbacks
+   ├─7─► presenter/ ──► Create EquipmentPresenter with instrument catalog, wire callbacks
    │
    └─8─► root.mainloop() ──► Start GUI event loop
 ```
@@ -289,7 +297,7 @@ user_config.json (optional override)
         │
         ├──► simulation_mode? → VISAConnection backend selection
         │
-        ├──► instrument_loader → Scan custom instruments, build registry
+        ├──► instrument_loader → Scan custom instruments, build catalog
         │
         └──► interface config → Window size, poll intervals
 ```

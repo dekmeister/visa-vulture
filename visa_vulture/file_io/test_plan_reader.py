@@ -17,8 +17,11 @@ from pathlib import Path
 from typing import Any
 
 from ..config.schema import ValidationLimits
-from ..instrument_specs import StepFieldSpec
-from ..model.instrument_types import INSTRUMENT_TYPE_REGISTRY, InstrumentTypeDescriptor
+from ..model.instrument_types import (
+    INSTRUMENT_TYPE_REGISTRY,
+    InstrumentTypeDescriptor,
+    StepFieldSpec,
+)
 from ..model.test_plan import TestPlan, TestStep
 
 

@@ -197,7 +197,7 @@ class TestSignalGeneratorModulationDispatch:
 
     def test_configure_modulation_dispatches_am(self, mock_visa_resource: Mock) -> None:
         """configure_modulation calls configure_am_modulation for AM config."""
-        from visa_vulture.model.test_plan import AMModulationConfig, ModulationType
+        from visa_vulture.instruments.modulation import AMModulationConfig, ModulationType
 
         sg = _make_connected_signal_generator(mock_visa_resource)
         config = AMModulationConfig(
@@ -214,7 +214,7 @@ class TestSignalGeneratorModulationDispatch:
 
     def test_configure_modulation_dispatches_fm(self, mock_visa_resource: Mock) -> None:
         """configure_modulation calls configure_fm_modulation for FM config."""
-        from visa_vulture.model.test_plan import FMModulationConfig, ModulationType
+        from visa_vulture.instruments.modulation import FMModulationConfig, ModulationType
 
         sg = _make_connected_signal_generator(mock_visa_resource)
         config = FMModulationConfig(
@@ -231,7 +231,7 @@ class TestSignalGeneratorModulationDispatch:
 
     def test_set_modulation_enabled_am_enable(self, mock_visa_resource: Mock) -> None:
         """set_modulation_enabled enables AM modulation."""
-        from visa_vulture.model.test_plan import AMModulationConfig, ModulationType
+        from visa_vulture.instruments.modulation import AMModulationConfig, ModulationType
 
         sg = _make_connected_signal_generator(mock_visa_resource)
         config = AMModulationConfig(
@@ -246,7 +246,7 @@ class TestSignalGeneratorModulationDispatch:
 
     def test_set_modulation_enabled_am_disable(self, mock_visa_resource: Mock) -> None:
         """set_modulation_enabled disables AM modulation."""
-        from visa_vulture.model.test_plan import AMModulationConfig, ModulationType
+        from visa_vulture.instruments.modulation import AMModulationConfig, ModulationType
 
         sg = _make_connected_signal_generator(mock_visa_resource)
         config = AMModulationConfig(
@@ -261,7 +261,7 @@ class TestSignalGeneratorModulationDispatch:
 
     def test_set_modulation_enabled_fm_enable(self, mock_visa_resource: Mock) -> None:
         """set_modulation_enabled enables FM modulation."""
-        from visa_vulture.model.test_plan import FMModulationConfig, ModulationType
+        from visa_vulture.instruments.modulation import FMModulationConfig, ModulationType
 
         sg = _make_connected_signal_generator(mock_visa_resource)
         config = FMModulationConfig(
@@ -276,7 +276,7 @@ class TestSignalGeneratorModulationDispatch:
 
     def test_set_modulation_enabled_fm_disable(self, mock_visa_resource: Mock) -> None:
         """set_modulation_enabled disables FM modulation."""
-        from visa_vulture.model.test_plan import FMModulationConfig, ModulationType
+        from visa_vulture.instruments.modulation import FMModulationConfig, ModulationType
 
         sg = _make_connected_signal_generator(mock_visa_resource)
         config = FMModulationConfig(

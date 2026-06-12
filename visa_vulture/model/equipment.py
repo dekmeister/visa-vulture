@@ -2,12 +2,13 @@
 
 import logging
 import time
-from typing import Callable, Mapping, Sequence
+from typing import Callable, Mapping
 
 from ..instruments import BaseInstrument, VISAConnection
 from .instrument_types import InstrumentTypeDescriptor, INSTRUMENT_TYPE_REGISTRY
 from .state_machine import EquipmentState, StateMachine
 from .test_plan import TestPlan, TestStep
+from .test_runner import run_plan
 
 logger = logging.getLogger(__name__)
 
@@ -326,64 +327,13 @@ class EquipmentModel:
             logger.info("Resume requested")
             self._pause_requested = False
 
-    def _execute_plan_loop(
-        self,
-        steps: Sequence[TestStep],
-        total_steps: int,
-        start_step: int,
-        apply_step: Callable[[TestStep], None],
-        enable_output: Callable[[], None],
-        dwell: Callable[[TestStep], None] | None = None,
-    ) -> None:
-        """Execute the common test plan step iteration loop.
-
-        Iterates over sorted steps, skipping steps before start_step.
-        For each step, calls apply_step to send instrument-specific commands,
-        enables output on the first executed step, notifies progress, and
-        dwells for the step duration. Stops early if _stop_requested is set.
-
-        Args:
-            steps: Sequence of test steps to iterate over
-            total_steps: Total number of steps (for progress reporting)
-            start_step: 1-based step number to start execution from
-            apply_step: Callable that applies instrument-specific settings
-                for a step. Should perform type narrowing, logging, and
-                instrument commands.
-            enable_output: Callable that enables the instrument output.
-            dwell: Callable invoked with the step to wait for its duration.
-                Defaults to an interruptible sleep of the step duration; an
-                executor may supply its own (e.g. a sink sampling during dwell).
-        """
-        sorted_steps = sorted(steps, key=lambda s: s.step_number)
-
-        for step in sorted_steps:
-            if step.step_number < start_step:
-                continue
-
-            if self._stop_requested:
-                logger.info("Test stopped at step %d", step.step_number)
-                break
-
-            apply_step(step)
-
-            if step.step_number == start_step:
-                enable_output()
-
-            self._notify_progress(step.step_number, total_steps, step)
-
-            if dwell is not None:
-                dwell(step)
-            elif step.duration_seconds > 0:
-                self._interruptible_sleep(step.duration_seconds)
-
     def _execute_plan(self, start_step: int = 1) -> None:
-        """Execute the loaded test plan via its instrument-type executor.
+        """Execute the loaded test plan via the stateless run loop.
 
-        Looks up the descriptor for the plan's instrument type, verifies the
-        connected instrument matches, then runs setup → step loop → teardown.
-        The per-step ordering (apply → enable output on first step → notify
-        progress → dwell) is identical for every instrument type; behaviour
-        differences live in the executor.
+        Thin delegate to ``test_runner.run_plan``; the model supplies itself as
+        the ``StepContext`` (pause/stop-aware dwell + stop flag) and its progress
+        notifier. Kept as a method so ``run_test`` and tests that patch it are
+        unaffected.
 
         Args:
             start_step: 1-based step number to start from (default: 1)
@@ -391,40 +341,14 @@ class EquipmentModel:
         if self._test_plan is None:
             return
 
-        descriptor = self._instrument_types.get(self._test_plan.instrument_type)
-        if descriptor is None:
-            raise RuntimeError(f"Unknown plan type: {self._test_plan.instrument_type}")
-
-        if not isinstance(self._instrument, descriptor.instrument_cls):
-            raise RuntimeError(
-                f"Connected instrument is not a {descriptor.display_name.lower()}"
-            )
-
-        instrument = self._instrument
-        plan = self._test_plan
-        executor = descriptor.executor_cls()
-
-        executor.setup(instrument, plan)
-
-        def apply_step(step: TestStep) -> None:
-            executor.apply_step(instrument, step)
-
-        def enable_output() -> None:
-            executor.on_first_step(instrument)
-
-        def dwell(step: TestStep) -> None:
-            executor.dwell(instrument, step, self)
-
-        self._execute_plan_loop(
-            plan.steps,
-            plan.step_count,
-            start_step,
-            apply_step,
-            enable_output,
-            dwell,
+        run_plan(
+            self._instrument_types,
+            self._test_plan,
+            self._instrument,
+            context=self,
+            notify_progress=self._notify_progress,
+            start_step=start_step,
         )
-
-        executor.teardown(instrument, plan)
 
     @property
     def stop_requested(self) -> bool:

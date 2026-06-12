@@ -12,7 +12,7 @@ from .instruments import (
     InstrumentEntry,
     VISAConnection,
     scan_custom_instruments,
-    build_instrument_registry,
+    build_instrument_catalog,
 )
 from .logging_config import setup_logging
 from .model import (
@@ -131,7 +131,7 @@ def main() -> int:
     custom_instruments = scan_custom_instruments(
         Path.cwd() / "instruments", base_type_map
     )
-    instrument_registry = build_instrument_registry(builtin_entries, custom_instruments)
+    instrument_catalog = build_instrument_catalog(builtin_entries, custom_instruments)
     if custom_instruments:
         logger.info(
             "Loaded %d custom instrument(s): %s",
@@ -190,7 +190,7 @@ def main() -> int:
         poll_interval_ms=config.poll_interval_ms,
         plot_refresh_interval_ms=config.plot_refresh_interval_ms,
         validation_limits=config.validation_limits,
-        instrument_registry=instrument_registry,
+        instrument_catalog=instrument_catalog,
     )
 
     # Setup clean shutdown
