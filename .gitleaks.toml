@@ -1,0 +1,19 @@
+# Extend gitleaks' built-in ruleset rather than replacing it.
+title = "gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Generated / vendored files that routinely trip entropy rules"
+paths = [
+  '''(^|/)package-lock\.json$''',
+  '''(^|/)yarn\.lock$''',
+  '''(^|/)poetry\.lock$''',
+  '''(^|/)uv\.lock$''',
+  '''(^|/)Pipfile\.lock$''',
+  '''(^|/)Cargo\.lock$''',
+  '''\.min\.(js|css)$''',
+]
+# For a one-off false positive prefer adding its fingerprint to .gitleaksignore
+# (shown in the gitleaks output) over widening the rules above.
