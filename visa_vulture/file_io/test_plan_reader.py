@@ -239,9 +239,7 @@ def _parse_test_plan(
 
     for row_num, row in enumerate(rows, start=2):
         step_number = row_num - 1  # 1-based step number (row 2 = step 1)
-        step, row_errors = _parse_row(
-            row, column_map, row_num, step_number, descriptor
-        )
+        step, row_errors = _parse_row(row, column_map, row_num, step_number, descriptor)
         if row_errors:
             errors.extend(row_errors)
         elif step is not None:

@@ -266,4 +266,9 @@ class TestBuiltinViewSpecs:
 
     def test_make_columns_prefix_and_suffix(self) -> None:
         cols = make_columns()
-        assert [c.column_id for c in cols] == ["step", "duration", "abs_time", "description"]
+        assert [c.column_id for c in cols] == [
+            "step",
+            "duration",
+            "abs_time",
+            "description",
+        ]

@@ -1,6 +1,7 @@
 """Tests for the logging configuration module."""
 
 import logging
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -136,3 +137,25 @@ class TestSetupLogging:
         """Root logger level is set to the configured level."""
         setup_logging(log_file=tmp_path / "test.log", log_level="WARNING")
         assert logging.getLogger().level == logging.WARNING
+
+
+class TestConsoleHandler:
+    """Tests for the console (stderr) handler."""
+
+    @staticmethod
+    def _console_handlers() -> list[logging.Handler]:
+        return [
+            h for h in logging.getLogger().handlers if type(h) is logging.StreamHandler
+        ]
+
+    def test_console_handler_added_when_stderr_available(self, tmp_path: Path) -> None:
+        setup_logging(log_file=tmp_path / "test.log")
+        assert len(self._console_handlers()) == 1
+
+    def test_console_handler_skipped_when_stderr_is_none(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A windowed executable has no stderr; only file and GUI handlers."""
+        monkeypatch.setattr(sys, "stderr", None)
+        setup_logging(log_file=tmp_path / "test.log")
+        assert self._console_handlers() == []

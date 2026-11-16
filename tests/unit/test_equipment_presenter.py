@@ -533,7 +533,9 @@ class TestLoadTestPlanHandler:
         mock_model_for_presenter.load_test_plan.assert_called_once()
         mock_view.set_test_plan_name.assert_called()
         mock_view.show_plot.assert_called_once_with("power_supply")
-        mock_view.get_plot_panel("power_supply").load_test_plan_preview.assert_called_once()
+        mock_view.get_plot_panel(
+            "power_supply"
+        ).load_test_plan_preview.assert_called_once()
         mock_view.get_table("power_supply").load_steps.assert_called_once()
 
     def test_load_valid_signal_generator_plan_updates_view(
@@ -549,7 +551,9 @@ class TestLoadTestPlanHandler:
         trigger_view_callback(mock_view, "on_load_test_plan", file_path)
 
         mock_view.show_plot.assert_called_once_with("signal_generator")
-        mock_view.get_plot_panel("signal_generator").load_test_plan_preview.assert_called_once()
+        mock_view.get_plot_panel(
+            "signal_generator"
+        ).load_test_plan_preview.assert_called_once()
         mock_view.get_table("signal_generator").load_steps.assert_called_once()
 
     def test_load_invalid_plan_shows_error(
@@ -968,7 +972,9 @@ class TestProgressCallback:
         trigger_progress(mock_model_for_presenter, current=1, total=3, step=step)
         execute_scheduled_callbacks(mock_view)
 
-        mock_view.get_plot_panel("power_supply").set_current_position.assert_called_with(5.0)
+        mock_view.get_plot_panel(
+            "power_supply"
+        ).set_current_position.assert_called_with(5.0)
 
     def test_progress_updates_signal_generator_plot_position(
         self,
@@ -988,7 +994,9 @@ class TestProgressCallback:
         trigger_progress(mock_model_for_presenter, current=1, total=2, step=step)
         execute_scheduled_callbacks(mock_view)
 
-        mock_view.get_plot_panel("signal_generator").set_current_position.assert_called_with(7.5)
+        mock_view.get_plot_panel(
+            "signal_generator"
+        ).set_current_position.assert_called_with(7.5)
 
     def test_progress_highlights_power_supply_table_row(
         self,
@@ -1542,7 +1550,9 @@ class TestConnectWithCustomInstrument:
 
         catalog = {
             "Power Supply": InstrumentEntry(
-                cls=PowerSupply, display_name="Power Supply", instrument_type="power_supply"
+                cls=PowerSupply,
+                display_name="Power Supply",
+                instrument_type="power_supply",
             ),
             "My Custom PS": InstrumentEntry(
                 cls=CustomPowerSupply,

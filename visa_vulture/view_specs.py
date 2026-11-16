@@ -19,7 +19,9 @@ from typing import Any, Callable
 
 # Type aliases — full signatures so mypy checks descriptor definitions.
 ValueFormatter = Callable[[Any], str]  # step -> table cell text
-StatusFormatter = Callable[[Any, int, int], str]  # (step, current, total) -> status text
+StatusFormatter = Callable[
+    [Any, int, int], str
+]  # (step, current, total) -> status text
 StepDetailsFormatter = Callable[[Any], str]  # step -> Start-from dialog text
 
 

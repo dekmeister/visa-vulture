@@ -61,7 +61,9 @@ COMMON_COLUMNS: tuple[ColumnSpec, ...] = (
     ),
 )
 
-_DESCRIPTION_COLUMN = ColumnSpec("description", "Description", 150, lambda s: s.description)
+_DESCRIPTION_COLUMN = ColumnSpec(
+    "description", "Description", 150, lambda s: s.description
+)
 
 
 def make_columns(*specific: ColumnSpec) -> tuple[ColumnSpec, ...]:
