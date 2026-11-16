@@ -1,6 +1,7 @@
 """Logging configuration and custom handlers."""
 
 import logging
+import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Callable
@@ -89,11 +90,13 @@ def setup_logging(
     file_handler.setFormatter(formatter)
     root_logger.addHandler(file_handler)
 
-    # Console handler for development
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(numeric_level)
-    console_handler.setFormatter(formatter)
-    root_logger.addHandler(console_handler)
+    # Console handler for development (skipped when there is no stderr, e.g.
+    # a windowed executable with no console attached)
+    if sys.stderr is not None:
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(numeric_level)
+        console_handler.setFormatter(formatter)
+        root_logger.addHandler(console_handler)
 
     # GUI handler
     if gui_handler is None:

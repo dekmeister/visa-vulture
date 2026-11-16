@@ -5,7 +5,7 @@ import argparse
 import logging
 import sys
 import tkinter as tk
-from pathlib import Path
+from tkinter import messagebox
 
 from .config import load_config
 from .instruments import (
@@ -21,6 +21,7 @@ from .model import (
     validate_soft_limit_config,
 )
 from .presenter import EquipmentPresenter
+from .utils import is_frozen, resolve_custom_instruments_dir, resolve_log_file
 from .view import DisclaimerDialog, MainWindow
 
 logger = logging.getLogger(__name__)
@@ -63,6 +64,49 @@ def validate_visa_backend(backend: str) -> str | None:
         return f"Invalid VISA backend '{backend}'. " f"Available backends: {available}"
 
 
+def _should_show_error_dialog() -> bool:
+    """Return True when stderr output would not be seen by the user.
+
+    That is the case for a packaged executable (typically launched from a
+    shortcut, with no console attached) or whenever stderr is unavailable.
+    """
+    return is_frozen() or sys.stderr is None
+
+
+def report_startup_errors(heading: str, errors: list[str]) -> None:
+    """Report errors that prevent the application from starting.
+
+    Always writes to stderr when available. Additionally shows a modal error
+    dialog when there is no console for the user to read stderr from.
+
+    Args:
+        heading: One-line summary, e.g. "Configuration errors"
+        errors: Individual error messages (may be empty)
+    """
+    if errors:
+        lines = [f"{heading}:"] + [f"  - {e}" for e in errors]
+    else:
+        lines = [heading]
+    message = "\n".join(lines)
+
+    if sys.stderr is not None:
+        print(message, file=sys.stderr)
+
+    if not _should_show_error_dialog():
+        return
+
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        # No display available; nothing more we can do.
+        return
+    try:
+        root.withdraw()
+        messagebox.showerror("VISA Vulture - startup error", message, parent=root)
+    finally:
+        root.destroy()
+
+
 def main() -> int:
     """Main entry point."""
     args = parse_args()
@@ -72,13 +116,11 @@ def main() -> int:
     config, errors = load_config(config_path)
 
     if errors:
-        print("Configuration errors:", file=sys.stderr)
-        for error in errors:
-            print(f"  - {error}", file=sys.stderr)
+        report_startup_errors("Configuration errors", errors)
         return 1
 
     if config is None:
-        print("Failed to load configuration", file=sys.stderr)
+        report_startup_errors("Failed to load configuration", [])
         return 1
 
     # Override simulation mode if requested
@@ -89,16 +131,18 @@ def main() -> int:
     if config.visa_backend and not config.simulation_mode:
         backend_error = validate_visa_backend(config.visa_backend)
         if backend_error:
-            print(f"Configuration error: {backend_error}", file=sys.stderr)
+            report_startup_errors("Configuration errors", [backend_error])
             return 1
 
     # Setup logging
+    log_file = resolve_log_file(config.log_file)
     gui_handler = setup_logging(
-        log_file=config.log_file,
+        log_file=log_file,
         log_level=config.log_level,
     )
 
     logger.info("Starting VISA Vulture")
+    logger.info("Logging to %s", log_file.resolve())
     logger.info("Simulation mode: %s", config.simulation_mode)
 
     # Validate configured soft limits against the instrument-type registry.
@@ -107,9 +151,7 @@ def main() -> int:
     for warning in limit_warnings:
         logger.warning("Configuration warning: %s", warning)
     if limit_errors:
-        print("Configuration errors:", file=sys.stderr)
-        for error in limit_errors:
-            print(f"  - {error}", file=sys.stderr)
+        report_startup_errors("Configuration errors", limit_errors)
         return 1
 
     # Derive the loader's base-type map and built-in entries from the model's
@@ -127,10 +169,11 @@ def main() -> int:
         for d in INSTRUMENT_TYPE_REGISTRY.values()
     }
 
-    # Scan for custom instruments in the root instruments/ directory
-    custom_instruments = scan_custom_instruments(
-        Path.cwd() / "instruments", base_type_map
-    )
+    # Scan for custom instruments in the instruments/ directory (working
+    # directory when run from source, next to the executable when frozen)
+    custom_instruments_dir = resolve_custom_instruments_dir()
+    logger.debug("Custom instruments directory: %s", custom_instruments_dir)
+    custom_instruments = scan_custom_instruments(custom_instruments_dir, base_type_map)
     instrument_catalog = build_instrument_catalog(builtin_entries, custom_instruments)
     if custom_instruments:
         logger.info(
