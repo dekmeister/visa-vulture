@@ -334,7 +334,9 @@ class EquipmentPresenter:
             return
 
         # Verify instrument type matches plan type
-        mismatch = self._check_instrument_type_match(self._model.test_plan.instrument_type)
+        mismatch = self._check_instrument_type_match(
+            self._model.test_plan.instrument_type
+        )
         if mismatch is not None:
             self._view.show_error("Instrument Mismatch", mismatch)
             return
@@ -601,7 +603,9 @@ class EquipmentPresenter:
         plot_panel.set_title(test_plan.name)
         self._view.show_plot(instrument_type)
 
-        times, primary, secondary = self._extract_axis_series(descriptor, test_plan.steps)
+        times, primary, secondary = self._extract_axis_series(
+            descriptor, test_plan.steps
+        )
         plot_panel.load_test_plan_preview(times, primary, secondary)
         self._view.get_table(instrument_type).load_steps(test_plan.steps)
 

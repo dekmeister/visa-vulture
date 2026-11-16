@@ -108,7 +108,9 @@ def _format_sg_frequency(freq: float) -> str:
 _SIGNAL_GENERATOR_VIEW = InstrumentViewSpec(
     tab_label="Signal Generator",
     columns=make_columns(
-        ColumnSpec("frequency", "Frequency", 90, lambda s: _format_sg_frequency(s.frequency)),
+        ColumnSpec(
+            "frequency", "Frequency", 90, lambda s: _format_sg_frequency(s.frequency)
+        ),
         ColumnSpec("power", "Power (dBm)", 80, lambda s: f"{s.power:.1f}"),
         ColumnSpec(
             "modulation",

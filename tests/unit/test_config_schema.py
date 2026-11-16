@@ -402,7 +402,10 @@ class TestValidationLimitsConfig:
         # Numeric, so config validation passes; the >= 0 check happens at startup.
         assert errors == []
         assert config is not None
-        assert config.validation_limits.get_limit("signal_generator", "frequency_min_hz") == -1.0
+        assert (
+            config.validation_limits.get_limit("signal_generator", "frequency_min_hz")
+            == -1.0
+        )
 
     def test_zero_duration_limit_returns_error(self) -> None:
         """Zero duration limit returns error (must be > 0)."""

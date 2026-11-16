@@ -187,9 +187,15 @@ class TestPlanTypeCompatibility:
         self, equipment_model: EquipmentModel
     ) -> None:
         """Any plan type is compatible when no instrument is connected."""
-        assert equipment_model.is_instrument_type_compatible(INSTRUMENT_TYPE_POWER_SUPPLY) is True
         assert (
-            equipment_model.is_instrument_type_compatible(INSTRUMENT_TYPE_SIGNAL_GENERATOR) is True
+            equipment_model.is_instrument_type_compatible(INSTRUMENT_TYPE_POWER_SUPPLY)
+            is True
+        )
+        assert (
+            equipment_model.is_instrument_type_compatible(
+                INSTRUMENT_TYPE_SIGNAL_GENERATOR
+            )
+            is True
         )
 
     def test_compatible_ps_plan_with_ps_instrument(
@@ -199,7 +205,10 @@ class TestPlanTypeCompatibility:
         equipment_model.connect_instrument(
             "TCPIP::192.168.1.100::INSTR", "power_supply"
         )
-        assert equipment_model.is_instrument_type_compatible(INSTRUMENT_TYPE_POWER_SUPPLY) is True
+        assert (
+            equipment_model.is_instrument_type_compatible(INSTRUMENT_TYPE_POWER_SUPPLY)
+            is True
+        )
 
     def test_compatible_sg_plan_with_sg_instrument(
         self, equipment_model: EquipmentModel, mock_visa_connection: Mock
@@ -209,7 +218,10 @@ class TestPlanTypeCompatibility:
             "TCPIP::192.168.1.100::INSTR", "signal_generator"
         )
         assert (
-            equipment_model.is_instrument_type_compatible(INSTRUMENT_TYPE_SIGNAL_GENERATOR) is True
+            equipment_model.is_instrument_type_compatible(
+                INSTRUMENT_TYPE_SIGNAL_GENERATOR
+            )
+            is True
         )
 
     def test_incompatible_ps_plan_with_sg_instrument(
@@ -219,7 +231,10 @@ class TestPlanTypeCompatibility:
         equipment_model.connect_instrument(
             "TCPIP::192.168.1.100::INSTR", "signal_generator"
         )
-        assert equipment_model.is_instrument_type_compatible(INSTRUMENT_TYPE_POWER_SUPPLY) is False
+        assert (
+            equipment_model.is_instrument_type_compatible(INSTRUMENT_TYPE_POWER_SUPPLY)
+            is False
+        )
 
     def test_incompatible_sg_plan_with_ps_instrument(
         self, equipment_model: EquipmentModel, mock_visa_connection: Mock
@@ -229,7 +244,10 @@ class TestPlanTypeCompatibility:
             "TCPIP::192.168.1.100::INSTR", "power_supply"
         )
         assert (
-            equipment_model.is_instrument_type_compatible(INSTRUMENT_TYPE_SIGNAL_GENERATOR) is False
+            equipment_model.is_instrument_type_compatible(
+                INSTRUMENT_TYPE_SIGNAL_GENERATOR
+            )
+            is False
         )
 
     def test_run_test_raises_on_incompatible_types(
@@ -1152,7 +1170,10 @@ class TestOutputDisabledOnStopAndPause:
         self, mock_visa_connection: Mock
     ) -> None:
         """Stopping disables modulation when modulation was configured (safety test)."""
-        from visa_vulture.instruments.modulation import AMModulationConfig, ModulationType
+        from visa_vulture.instruments.modulation import (
+            AMModulationConfig,
+            ModulationType,
+        )
 
         # Create a plan with AM modulation configured
         plan_with_modulation = TestPlan(
@@ -1196,7 +1217,10 @@ class TestOutputDisabledOnStopAndPause:
         self, mock_visa_connection: Mock
     ) -> None:
         """Completing all steps disables both output and modulation."""
-        from visa_vulture.instruments.modulation import FMModulationConfig, ModulationType
+        from visa_vulture.instruments.modulation import (
+            FMModulationConfig,
+            ModulationType,
+        )
 
         # Create a plan with FM modulation configured
         plan_with_modulation = TestPlan(
@@ -1311,7 +1335,9 @@ class TestExecutePlanLoop:
             PowerSupplyTestStep(step_number=2, duration_seconds=0.0),
         ]
 
-        execute_steps(model, model._notify_progress, steps, 2, 2, lambda s: None, enable_mock)
+        execute_steps(
+            model, model._notify_progress, steps, 2, 2, lambda s: None, enable_mock
+        )
 
         enable_mock.assert_called_once()
 
@@ -1328,7 +1354,9 @@ class TestExecutePlanLoop:
             PowerSupplyTestStep(step_number=2, duration_seconds=0.0),
         ]
 
-        execute_steps(model, model._notify_progress, steps, 2, 1, lambda s: None, Mock())
+        execute_steps(
+            model, model._notify_progress, steps, 2, 1, lambda s: None, Mock()
+        )
 
         assert progress_steps == [1, 2]
 
@@ -1444,7 +1472,10 @@ class TestSignalGeneratorExecutionPath:
         self, mock_visa_connection: Mock
     ) -> None:
         """Modulation is configured once at start and initially disabled."""
-        from visa_vulture.instruments.modulation import AMModulationConfig, ModulationType
+        from visa_vulture.instruments.modulation import (
+            AMModulationConfig,
+            ModulationType,
+        )
 
         am_config = AMModulationConfig(
             modulation_type=ModulationType.AM,
@@ -1486,7 +1517,10 @@ class TestSignalGeneratorExecutionPath:
         self, mock_visa_connection: Mock
     ) -> None:
         """set_modulation_enabled is only called when state changes between steps."""
-        from visa_vulture.instruments.modulation import AMModulationConfig, ModulationType
+        from visa_vulture.instruments.modulation import (
+            AMModulationConfig,
+            ModulationType,
+        )
 
         am_config = AMModulationConfig(
             modulation_type=ModulationType.AM,
@@ -1545,7 +1579,10 @@ class TestSignalGeneratorExecutionPath:
         self, mock_visa_connection: Mock
     ) -> None:
         """Every step triggers set_modulation_enabled when state alternates."""
-        from visa_vulture.instruments.modulation import AMModulationConfig, ModulationType
+        from visa_vulture.instruments.modulation import (
+            AMModulationConfig,
+            ModulationType,
+        )
 
         am_config = AMModulationConfig(
             modulation_type=ModulationType.AM,

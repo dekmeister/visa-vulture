@@ -473,7 +473,9 @@ class TestTestPlanValidation:
 
     def test_validate_no_steps_returns_error(self) -> None:
         """No steps returns validation error."""
-        plan = TestPlan(name="Test", instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY, steps=[])
+        plan = TestPlan(
+            name="Test", instrument_type=INSTRUMENT_TYPE_POWER_SUPPLY, steps=[]
+        )
         errors = plan.validate()
         assert any("at least one step" in e for e in errors)
 

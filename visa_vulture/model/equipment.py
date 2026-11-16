@@ -40,7 +40,9 @@ class EquipmentModel:
         """
         self._visa = visa_connection
         self._instrument_types = (
-            instrument_types if instrument_types is not None else INSTRUMENT_TYPE_REGISTRY
+            instrument_types
+            if instrument_types is not None
+            else INSTRUMENT_TYPE_REGISTRY
         )
         self._state_machine = StateMachine()
         self._instrument: BaseInstrument | None = None

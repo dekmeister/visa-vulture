@@ -92,8 +92,10 @@ def scan_custom_instruments(
                 continue
 
             # Determine base type from the supplied base map
+            # (A matched base type implies a BaseInstrument subclass; the
+            # explicit issubclass check narrows ``obj`` for the type checker.)
             instrument_type = _get_base_type(obj, base_type_map)
-            if instrument_type is None:
+            if instrument_type is None or not issubclass(obj, BaseInstrument):
                 logger.warning(
                     "Custom instrument '%s' in '%s' does not extend a known "
                     "built-in instrument type. Skipping.",
